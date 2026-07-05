@@ -1,9 +1,8 @@
 # ADR-001 — Adopt Modular Monolith Architecture
 
-**Status:** Accepted
-**Date:** 2026
+**Status:** Accepted  
+**Date:** 2026  
 **Related Specs:**
-
 * `001-architecture-vision.md`
 * `003-container-diagram.md`
 * `004-component-diagram-backend.md`
