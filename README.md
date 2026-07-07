@@ -44,21 +44,21 @@ within a single research platform.
 
 ```text
                   Web Application
-                         │
-                         ▼
+                         |
+                         v
                  Backend API
               (Modular Monolith)
-                         │
-         ┌───────────────┼────────────────┐
-         │               │                │
-         ▼               ▼                ▼
+                         |
+         +---------------+----------------+
+         |               |                |
+         v               v                v
    PostgreSQL      Domain Events    Observability
 
 External Systems
 
-• Digital Twin Simulation Engine
-• AI Research Environment
-• Notification Mock
+* Digital Twin Simulation Engine
+* AI Research Environment
+* Notification Mock
 ```
 
 ---
@@ -85,15 +85,24 @@ docker/
 
 Architecture documentation can be found under:
 
-```
+```text
 docs/architecture/
 ```
 
 Functional specifications are located in:
 
-```
+```text
 docs/specs/
 ```
+
+Key documents:
+
+- Architecture vision: `docs/architecture/001-architecture-vision.md`
+- Container diagram: `docs/architecture/003-container-diagram.md`
+- Backend component diagram: `docs/architecture/004-component-diagram-backend.md`
+- Quality attributes: `docs/architecture/006-quality-attributes.md`
+- Runtime view: `docs/architecture/008-deployment-runtime-view.md`
+- Project foundation specification: `docs/specs/SPEC-001-project-foundation.md`
 
 ---
 
@@ -133,6 +142,30 @@ docs/specs/
 
 ---
 
+## Local Development
+
+Copy `.env.example` to `.env` for local overrides, then start the platform:
+
+```bash
+make up
+```
+
+Useful commands:
+
+```bash
+make backend-test
+make backend-lint
+make backend-typecheck
+make backend-security
+make migrate
+make precommit
+make ci
+```
+
+`docker-compose.yml` starts the backend, frontend, simulation engine, PostgreSQL, Prometheus, Grafana, Loki, Tempo and OpenTelemetry Collector.
+
+---
+
 ## Research Focus
 
 Current research topics include:
@@ -154,8 +187,9 @@ Current Phase:
 
 Completed:
 
-- ✅ Architecture Specifications
-- ✅ Architecture Decision Records (ADRs)
+- Architecture Specifications
+- Architecture Decision Records (ADRs)
+- SPEC-001 project foundation
 
 Next Steps:
 
