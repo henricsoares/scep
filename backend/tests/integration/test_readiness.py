@@ -1,7 +1,6 @@
+from app.main import create_app
 from fastapi.testclient import TestClient
 from pytest import MonkeyPatch
-
-from app.main import create_app
 
 
 def test_readiness_endpoint(monkeypatch: MonkeyPatch) -> None:
