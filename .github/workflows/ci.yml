@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync --all-groups
+      - name: Run formatting check
+        working-directory: backend
+        run: uv run black --check app tests
+      - name: Run lint
+        working-directory: backend
+        run: uv run ruff check app tests
+      - name: Run type check
+        working-directory: backend
+        run: uv run mypy app tests
+      - name: Run tests
+        working-directory: backend
+        run: uv run pytest
+      - name: Run coverage
+        working-directory: backend
+        run: uv run coverage run -m pytest && uv run coverage report
+      - name: Run security scan
+        working-directory: backend
+        run: uv run bandit -c pyproject.toml -r app
+      - name: Run dependency audit
+        working-directory: backend
+        run: uv run pip-audit
+      - name: Build Docker images
+        run: |
+          docker build -t scep-backend ./backend
+          docker build -t scep-frontend ./frontend
+          docker build -t scep-simulation-engine ./simulation-engine
