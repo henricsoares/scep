@@ -27,7 +27,7 @@ migrate:
 	cd backend && uv run alembic upgrade head
 
 precommit:
-	cd backend && uv run pre-commit run --all-files
+	uv run --project backend pre-commit run --all-files
 
 ci: backend-lint backend-typecheck backend-test backend-security
 	cd backend && uv run coverage run -m pytest && uv run coverage report
