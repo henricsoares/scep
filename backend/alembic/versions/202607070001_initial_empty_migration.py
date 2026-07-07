@@ -4,6 +4,7 @@ Revision ID: 202607070001
 Revises:
 Create Date: 2026-07-07 00:00:00.000000
 """
+
 from collections.abc import Sequence
 
 revision: str = "202607070001"
