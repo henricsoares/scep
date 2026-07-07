@@ -5,4 +5,4 @@ RUN pip install --no-cache-dir uv
 COPY pyproject.toml ./
 RUN uv sync --no-dev --no-install-project
 COPY . .
-CMD ["uv", "run", "python", "-m", "app.main"]
+CMD ["uv", "run", "--no-dev", "python", "-m", "app.main"]

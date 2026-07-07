@@ -7,6 +7,18 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
     ports: ["8000:8000"]
     depends_on: [postgres, otel-collector]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5).read()",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
   frontend:
     build: ./frontend
     environment:
@@ -17,7 +29,9 @@ services:
     build: ./simulation-engine
     environment:
       BACKEND_URL: http://backend:8000
-    depends_on: [backend]
+    depends_on:
+      backend:
+        condition: service_healthy
     restart: on-failure
   postgres:
     image: postgres:16-alpine
