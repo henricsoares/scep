@@ -2,15 +2,15 @@
 
 This directory contains the functional specifications of the **Smart Charging Experimentation Platform (SCEP)**.
 
-Unlike the Architecture Specifications, which describe how the platform is organized, these documents define **what the platform must do** and serve as the implementation contract for each development iteration.
+Unlike the Architecture Specifications, which describe **how the platform is organized**, these documents define **what the platform must do** and serve as the implementation contract for each development iteration.
 
-Every implementation should be driven by an approved specification.
+Every software feature should be implemented only after its corresponding specification has been approved.
 
 ---
 
 # Development Process
 
-SCEP follows a specification-driven development process.
+SCEP follows a **Specification-Driven Development** process.
 
 ```text
 Architecture
@@ -21,7 +21,7 @@ Architecture Decision Records (ADRs)
 
 ↓
 
-Functional Specification
+Functional Specifications
 
 ↓
 
@@ -37,35 +37,42 @@ Code Review
 
 ↓
 
-Merge
+Release
 ```
 
-Business capabilities should not be implemented before their corresponding specification has been approved.
+Architecture establishes the technical foundation.
+
+ADRs document architectural decisions.
+
+Functional Specifications describe business capabilities.
+
+Implementation becomes the translation of approved specifications into software.
 
 ---
 
 # Specification Status
 
-| ID       | Specification                  | Status     |
-| -------- | ------------------------------ | ---------- |
-| SPEC-001 | Project Foundation             | ✅ Approved |
-| SPEC-002 | Smart Charging Domain          | ⏳ Planned  |
-| SPEC-003 | Identity and Access            | ⏳ Planned  |
-| SPEC-004 | Charging Stations              | ⏳ Planned  |
-| SPEC-005 | Reservations                   | ⏳ Planned  |
-| SPEC-006 | Charging Sessions              | ⏳ Planned  |
-| SPEC-007 | Telemetry                      | ⏳ Planned  |
-| SPEC-008 | Domain Events                  | ⏳ Planned  |
-| SPEC-009 | Analytics                      | ⏳ Planned  |
-| SPEC-010 | Dataset Export                 | ⏳ Planned  |
-| SPEC-011 | Predictions                    | ⏳ Planned  |
-| SPEC-012 | Digital Twin Simulation Engine | ⏳ Planned  |
+| ID       | Specification                        | Status     |
+| -------- | ------------------------------------ | ---------- |
+| SPEC-001 | Project Foundation                   | ✅ Approved |
+| SPEC-002 | Domain Model and Ubiquitous Language | ✅ Approved |
+| SPEC-003 | Facilities                           | ✅ Approved |
+| SPEC-004 | Charging Stations                    | ✅ Approved |
+| SPEC-005 | Identity and Access                  | ⏳ Planned  |
+| SPEC-006 | Reservations                         | ⏳ Planned  |
+| SPEC-007 | Charging Sessions                    | ⏳ Planned  |
+| SPEC-008 | Telemetry                            | ⏳ Planned  |
+| SPEC-009 | Domain Events                        | ⏳ Planned  |
+| SPEC-010 | Analytics                            | ⏳ Planned  |
+| SPEC-011 | Dataset Export                       | ⏳ Planned  |
+| SPEC-012 | Predictions                          | ⏳ Planned  |
+| SPEC-013 | Digital Twin Simulation Engine       | ⏳ Planned  |
 
 ---
 
 # Specification Dependencies
 
-The specifications should be implemented in the following order.
+Specifications should be implemented in the following order.
 
 ```text
 SPEC-001
@@ -74,12 +81,12 @@ Project Foundation
 ↓
 
 SPEC-002
-Smart Charging Domain
+Domain Model & Ubiquitous Language
 
 ↓
 
 SPEC-003
-Identity and Access
+Facilities
 
 ↓
 
@@ -89,45 +96,52 @@ Charging Stations
 ↓
 
 SPEC-005
-Reservations
+Identity & Access
 
 ↓
 
 SPEC-006
-Charging Sessions
+Reservations
 
 ↓
 
 SPEC-007
-Telemetry
+Charging Sessions
 
 ↓
 
 SPEC-008
-Domain Events
+Telemetry
 
 ↓
 
 SPEC-009
-Analytics
+Domain Events
 
 ↓
 
 SPEC-010
-Dataset Export
+Analytics
 
 ↓
 
 SPEC-011
-Predictions
+Dataset Export
 
 ↓
 
 SPEC-012
+Predictions
+
+↓
+
+SPEC-013
 Digital Twin Simulation Engine
 ```
 
-This sequence minimizes rework by establishing the domain model before implementing business capabilities.
+The sequence follows the natural evolution of the domain.
+
+Infrastructure is established first, followed by the domain model, operational entities and finally analytical and AI capabilities.
 
 ---
 
@@ -135,7 +149,7 @@ This sequence minimizes rework by establishing the domain model before implement
 
 ## SPEC-001 — Project Foundation
 
-Defines the technical foundation of the platform.
+Establishes the technical foundation of the platform.
 
 Topics include:
 
@@ -149,22 +163,58 @@ Topics include:
 
 ---
 
-## SPEC-002 — Smart Charging Domain
+## SPEC-002 — Domain Model and Ubiquitous Language
 
-Defines the business domain.
+Defines the business language of SCEP.
 
 Topics include:
 
 * ubiquitous language;
-* core concepts;
+* domain concepts;
 * aggregates;
-* business terminology;
-* domain relationships;
-* high-level business rules.
+* entities;
+* value objects;
+* business rules;
+* domain relationships.
+
+This document serves as the business dictionary of the platform.
 
 ---
 
-## SPEC-003 — Identity and Access
+## SPEC-003 — Facilities
+
+Defines the Facility Aggregate.
+
+Topics include:
+
+* operational environments;
+* facility lifecycle;
+* operating hours;
+* facility types;
+* ownership boundaries;
+* analytical context.
+
+Facilities represent the root operational context of the Smart Charging domain.
+
+---
+
+## SPEC-004 — Charging Stations
+
+Defines charging infrastructure.
+
+Topics include:
+
+* charging stations;
+* connectors;
+* infrastructure lifecycle;
+* operational status;
+* REST APIs;
+* persistence model;
+* domain events.
+
+---
+
+## SPEC-005 — Identity and Access
 
 Defines authentication and authorization.
 
@@ -178,20 +228,7 @@ Topics include:
 
 ---
 
-## SPEC-004 — Charging Stations
-
-Defines charging infrastructure management.
-
-Topics include:
-
-* charging stations;
-* connectors;
-* operational status;
-* availability.
-
----
-
-## SPEC-005 — Reservations
+## SPEC-006 — Reservations
 
 Defines reservation workflows.
 
@@ -199,52 +236,53 @@ Topics include:
 
 * reservation lifecycle;
 * reservation validation;
-* cancellation rules;
-* expiration policies.
+* cancellation;
+* expiration;
+* reservation APIs.
 
 ---
 
-## SPEC-006 — Charging Sessions
+## SPEC-007 — Charging Sessions
 
 Defines charging execution.
 
 Topics include:
 
-* session lifecycle;
-* charging progress;
-* completion;
-* interruption handling.
+* charging lifecycle;
+* session validation;
+* connector occupation;
+* session completion.
 
 ---
 
-## SPEC-007 — Telemetry
+## SPEC-008 — Telemetry
 
 Defines telemetry ingestion.
 
 Topics include:
 
 * measurements;
+* charging metrics;
 * sensor data;
-* battery information;
-* power consumption;
-* telemetry validation.
+* telemetry validation;
+* ingestion APIs.
 
 ---
 
-## SPEC-008 — Domain Events
+## SPEC-009 — Domain Events
 
-Defines the platform event model.
+Defines the business event model.
 
 Topics include:
 
 * event contracts;
-* event publication;
-* event consumers;
-* versioning.
+* publication;
+* consumption;
+* event versioning.
 
 ---
 
-## SPEC-009 — Analytics
+## SPEC-010 — Analytics
 
 Defines analytical capabilities.
 
@@ -257,54 +295,54 @@ Topics include:
 
 ---
 
-## SPEC-010 — Dataset Export
+## SPEC-011 — Dataset Export
 
-Defines dataset generation for research.
+Defines research dataset generation.
 
 Topics include:
 
-* export workflows;
-* dataset metadata;
-* supported formats;
-* experiment reproducibility.
+* dataset generation;
+* metadata;
+* export formats;
+* reproducibility.
 
 ---
 
-## SPEC-011 — Predictions
+## SPEC-012 — Predictions
 
-Defines AI integration.
+Defines Artificial Intelligence integration.
 
 Topics include:
 
 * prediction requests;
 * prediction storage;
-* prediction visualization;
-* model interaction.
+* occupancy prediction;
+* AI integration.
 
 ---
 
-## SPEC-012 — Digital Twin Simulation Engine
+## SPEC-013 — Digital Twin Simulation Engine
 
-Defines the simulation platform.
+Defines the external simulation platform.
 
 Topics include:
 
 * simulation scenarios;
 * synthetic users;
 * synthetic vehicles;
-* experiment execution;
-* deterministic simulations.
+* synthetic charging infrastructure usage;
+* deterministic experiments.
 
 ---
 
 # Relationship with Architecture
 
-Every specification must remain consistent with:
+Every Functional Specification must remain consistent with:
 
 * Architecture Specifications;
 * Architecture Decision Records (ADRs).
 
-When a specification introduces a new architectural decision, a corresponding ADR should be created before implementation.
+Whenever a Functional Specification requires a new architectural decision, a new ADR should be created before implementation.
 
 ---
 
@@ -312,11 +350,12 @@ When a specification introduces a new architectural decision, a corresponding AD
 
 A specification is considered complete when:
 
-* scope is clearly defined;
+* its scope is clearly defined;
 * business rules are documented;
-* acceptance criteria are defined;
-* dependencies are identified;
-* implementation is possible without major ambiguities.
+* REST contracts are defined (when applicable);
+* persistence model is defined (when applicable);
+* acceptance criteria are documented;
+* implementation can proceed without major architectural decisions.
 
 ---
 
@@ -324,16 +363,19 @@ A specification is considered complete when:
 
 Current milestone:
 
-**Architecture Baseline v1.0**
+**Specification Baseline v1.1**
 
 Completed:
 
 * ✅ Architecture Specifications
 * ✅ Architecture Decision Records
-* ✅ Project Foundation Specification
+* ✅ Project Foundation
+* ✅ Domain Model and Ubiquitous Language
+* ✅ Facilities
+* ✅ Charging Stations
 
 Next milestone:
 
-**Business Domain Definition**
+**Implementation Phase**
 
-The next specification (`SPEC-002 — Smart Charging Domain`) will establish the ubiquitous language, core concepts and business model that will guide every subsequent implementation.
+The next specification (`SPEC-005 — Identity and Access`) will introduce authentication and authorization, after which the implementation of the first operational aggregates can begin.
