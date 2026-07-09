@@ -2,7 +2,7 @@
 name: Specification implementation
 about: Track the implementation of one approved specification
 title: "Implement SPEC-XXX: "
-labels: ""
+labels: "spec"
 assignees: ""
 ---
 

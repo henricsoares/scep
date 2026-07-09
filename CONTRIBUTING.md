@@ -41,6 +41,35 @@ Use Conventional Commit prefixes where practical:
 - `refactor:` for behavior-preserving code changes
 - `chore:` for repository maintenance
 
+## Labels
+
+Use the official label taxonomy to describe the type of change, affected area and planning context.
+
+Type labels:
+
+- `feature`
+- `bug`
+- `documentation`
+- `technical-debt`
+- `architecture`
+- `repository`
+
+Area labels:
+
+- `backend`
+- `frontend`
+- `simulation`
+- `observability`
+- `database`
+- `devops`
+
+Planning labels:
+
+- `spec`
+- `adr`
+- `research`
+- `enhancement`
+
 ## Pull Request Expectations
 
 Each pull request should explain:

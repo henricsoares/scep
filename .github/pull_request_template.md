@@ -21,6 +21,16 @@
 - [ ] SPEC-013 — Digital Twin Simulation Engine
 - [ ] Not specification-related
 
+## Suggested Labels
+
+<!-- Labels should describe the type of change, affected area and planning context. Examples: -->
+
+- `feature`, `backend`, `spec`
+- `documentation`, `repository`
+- `architecture`, `adr`, `documentation`
+- `technical-debt`, `backend`
+- `feature`, `observability`, `devops`
+
 ## Architectural Impact
 
 <!-- Note whether this changes architecture, affects an ADR, or has no architectural impact. -->

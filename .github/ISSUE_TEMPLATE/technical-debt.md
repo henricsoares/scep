@@ -2,7 +2,7 @@
 name: Technical debt
 about: Track a small improvement to maintainability, quality, or process
 title: "Debt: "
-labels: ""
+labels: "technical-debt"
 assignees: ""
 ---
 
