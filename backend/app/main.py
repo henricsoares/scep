@@ -5,6 +5,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from app.api.health import router as health_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
+from app.modules.charging.api.facilities import router as facilities_router
 
 
 def create_app() -> FastAPI:
@@ -19,6 +20,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(health_router)
+    app.include_router(facilities_router)
     Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
     return app
 
