@@ -53,6 +53,3 @@ def test_repository_crud(session: Session) -> None:
     )
     assert repository.update(updated).name == "South Campus"
     assert len(repository.list()) == 1
-
-    repository.delete(created.id)
-    assert repository.get(created.id) is None

@@ -45,7 +45,7 @@ def facility_payload(name: str = "North Campus") -> dict[str, object]:
     }
 
 
-def test_facilities_api_crud(client: TestClient) -> None:
+def test_facilities_api_create_lookup_update_and_deactivate(client: TestClient) -> None:
     create_response = client.post("/facilities", json=facility_payload())
     assert create_response.status_code == 201
     facility = create_response.json()
@@ -59,9 +59,9 @@ def test_facilities_api_crud(client: TestClient) -> None:
     assert update_response.status_code == 200
     assert update_response.json()["name"] == "South Campus"
 
-    delete_response = client.delete(f"/facilities/{facility['id']}")
-    assert delete_response.status_code == 204
-    assert client.get(f"/facilities/{facility['id']}").status_code == 404
+    retrieved = client.get(f"/facilities/{facility['id']}")
+    assert retrieved.status_code == 200
+    assert retrieved.json()["status"] == "Inactive"
 
 
 def test_facilities_api_validation_failures(client: TestClient) -> None:

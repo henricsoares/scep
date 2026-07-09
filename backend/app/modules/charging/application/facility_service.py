@@ -64,8 +64,3 @@ class FacilityService:
             raise FacilityNameAlreadyExistsError(name)
         updated = facility.update(**changes)  # type: ignore[arg-type]
         return self.repository.update(updated)
-
-    def delete_facility(self, facility_id: UUID) -> None:
-        if self.repository.get(facility_id) is None:
-            raise FacilityNotFoundError(str(facility_id))
-        self.repository.delete(facility_id)

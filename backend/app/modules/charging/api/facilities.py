@@ -120,19 +120,3 @@ def update_facility(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
         ) from exc
-
-
-@router.delete(
-    "/{facilityId}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete a facility",
-)
-def delete_facility(
-    facilityId: UUID, service: Annotated[FacilityService, Depends(get_facility_service)]
-) -> None:
-    try:
-        service.delete_facility(facilityId)
-    except FacilityNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="facility not found"
-        ) from exc

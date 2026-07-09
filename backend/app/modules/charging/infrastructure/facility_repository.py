@@ -47,15 +47,13 @@ class SqlAlchemyFacilityRepository(FacilityRepository):
         model.longitude = facility.longitude
         model.operating_hours = facility.operating_hours
         model.status = facility.status.value
-        self.session.commit()
+        try:
+            self.session.commit()
+        except IntegrityError:
+            self.session.rollback()
+            raise
         self.session.refresh(model)
         return self._to_domain(model)
-
-    def delete(self, facility_id: UUID) -> None:
-        model = self.session.get(FacilityModel, facility_id)
-        if model is not None:
-            self.session.delete(model)
-            self.session.commit()
 
     def exists_by_name(self, name: str, *, exclude_id: UUID | None = None) -> bool:
         stmt = select(FacilityModel.id).where(FacilityModel.name == name)
