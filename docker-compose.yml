@@ -1,7 +1,7 @@
 services:
   backend:
     build: ./backend
-    env_file: .env.example
+    env_file: .env
     environment:
       DATABASE_URL: postgresql+psycopg://scep:scep@postgres:5432/scep
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
