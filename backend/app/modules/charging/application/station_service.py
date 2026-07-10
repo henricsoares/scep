@@ -1,5 +1,5 @@
-from uuid import UUID
 from typing import Any
+from uuid import UUID
 
 from app.modules.charging.domain.facility import FacilityStatus
 from app.modules.charging.domain.repositories import ChargingStationRepository, FacilityRepository

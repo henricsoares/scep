@@ -1,0 +1,13 @@
+# Bytecode
+__pycache__/
+*.pyc
+
+# Coverage
+.coverage
+backend/.coverage
+
+# Virtual env
+.venv/
+
+# Environment files
+.env
