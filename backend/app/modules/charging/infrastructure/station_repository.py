@@ -54,6 +54,7 @@ class SqlAlchemyChargingStationRepository(ChargingStationRepository):
         model.name = station.name
         model.description = station.description
         model.status = station.status.value
+        model.updated_at = station.updated_at
         try:
             self.session.commit()
         except IntegrityError:
@@ -91,6 +92,7 @@ class SqlAlchemyChargingStationRepository(ChargingStationRepository):
         if model is None:
             raise ValueError("connector not found")
         model.status = connector.status.value
+        model.updated_at = connector.updated_at
         try:
             self.session.commit()
         except IntegrityError:

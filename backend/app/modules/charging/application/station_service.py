@@ -1,4 +1,5 @@
 from uuid import UUID
+from typing import Any
 
 from app.modules.charging.domain.facility import FacilityStatus
 from app.modules.charging.domain.repositories import ChargingStationRepository, FacilityRepository
@@ -78,10 +79,19 @@ class ChargingStationService:
             raise ChargingStationNotFoundError("station not found")
         return station
 
-    def update_station(
-        self, station_id: UUID, *, name: str, description: str | None, status: ChargingStationStatus
-    ) -> ChargingStation:
+    def update_station(self, station_id: UUID, **kwargs: Any) -> ChargingStation:
         station = self.get_station(station_id)
+        if not kwargs:
+            raise ValueError("empty payload")
+        allowed = {"name", "description", "status"}
+        for k in kwargs:
+            if k not in allowed:
+                raise ValueError(f"invalid field: {k}")
+
+        name = kwargs.get("name", station.name)
+        description = kwargs.get("description", station.description)
+        status = kwargs.get("status", station.status)
+
         return self.station_repository.update(
             station.update(name=name, description=description, status=status)
         )

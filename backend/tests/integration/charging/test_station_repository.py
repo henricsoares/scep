@@ -59,17 +59,26 @@ def test_repository_station_connector_crud_and_uniqueness(session: Session) -> N
     updated = created.update(
         name="Station B", description="Updated", status=ChargingStationStatus.INACTIVE
     )
-    assert repo.update(updated).status == ChargingStationStatus.INACTIVE
+    # preserve created_at, update updated_at
+    before_created = created.created_at
+    before_updated = created.updated_at
+    updated_station = repo.update(updated)
+    assert updated_station.status == ChargingStationStatus.INACTIVE
+    assert updated_station.created_at == before_created
+    assert updated_station.updated_at > before_updated
 
     station_with_connector = updated.add_connector(
         ConnectorType.NACS, 25.0, ConnectorStatus.AVAILABLE
     )
     connector = repo.add_connector(updated.id, station_with_connector.connectors[-1])
     assert repo.get(updated.id) is not None
-    assert (
-        repo.update_connector(connector.update_status(ConnectorStatus.RESERVED)).status
-        == ConnectorStatus.RESERVED
-    )
+    # connector timestamps persist
+    before_c_created = connector.created_at
+    before_c_updated = connector.updated_at
+    updated_connector = repo.update_connector(connector.update_status(ConnectorStatus.RESERVED))
+    assert updated_connector.status == ConnectorStatus.RESERVED
+    assert updated_connector.created_at == before_c_created
+    assert updated_connector.updated_at > before_c_updated
 
 
 def test_repository_foreign_keys_are_declared(session: Session) -> None:

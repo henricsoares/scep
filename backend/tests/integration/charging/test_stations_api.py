@@ -134,3 +134,62 @@ def test_station_api_validation_and_contract(client: TestClient) -> None:
     ):
         assert path in schema
         assert "delete" not in schema[path]
+
+
+def test_patch_partial_updates_and_timestamps(client: TestClient) -> None:
+    from datetime import datetime
+
+    facility_id = create_facility(client)
+    create = client.post(f"/facilities/{facility_id}/stations", json=station_payload())
+    assert create.status_code == 201
+    station = create.json()
+
+    created_at = station["created_at"]
+    updated_at = station["updated_at"]
+
+    # status-only PATCH
+    resp = client.patch(f"/stations/{station['id']}", json={"status": "UnderMaintenance"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "UnderMaintenance"
+    assert body["created_at"] == created_at
+    assert datetime.fromisoformat(body["updated_at"]) > datetime.fromisoformat(updated_at)
+
+    # name-only PATCH
+    resp = client.patch(f"/stations/{station['id']}", json={"name": "Updated Station"})
+    assert resp.status_code == 200
+    body2 = resp.json()
+    assert body2["name"] == "Updated Station"
+    assert body2["serial_number"] == station["serial_number"]
+
+    # clear description with null
+    resp = client.patch(f"/stations/{station['id']}", json={"description": None})
+    assert resp.status_code == 200
+    assert resp.json()["description"] is None
+
+    # empty PATCH should be rejected
+    resp = client.patch(f"/stations/{station['id']}", json={})
+    assert resp.status_code == 422
+
+    # immutable field rejection
+    resp = client.patch(f"/stations/{station['id']}", json={"serial_number": "changed"})
+    assert resp.status_code == 422
+
+    # connector status update and timestamps
+    add = client.post(
+        f"/stations/{station['id']}/connectors",
+        json={"connector_type": "NACS", "maximum_power_kw": 25.0, "status": "Available"},
+    )
+    assert add.status_code == 201
+    connector = add.json()
+    c_created = connector["created_at"]
+    c_updated = connector["updated_at"]
+
+    status_response = client.patch(
+        f"/connectors/{connector['id']}/status", json={"status": "OutOfService"}
+    )
+    assert status_response.status_code == 200
+    c_body = status_response.json()
+    assert c_body["status"] == "OutOfService"
+    assert c_body["created_at"] == c_created
+    assert datetime.fromisoformat(c_body["updated_at"]) > datetime.fromisoformat(c_updated)

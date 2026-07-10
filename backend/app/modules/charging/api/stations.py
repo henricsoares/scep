@@ -60,9 +60,11 @@ class StationCreatePayload(BaseModel):
 
 
 class StationPatchPayload(BaseModel):
-    name: str = Field(min_length=1, examples=["Station A Updated"])
+    name: str | None = Field(default=None, min_length=1, examples=["Station A Updated"])
     description: str | None = Field(default=None, examples=["Updated metadata"])
-    status: ChargingStationStatus = Field(examples=[ChargingStationStatus.UNDER_MAINTENANCE])
+    status: ChargingStationStatus | None = Field(
+        default=None, examples=[ChargingStationStatus.UNDER_MAINTENANCE]
+    )
     model_config = ConfigDict(extra="forbid")
 
 
@@ -173,7 +175,10 @@ def patch_station(
     service: Annotated[ChargingStationService, Depends(get_station_service)],
 ) -> StationResponse:
     try:
-        return station_response(service.update_station(station_id, **payload.model_dump()))
+        data = payload.model_dump(exclude_unset=True)
+        if not data:
+            raise ValueError("empty payload")
+        return station_response(service.update_station(station_id, **data))
     except ChargingStationNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
