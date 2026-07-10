@@ -27,7 +27,6 @@
 
 - `feature`, `backend`, `spec`
 - `documentation`, `repository`
-- `architecture`, `adr`, `documentation`
 - `technical-debt`, `backend`
 - `feature`, `observability`, `devops`
 

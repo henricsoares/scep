@@ -182,7 +182,8 @@ Although still research-oriented, the project already resembles a production-gra
 
 # Metrics
 
-Current engineering metrics:
+The following engineering metrics represent the project state at the end of the first development cycle (**v1.4 – Charging Stations**).
+
 
 * Architecture documents: 8
 * Architecture Decision Records: 8
