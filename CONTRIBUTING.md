@@ -103,3 +103,9 @@ Create a new ADR before implementation when a change introduces or revises an ar
 - introducing a cross-cutting quality trade-off.
 
 Do not create an ADR for routine implementation details, small refactors or decisions already covered by the architecture baseline.
+
+## AI-assisted Development
+
+When using an AI development agent, follow the workflow defined in:
+
+`docs/development/agent-workflow.md`
