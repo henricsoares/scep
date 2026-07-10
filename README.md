@@ -193,11 +193,11 @@ Completed:
 - ✅ SPEC-001 — Project Foundation
 - ✅ SPEC-002 — Domain Model and Ubiquitous Language
 - ✅ SPEC-003 — Facilities
+- ✅ SPEC-004 — Charging Stations
 
 Next Steps:
 
-- SPEC-004 — Charging Stations
-- Identity & Access
+- SPEC-005 — Identity and Access
 - Reservations
 - Charging Sessions
 - Telemetry
