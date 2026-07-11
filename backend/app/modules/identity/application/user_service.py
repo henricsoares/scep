@@ -1,8 +1,6 @@
 from builtins import list as builtin_list
 from uuid import UUID
 
-from sqlalchemy.exc import IntegrityError
-
 from app.modules.charging.domain.repositories import FacilityRepository
 from app.modules.identity.application.metrics import (
     account_created_total,
@@ -15,6 +13,7 @@ from app.modules.identity.application.security import (
     hash_password,
     verify_password,
 )
+from app.modules.identity.domain.repositories import DuplicateUserEmailError, UserRepository
 from app.modules.identity.domain.user import (
     AccountStatus,
     AccountType,
@@ -23,7 +22,6 @@ from app.modules.identity.domain.user import (
     normalize_email,
     validate_password,
 )
-from app.modules.identity.infrastructure.user_repository import SqlAlchemyUserRepository
 
 
 class AuthenticationError(Exception):
@@ -51,9 +49,7 @@ class InvalidAccountError(Exception):
 
 
 class UserService:
-    def __init__(
-        self, users: SqlAlchemyUserRepository, facilities: FacilityRepository | None = None
-    ) -> None:
+    def __init__(self, users: UserRepository, facilities: FacilityRepository | None = None) -> None:
         self.users = users
         self.facilities = facilities
 
@@ -84,7 +80,7 @@ class UserService:
             created = self.users.add(user)
             account_created_total.inc()
             return created
-        except IntegrityError as exc:
+        except DuplicateUserEmailError as exc:
             raise DuplicateEmailError("email already exists") from exc
 
     def login(self, email: str, password: str) -> tuple[str, int, User]:
@@ -115,7 +111,11 @@ class UserService:
         return self.users.list(**filters)  # type: ignore[arg-type]
 
     def update_profile(
-        self, user_id: UUID, *, display_name: str | None, status: AccountStatus | None
+        self,
+        user_id: UUID,
+        *,
+        display_name: str | None = None,
+        status: AccountStatus | None = None,
     ) -> User:
         user = self.get(user_id)
         if (
@@ -157,7 +157,6 @@ def bootstrap_admin(
 ) -> None:
     if not (email and password and display_name):
         return
-    service.users.seed_roles()
     if service.users.platform_admin_exists():
         return
     service.create_user(

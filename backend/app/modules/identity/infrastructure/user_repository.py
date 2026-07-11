@@ -4,13 +4,18 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
+from app.modules.identity.domain.repositories import (
+    DuplicateUserEmailError,
+    UserRepository,
+    UserRepositoryError,
+)
 from app.modules.identity.domain.user import AccountStatus, AccountType, HumanRole, User
 from app.modules.identity.infrastructure.user_model import RoleModel, UserFacilityModel, UserModel
 
 FIXED_ROLES = [r.value for r in HumanRole]
 
 
-class SqlAlchemyUserRepository:
+class SqlAlchemyUserRepository(UserRepository):
     def __init__(self, session: Session) -> None:
         self.session = session
 
@@ -19,7 +24,11 @@ class SqlAlchemyUserRepository:
         for name in FIXED_ROLES:
             if name not in existing:
                 self.session.add(RoleModel(id=uuid4(), name=name))
-        self.session.commit()
+        try:
+            self.session.commit()
+        except IntegrityError as exc:
+            self.session.rollback()
+            raise UserRepositoryError("could not initialize roles") from exc
 
     def add(self, user: User) -> User:
         self.seed_roles()
@@ -27,9 +36,9 @@ class SqlAlchemyUserRepository:
         self.session.add(model)
         try:
             self.session.commit()
-        except IntegrityError:
+        except IntegrityError as exc:
             self.session.rollback()
-            raise
+            raise DuplicateUserEmailError("email already exists") from exc
         return self.get(user.id) or user
 
     def get(self, user_id: UUID) -> User | None:
@@ -88,9 +97,9 @@ class SqlAlchemyUserRepository:
         ]
         try:
             self.session.commit()
-        except IntegrityError:
+        except IntegrityError as exc:
             self.session.rollback()
-            raise
+            raise UserRepositoryError("could not update user") from exc
         return self.get(user.id) or user
 
     def active_admin_count(self, *, exclude_id: UUID | None = None) -> int:
@@ -98,7 +107,7 @@ class SqlAlchemyUserRepository:
         return len([u for u in users if u.id != exclude_id])
 
     def platform_admin_exists(self) -> bool:
-        return bool(self.list(role=HumanRole.PLATFORM_ADMINISTRATOR, status=AccountStatus.ACTIVE))
+        return bool(self.list(role=HumanRole.PLATFORM_ADMINISTRATOR))
 
     def _to_model(self, user: User) -> UserModel:
         role_map = {r.name: r for r in self.session.scalars(select(RoleModel)).all()}

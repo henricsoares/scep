@@ -87,7 +87,7 @@ def map_exc(exc: Exception) -> HTTPException:
         return HTTPException(404, str(exc))
     if isinstance(exc, InvalidAccountError | ValueError):
         return HTTPException(422, str(exc))
-    return HTTPException(422, str(exc))
+    return HTTPException(422, "invalid account data")
 
 
 @router.post("", response_model=UserResponse, status_code=201)
@@ -132,9 +132,12 @@ def patch_user(
     db: Annotated[Session, Depends(get_db)],
     _admin: Annotated[User, Depends(require_admin)],
 ) -> UserResponse:
+    changes = payload.model_dump(exclude_unset=True)
+    if not changes:
+        raise HTTPException(422, "at least one field is required")
     try:
-        return resp(svc(db).update_profile(user_id, **payload.model_dump(exclude_unset=True)))
-    except Exception as exc:
+        return resp(svc(db).update_profile(user_id, **changes))
+    except (LastAdminError, UserNotFoundError, ValueError) as exc:
         raise map_exc(exc) from exc
 
 

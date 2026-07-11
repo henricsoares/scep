@@ -35,6 +35,10 @@ def upgrade() -> None:
         ),
         sa.Column("last_login_at", sa.DateTime(timezone=True)),
         sa.PrimaryKeyConstraint("id"),
+        sa.CheckConstraint(
+            "account_type IN ('Human', 'TechnicalClient')", name="ck_users_account_type"
+        ),
+        sa.CheckConstraint("status IN ('Active', 'Inactive')", name="ck_users_status"),
         sa.UniqueConstraint("email", name="uq_users_email"),
     )
     op.create_index("ix_users_status", "users", ["status"])

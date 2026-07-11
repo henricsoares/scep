@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, UniqueConstraint, func
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.infrastructure.database import Base
@@ -49,6 +49,10 @@ class UserModel(Base):
     __tablename__ = "users"
     __table_args__ = (
         UniqueConstraint("email", name="uq_users_email"),
+        CheckConstraint(
+            "account_type IN ('Human', 'TechnicalClient')", name="ck_users_account_type"
+        ),
+        CheckConstraint("status IN ('Active', 'Inactive')", name="ck_users_status"),
         Index("ix_users_status", "status"),
         Index("ix_users_account_type", "account_type"),
     )
