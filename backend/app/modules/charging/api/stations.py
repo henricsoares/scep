@@ -15,6 +15,7 @@ from app.modules.charging.application.station_service import (
     ConnectorNotFoundError,
     FacilityUnavailableError,
 )
+from app.modules.charging.domain.facility import Facility
 from app.modules.charging.domain.station import (
     ChargingStation,
     ChargingStationStatus,
@@ -26,6 +27,9 @@ from app.modules.charging.infrastructure.facility_repository import SqlAlchemyFa
 from app.modules.charging.infrastructure.station_repository import (
     SqlAlchemyChargingStationRepository,
 )
+from app.modules.identity.api.dependencies import current_user
+from app.modules.identity.application.authorization import can_manage_facility, can_read_facility
+from app.modules.identity.domain.user import User
 
 router = APIRouter(tags=["Charging Stations"])
 
@@ -95,6 +99,17 @@ def get_station_service(db: Annotated[Session, Depends(get_db)]) -> ChargingStat
     )
 
 
+def _facility_for_station(service: ChargingStationService, station_id: UUID) -> Facility | None:
+    return service.facility_repository.get(service.get_station(station_id).facility_id)
+
+
+def _facility_for_connector(service: ChargingStationService, connector_id: UUID) -> Facility | None:
+    connector = service.station_repository.get_connector(connector_id)
+    if connector is None:
+        raise ConnectorNotFoundError("connector not found")
+    return _facility_for_station(service, connector.charging_station_id)
+
+
 def station_response(station: ChargingStation) -> StationResponse:
     return StationResponse(
         **{
@@ -118,7 +133,10 @@ def create_station(
     facility_id: UUID,
     payload: StationCreatePayload,
     service: Annotated[ChargingStationService, Depends(get_station_service)],
+    user: Annotated[User, Depends(current_user)],
 ) -> StationResponse:
+    if not can_manage_facility(user, facility_id):
+        raise HTTPException(status_code=404, detail="facility not found")
     try:
         connectors = [(c.connector_type, c.maximum_power_kw, c.status) for c in payload.connectors]
         return station_response(
@@ -142,9 +160,14 @@ def create_station(
     summary="List charging stations for a facility",
 )
 def list_stations(
-    facility_id: UUID, service: Annotated[ChargingStationService, Depends(get_station_service)]
+    facility_id: UUID,
+    service: Annotated[ChargingStationService, Depends(get_station_service)],
+    user: Annotated[User, Depends(current_user)],
 ) -> list[StationResponse]:
     try:
+        facility = service.facility_repository.get(facility_id)
+        if facility is None or not can_read_facility(user, facility):
+            raise HTTPException(status_code=404, detail="facility not found")
         return [station_response(s) for s in service.list_by_facility(facility_id)]
     except ChargingStationNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -156,9 +179,14 @@ def list_stations(
     summary="Get a charging station with connectors",
 )
 def get_station(
-    station_id: UUID, service: Annotated[ChargingStationService, Depends(get_station_service)]
+    station_id: UUID,
+    service: Annotated[ChargingStationService, Depends(get_station_service)],
+    user: Annotated[User, Depends(current_user)],
 ) -> StationResponse:
     try:
+        facility = _facility_for_station(service, station_id)
+        if facility is None or not can_read_facility(user, facility):
+            raise HTTPException(status_code=404, detail="station not found")
         return station_response(service.get_station(station_id))
     except ChargingStationNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -173,8 +201,12 @@ def patch_station(
     station_id: UUID,
     payload: StationPatchPayload,
     service: Annotated[ChargingStationService, Depends(get_station_service)],
+    user: Annotated[User, Depends(current_user)],
 ) -> StationResponse:
     try:
+        facility = _facility_for_station(service, station_id)
+        if facility is None or not can_manage_facility(user, facility.id):
+            raise HTTPException(status_code=404, detail="station not found")
         data = payload.model_dump(exclude_unset=True)
         if not data:
             raise ValueError("empty payload")
@@ -195,8 +227,12 @@ def add_connector(
     station_id: UUID,
     payload: ConnectorPayload,
     service: Annotated[ChargingStationService, Depends(get_station_service)],
+    user: Annotated[User, Depends(current_user)],
 ) -> ConnectorResponse:
     try:
+        facility = _facility_for_station(service, station_id)
+        if facility is None or not can_manage_facility(user, facility.id):
+            raise HTTPException(status_code=404, detail="station not found")
         return connector_response(service.add_connector(station_id, **payload.model_dump()))
     except ChargingStationNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -213,8 +249,12 @@ def patch_connector_status(
     connector_id: UUID,
     payload: ConnectorStatusPayload,
     service: Annotated[ChargingStationService, Depends(get_station_service)],
+    user: Annotated[User, Depends(current_user)],
 ) -> ConnectorResponse:
     try:
+        facility = _facility_for_connector(service, connector_id)
+        if facility is None or not can_manage_facility(user, facility.id):
+            raise HTTPException(status_code=404, detail="connector not found")
         return connector_response(
             service.update_connector_status(connector_id, **payload.model_dump())
         )

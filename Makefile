@@ -1,4 +1,4 @@
-.PHONY: up down logs backend-test backend-lint backend-format backend-typecheck backend-security migrate ci precommit
+.PHONY: up down logs backend-test backend-lint backend-format backend-typecheck backend-security format lint typecheck test migrate ci precommit
 up:
 	docker compose up --build
 
@@ -19,6 +19,14 @@ backend-format:
 
 backend-typecheck:
 	cd backend && uv run mypy app tests
+
+format: backend-format
+
+lint: backend-lint
+
+typecheck: backend-typecheck
+
+test: backend-test
 
 backend-security:
 	cd backend && uv run bandit -c pyproject.toml -r app && uv run pip-audit

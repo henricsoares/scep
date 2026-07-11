@@ -1,8 +1,12 @@
 from collections.abc import Iterator
+from datetime import UTC, datetime
+from uuid import uuid4
 
 import pytest
 from app.infrastructure.database import Base, get_db
 from app.main import create_app
+from app.modules.identity.api.dependencies import current_user
+from app.modules.identity.domain.user import AccountStatus, AccountType, HumanRole, User
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -27,6 +31,23 @@ def client() -> Iterator[TestClient]:
 
     app = create_app()
     app.dependency_overrides[get_db] = override_get_db
+
+    def override_current_user() -> User:
+        now = datetime.now(UTC)
+        return User(
+            id=uuid4(),
+            email="admin@scep.local",
+            display_name="Admin",
+            password_hash="test",
+            account_type=AccountType.HUMAN,
+            status=AccountStatus.ACTIVE,
+            roles=(HumanRole.PLATFORM_ADMINISTRATOR,),
+            facility_ids=(),
+            created_at=now,
+            updated_at=now,
+        )
+
+    app.dependency_overrides[current_user] = override_current_user
     with TestClient(app) as test_client:
         yield test_client
     Base.metadata.drop_all(engine)

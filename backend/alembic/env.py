@@ -4,13 +4,14 @@ from alembic import context
 from app.core.config import get_settings
 from app.infrastructure.database import Base
 from app.modules.charging.infrastructure import FacilityModel
+from app.modules.identity.infrastructure import user_model
 from sqlalchemy import engine_from_config, pool
 
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-_ = FacilityModel
+_ = (FacilityModel, user_model)
 target_metadata = Base.metadata
 config.set_main_option("sqlalchemy.url", get_settings().database_url)
 
