@@ -138,7 +138,7 @@ class UserService:
         ):
             raise LastAdminError("operation would remove the last Active Platform Administrator")
         facilities = builtin_list(user.facility_ids) if HumanRole.FACILITY_OPERATOR in roles else []
-        return self.users.update(user.with_roles(roles).with_facilities(facilities))
+        return self.users.update(user.with_facilities(facilities).with_roles(roles))
 
     def replace_facilities(self, user_id: UUID, facility_ids: builtin_list[UUID]) -> User:
         user = self.get(user_id)

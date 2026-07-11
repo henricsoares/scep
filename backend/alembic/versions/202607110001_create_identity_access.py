@@ -7,6 +7,7 @@ Create Date: 2026-07-11 00:00:00.000000
 
 from collections.abc import Sequence
 from uuid import uuid4
+
 import sqlalchemy as sa
 from alembic import op
 
