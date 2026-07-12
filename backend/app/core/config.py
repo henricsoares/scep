@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     otel_exporter_otlp_endpoint: str = Field(
         default="http://localhost:4317", alias="OTEL_EXPORTER_OTLP_ENDPOINT"
     )
+    otel_sdk_disabled: bool = Field(default=False, alias="OTEL_SDK_DISABLED")
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

@@ -6,7 +6,11 @@ services:
       DATABASE_URL: postgresql+psycopg://scep:scep@postgres:5432/scep
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
     ports: ["8000:8000"]
-    depends_on: [postgres, otel-collector]
+    depends_on:
+      postgres:
+        condition: service_started
+      otel-collector:
+        condition: service_started
     healthcheck:
       test:
         [
@@ -50,6 +54,7 @@ services:
     image: grafana/grafana:11.3.1
     volumes: ["./docker/grafana/provisioning:/etc/grafana/provisioning:ro"]
     ports: ["3000:3000"]
+    depends_on: [prometheus, loki, tempo]
   loki:
     image: grafana/loki:3.2.1
     command: ["-config.file=/etc/loki/config.yml"]
@@ -65,5 +70,6 @@ services:
     command: ["--config=/etc/otelcol/config.yml"]
     volumes: ["./docker/otel-collector/config.yml:/etc/otelcol/config.yml:ro"]
     ports: ["4317:4317", "8889:8889"]
+    depends_on: [loki, tempo]
 volumes:
   postgres-data:
