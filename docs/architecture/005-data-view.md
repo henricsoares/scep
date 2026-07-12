@@ -1,4 +1,4 @@
-# SPEC-005 — Data View
+# Architecture View 005 — Data View
 
 ## Smart Charging Experimentation Platform (SCEP)
 
@@ -89,6 +89,7 @@ Owns:
 
 * Charging Stations
 * Connectors
+* Vehicles
 * Reservations
 * Charging Sessions
 
@@ -208,6 +209,7 @@ The same operational data simultaneously supports:
 | Role             | Identity       |
 | Charging Station | Smart Charging |
 | Connector        | Smart Charging |
+| Vehicle          | Smart Charging |
 | Reservation      | Smart Charging |
 | Charging Session | Smart Charging |
 | Telemetry        | Telemetry      |
@@ -299,6 +301,7 @@ Dataset generation is one of the core capabilities of SCEP.
 
 Datasets may include:
 
+* vehicles;
 * reservations;
 * charging sessions;
 * telemetry;

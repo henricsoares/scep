@@ -167,7 +167,8 @@ Examples include:
 * ReservationCreated
 * ReservationConfirmed
 * ReservationCancelled
-* ReservationExpired
+* ReservationLateCancelled
+* ReservationNoShow
 
 ---
 

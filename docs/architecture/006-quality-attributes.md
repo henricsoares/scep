@@ -1,4 +1,4 @@
-# SPEC-006 — Quality Attributes
+# Architecture View 006 — Quality Attributes
 
 ## Smart Charging Experimentation Platform (SCEP)
 

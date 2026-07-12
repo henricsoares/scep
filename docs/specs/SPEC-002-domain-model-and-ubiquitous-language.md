@@ -3,8 +3,11 @@
 ## Smart Charging Experimentation Platform (SCEP)
 
 **Status:** Approved
+
 **Version:** 1.0
+
 **Document Owner:** Project Team
+
 **Last Update:** 2026
 
 ---
@@ -163,9 +166,18 @@ This allows a single Charging Station to support multiple simultaneous charging 
 
 ## Vehicle
 
-A Vehicle represents an electric vehicle capable of using the charging infrastructure.
+A Vehicle represents a physical or simulated electric vehicle owned by one authenticated
+identity and capable of using the charging infrastructure.
 
-Within SCEP, Vehicles are identified only by the information necessary to support operational analysis and experimentation.
+One Human or Technical Client identity may own multiple Vehicles. Reservations and future
+Charging Sessions reference Vehicle so that scheduling and operational history remain associated
+with the actual physical or simulated participant.
+
+One Vehicle shall not participate in overlapping Reservations.
+
+SPEC-006 introduces Vehicle as a minimal supporting entity with identity, owner, display name,
+status and timestamps. Advanced battery, power, compatibility, manufacturer, model and simulation
+attributes are deferred.
 
 The platform is not intended to become a vehicle management system.
 
@@ -187,6 +199,16 @@ A User is a business concept rather than a software account.
 
 ---
 
+## Authenticated Identity
+
+An Authenticated Identity is the account established by SPEC-005 for authorization and resource
+ownership. It may be a Human account or a Technical Client account.
+
+SPEC-006 uses Authenticated Identity, rather than the narrower business concept User, as the owner
+of Vehicles and Reservations so simulated and human workflows follow the same domain rules.
+
+---
+
 ## Reservation
 
 A Reservation represents the intention to occupy a specific Connector during a future time window.
@@ -194,8 +216,9 @@ A Reservation represents the intention to occupy a specific Connector during a f
 Reservations:
 
 * belong to exactly one Connector;
-* belong to exactly one User;
-* may expire;
+* belong to exactly one authenticated identity;
+* are assigned to exactly one Vehicle owned by that identity;
+* may become a No-Show;
 * may be cancelled;
 * may result in a Charging Session.
 
@@ -490,68 +513,18 @@ The conceptual model is illustrated below.
 
 ```text
 Facility
+    └── owns ──► Charging Station
+                     └── contains ──► Connector ◄── reserves ── Reservation
+                                                                       ▲
+Identity ── owns ──► Vehicle ◄──────────── assigned to ────────────────┘
+    │                                                                  │
+    └── creates ───────────────────────────────────────────────────────┘
 
-    │
-
-    ├─────────────── owns ───────────────────────┐
-
-    ▼                                            │
-
-Charging Station                                Analytics
-
-    │
-
-    ├────────────── contains ────────────────────┐
-
-    ▼                                            │
-
-Connector                                        │
-
-    │                                            │
-
-    ├────────────── reserved by ─────────────────┐
-
-    ▼                                            │
-
-Reservation                                      │
-
-    │                                            │
-
-    ├────────────── creates ─────────────────────┐
-
-    ▼                                            │
-
-Charging Session                                 │
-
-    │                                            │
-
-    ├────────────── generates ───────────────────┐
-
-    ▼                                            │
-
-Telemetry                                        │
-
-    │                                            │
-
-    ├────────────── produces ────────────────────┐
-
-    ▼                                            │
-
-Domain Events                                    │
-
-    │                                            │
-
-    ├────────────── feeds ───────────────────────┐
-
-    ▼                                            │
-
-Dataset Export
-
-    │
-
-    ▼
-
-Prediction
+Reservation ── may originate ──► Charging Session
+                                      └── generates ──► Telemetry
+                                                               │
+                                                               ▼
+Domain Events ── feed ──► Analytics ──► Dataset Export ──► Prediction
 ```
 
 The model intentionally represents the natural lifecycle of charging infrastructure utilization.
@@ -618,7 +591,8 @@ Responsibilities:
 
 Associated Entities:
 
-* User;
+* authenticated Identity;
+* Vehicle;
 * Connector.
 
 ---
@@ -643,7 +617,7 @@ Associated Entities:
 
 * Vehicle;
 * Connector;
-* User.
+* authenticated Identity.
 
 ---
 
@@ -734,7 +708,12 @@ Identity:
 
 * Vehicle ID
 
-Represents an electric vehicle participating in charging sessions.
+Represents a physical or simulated electric vehicle owned by one authenticated identity and
+participating in Reservations and future Charging Sessions.
+
+Vehicle is a supporting entity introduced by SPEC-006, not a separate Aggregate in the current
+model. Its minimal lifecycle is ACTIVE or INACTIVE. Only ACTIVE Vehicles may receive new
+Reservations, while INACTIVE Vehicles remain referenced by history.
 
 Future versions may include additional characteristics such as:
 
@@ -872,10 +851,12 @@ The domain relationships are summarized below.
 | ---------------- | --------------- | ---------------- |
 | Facility         | owns            | Charging Station |
 | Charging Station | contains        | Connector        |
-| User             | creates         | Reservation      |
+| Identity         | owns            | Vehicle          |
+| Identity         | creates         | Reservation      |
+| Reservation      | assigned to     | Vehicle          |
 | Reservation      | reserves        | Connector        |
 | Reservation      | may originate   | Charging Session |
-| User             | starts          | Charging Session |
+| Identity         | starts          | Charging Session |
 | Vehicle          | participates in | Charging Session |
 | Charging Session | uses            | Connector        |
 | Charging Session | generates       | Telemetry        |
@@ -899,6 +880,9 @@ Ownership guarantees consistency and avoids ambiguous responsibilities.
 | Reservation      | Reservation lifecycle |
 | Charging Session | Telemetry             |
 | Prediction       | Prediction results    |
+
+Vehicle is a supporting entity owned by the Smart Charging capability introduced in SPEC-006.
+It is not a separate Aggregate in the current domain model.
 
 No Aggregate shall modify entities owned by another Aggregate directly.
 
@@ -1000,6 +984,10 @@ The following invariants shall always hold true.
 * Every Charging Station belongs to exactly one Facility.
 * Every Connector belongs to exactly one Charging Station.
 * Every Reservation belongs to exactly one Connector.
+* Every Reservation is assigned to exactly one Vehicle.
+* Every Vehicle belongs to exactly one authenticated identity.
+* Every Reservation owner is the owner of its assigned Vehicle.
+* One Vehicle cannot participate in overlapping blocking Reservations.
 * Every Charging Session uses exactly one Connector.
 * Every Charging Session belongs to one User.
 * Every Telemetry Record belongs to one Charging Session.
@@ -1046,15 +1034,17 @@ Charging Stations are never reserved directly.
 
 A Connector may participate in only one active Charging Session at any given time.
 
-Future Reservations do not constitute active occupation.
+Future Reservations block the Connector calendar according to SPEC-006 but do not constitute
+active charging occupation.
 
 ---
 
-## BR-005 — Reservation Expiration
+## BR-005 — Reservation No-Show
 
-Reservations become invalid after their scheduled start time if no Charging Session is initiated within the configured tolerance period.
+A CONFIRMED Reservation becomes NO_SHOW after its configured Grace Period when no Charging
+Session has activated it.
 
-Expired Reservations release the Connector automatically.
+NO_SHOW Reservations release Connector and Vehicle calendars automatically and remain historical.
 
 ---
 
@@ -1153,30 +1143,16 @@ These states are administrative and suspend normal business operations.
 Reservations follow the lifecycle below.
 
 ```text id="trvjlwm"
-Created
-
+CONFIRMED ──► ACTIVE ──► COMPLETED
     │
-
-    ├──────────── Confirmed ───────────────┐
-
-    ▼                                      │
-
-Active                                    │
-
-    │                                      │
-
-    ├────── Charging Starts ───────────────┐
-
-    ▼                                      │
-
-Completed                                │
-
+    ├────────► CANCELLED
+    ├────────► LATE_CANCELLED
+    └────────► NO_SHOW
 ```
 
-Alternative outcomes:
-
-* Cancelled;
-* Expired.
+Only CONFIRMED and ACTIVE Reservations block Connector and Vehicle calendars. Terminal statuses
+remain historical and do not block future Reservations. Detailed interval, cancellation,
+rescheduling and activation rules are defined by SPEC-006.
 
 Every transition generates a Domain Event.
 
@@ -1223,7 +1199,8 @@ Reservation
 
 * ReservationCreated
 * ReservationCancelled
-* ReservationExpired
+* ReservationLateCancelled
+* ReservationNoShow
 
 Charging
 
@@ -1382,16 +1359,17 @@ This specification is considered complete when:
 
 This specification provides the conceptual foundation for:
 
-* SPEC-003 — Identity and Access
+* SPEC-003 — Facilities
 * SPEC-004 — Charging Stations
-* SPEC-005 — Reservations
-* SPEC-006 — Charging Sessions
-* SPEC-007 — Telemetry
-* SPEC-008 — Domain Events
-* SPEC-009 — Analytics
-* SPEC-010 — Dataset Export
-* SPEC-011 — Predictions
-* SPEC-012 — Digital Twin Simulation Engine
+* SPEC-005 — Identity and Access
+* SPEC-006 — Reservations, including the minimal Vehicle capability
+* SPEC-007 — Charging Sessions
+* SPEC-008 — Telemetry
+* SPEC-009 — Domain Events
+* SPEC-010 — Analytics
+* SPEC-011 — Dataset Export
+* SPEC-012 — Predictions
+* SPEC-013 — Digital Twin Simulation Engine
 
 All future specifications shall inherit the ubiquitous language defined here.
 

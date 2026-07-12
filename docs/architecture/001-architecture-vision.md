@@ -1,4 +1,5 @@
-# SPEC-001 — Architecture Vision
+# Architecture View 001 — Architecture Vision
+
 ## Smart Charging Experimentation Platform (SCEP)
 
 **Status:** Approved
@@ -589,7 +590,8 @@ Initial domain events include:
 - ReservationCreated
 - ReservationConfirmed
 - ReservationCancelled
-- ReservationExpired
+- ReservationLateCancelled
+- ReservationNoShow
 
 ### Charging Events
 

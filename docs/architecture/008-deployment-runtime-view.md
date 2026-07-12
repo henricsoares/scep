@@ -1,4 +1,4 @@
-# SPEC-008 — Deployment Runtime View
+# Architecture View 008 — Deployment Runtime View
 
 ## Smart Charging Experimentation Platform (SCEP)
 

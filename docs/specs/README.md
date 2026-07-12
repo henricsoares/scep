@@ -61,7 +61,7 @@ Implementation becomes the translation of approved specifications into software.
 | SPEC-005 | Identity and Access                  | ⏳ Planned  |
 | SPEC-006 | Reservations                         | ⏳ Planned  |
 | SPEC-007 | Charging Sessions                    | ⏳ Planned  |
-| SPEC-008 | Telemetry                            | ⏳ Planned  |
+| SPEC-008 | Smart Charging Domain Telemetry      | ⏳ Planned  |
 | SPEC-009 | Domain Events                        | ⏳ Planned  |
 | SPEC-010 | Analytics                            | ⏳ Planned  |
 | SPEC-011 | Dataset Export                       | ⏳ Planned  |
@@ -111,7 +111,7 @@ Charging Sessions
 ↓
 
 SPEC-008
-Telemetry
+Smart Charging Domain Telemetry
 
 ↓
 
@@ -230,15 +230,17 @@ Topics include:
 
 ## SPEC-006 — Reservations
 
-Defines reservation workflows.
+Defines reservation workflows and introduces the minimum Vehicle capability required for
+scheduling.
 
 Topics include:
 
+* Vehicle ownership and lifecycle;
 * reservation lifecycle;
-* reservation validation;
+* Connector and Vehicle overlap validation;
+* rescheduling, cancellation and no-show processing;
 * cancellation;
-* expiration;
-* reservation APIs.
+* Vehicle and Reservation APIs.
 
 ---
 
@@ -255,7 +257,7 @@ Topics include:
 
 ---
 
-## SPEC-008 — Telemetry
+## SPEC-008 — Smart Charging Domain Telemetry
 
 Defines telemetry ingestion.
 
