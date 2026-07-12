@@ -1,4 +1,4 @@
-# SPEC-007 — Observability View
+# Architecture View 007 — Observability View
 
 ## Smart Charging Experimentation Platform (SCEP)
 
@@ -489,38 +489,36 @@ Application Instrumentation
 
         │
 
-        ├──────────────┐
+        ├──────────────┬───────────────────┐
 
-        ▼              ▼
+        ▼              ▼                   ▼
 
-Structured Logs    Metrics
+Structured Logs    Prometheus Metrics   OTLP Traces
 
-        │              │
+        │                                  │
 
-        ▼              ▼
+        └──────────► OpenTelemetry ◄───────┘
+                       Collector
 
-      Loki       Prometheus
+                    │             │
 
-        │              │
+                    ▼             ▼
 
-        └──────┬───────┘
+                  Loki          Tempo
 
-               ▼
+                    │             │
 
-            Grafana
+                    └──────┬──────┘
 
-               ▲
+                           ▼
 
-               │
-
-             Traces
-
-               ▲
-
-               │
-
-       OpenTelemetry
+                        Grafana
 ```
+
+The Backend API exports structured logs and traces through OTLP to the OpenTelemetry
+Collector. The Collector forwards logs to Loki and traces to Tempo. Request, correlation,
+trace and span identifiers connect both telemetry streams. Prometheus continues to scrape
+the Backend API metrics endpoint directly.
 
 ---
 
@@ -596,7 +594,7 @@ Supports:
 
 * DevSecOps;
 * Deployment View;
-* ADR-005 Observability;
+* ADR-006 Observability Stack;
 * implementation activities.
 
 ---

@@ -1,0 +1,391 @@
+{
+  "_type": "export",
+  "__export_format": 4,
+  "__export_date": "2026-07-12T00:00:00.000Z",
+  "__export_source": "scep.repository",
+  "resources": [
+    {
+      "_id": "wrk_scep",
+      "_type": "workspace",
+      "name": "SCEP API",
+      "description": "Smart Charging Experimentation Platform API requests",
+      "scope": "collection"
+    },
+    {
+      "_id": "env_scep_base",
+      "_type": "environment",
+      "parentId": "wrk_scep",
+      "name": "Base Environment",
+      "data": {
+        "base_url": "http://localhost:8000",
+        "admin_email": "admin@scep.local",
+        "admin_password": "LocalAdmin123!",
+        "access_token": "",
+        "user_id": "00000000-0000-0000-0000-000000000000",
+        "facility_id": "00000000-0000-0000-0000-000000000000",
+        "station_id": "00000000-0000-0000-0000-000000000000",
+        "connector_id": "00000000-0000-0000-0000-000000000000"
+      }
+    },
+    {
+      "_id": "jar_scep",
+      "_type": "cookie_jar",
+      "parentId": "wrk_scep",
+      "name": "Default Jar",
+      "cookies": []
+    },
+    {
+      "_id": "fld_health",
+      "_type": "request_group",
+      "parentId": "wrk_scep",
+      "name": "Health and Observability",
+      "description": "Public health and metrics endpoints"
+    },
+    {
+      "_id": "req_health",
+      "_type": "request",
+      "parentId": "fld_health",
+      "name": "Health",
+      "method": "GET",
+      "url": "{{ _.base_url }}/health",
+      "headers": [{ "name": "X-Request-ID", "value": "insomnia-health-001" }],
+      "parameters": [],
+      "body": {},
+      "authentication": {},
+      "metaSortKey": 1000
+    },
+    {
+      "_id": "req_liveness",
+      "_type": "request",
+      "parentId": "fld_health",
+      "name": "Liveness",
+      "method": "GET",
+      "url": "{{ _.base_url }}/health/live",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "authentication": {},
+      "metaSortKey": 2000
+    },
+    {
+      "_id": "req_readiness",
+      "_type": "request",
+      "parentId": "fld_health",
+      "name": "Readiness",
+      "method": "GET",
+      "url": "{{ _.base_url }}/health/ready",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "authentication": {},
+      "metaSortKey": 3000
+    },
+    {
+      "_id": "req_metrics",
+      "_type": "request",
+      "parentId": "fld_health",
+      "name": "Prometheus Metrics",
+      "method": "GET",
+      "url": "{{ _.base_url }}/metrics",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "authentication": {},
+      "metaSortKey": 4000
+    },
+    {
+      "_id": "fld_auth",
+      "_type": "request_group",
+      "parentId": "wrk_scep",
+      "name": "Authentication",
+      "description": "Run Login, then copy access_token into the environment variable"
+    },
+    {
+      "_id": "req_login",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "name": "Login",
+      "method": "POST",
+      "url": "{{ _.base_url }}/auth/login",
+      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"email\": \"{{ _.admin_email }}\",\n  \"password\": \"{{ _.admin_password }}\"\n}"
+      },
+      "authentication": {},
+      "metaSortKey": 1000
+    },
+    {
+      "_id": "req_me",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "name": "Current User",
+      "method": "GET",
+      "url": "{{ _.base_url }}/auth/me",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "authentication": { "type": "bearer", "token": "{{ _.access_token }}" },
+      "metaSortKey": 2000
+    },
+    {
+      "_id": "req_me_unauthorized",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "name": "Current User - Unauthorized",
+      "method": "GET",
+      "url": "{{ _.base_url }}/auth/me",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "authentication": {},
+      "metaSortKey": 3000
+    },
+    {
+      "_id": "fld_users",
+      "_type": "request_group",
+      "parentId": "wrk_scep",
+      "name": "Users",
+      "description": "Platform administrator operations"
+    },
+    {
+      "_id": "req_users_create",
+      "_type": "request",
+      "parentId": "fld_users",
+      "name": "Create User",
+      "method": "POST",
+      "url": "{{ _.base_url }}/users",
+      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"email\": \"operator@example.com\",\n  \"display_name\": \"Facility Operator\",\n  \"password\": \"SecurePassword123!\",\n  \"account_type\": \"Human\",\n  \"status\": \"Active\",\n  \"roles\": [\"FacilityOperator\"],\n  \"facility_ids\": []\n}"
+      },
+      "authentication": { "type": "bearer", "token": "{{ _.access_token }}" },
+      "metaSortKey": 1000
+    },
+    {
+      "_id": "req_users_list",
+      "_type": "request",
+      "parentId": "fld_users",
+      "name": "List Users",
+      "method": "GET",
+      "url": "{{ _.base_url }}/users",
+      "headers": [],
+      "parameters": [
+        { "name": "status", "value": "Active", "disabled": true },
+        { "name": "role", "value": "FacilityOperator", "disabled": true },
+        { "name": "account_type", "value": "Human", "disabled": true }
+      ],
+      "body": {},
+      "authentication": { "type": "bearer", "token": "{{ _.access_token }}" },
+      "metaSortKey": 2000
+    },
+    {
+      "_id": "req_users_get",
+      "_type": "request",
+      "parentId": "fld_users",
+      "name": "Get User",
+      "method": "GET",
+      "url": "{{ _.base_url }}/users/{{ _.user_id }}",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "authentication": { "type": "bearer", "token": "{{ _.access_token }}" },
+      "metaSortKey": 3000
+    },
+    {
+      "_id": "req_users_patch",
+      "_type": "request",
+      "parentId": "fld_users",
+      "name": "Update User",
+      "method": "PATCH",
+      "url": "{{ _.base_url }}/users/{{ _.user_id }}",
+      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "parameters": [],
+      "body": { "mimeType": "application/json", "text": "{\n  \"display_name\": \"Updated Operator\",\n  \"status\": \"Active\"\n}" },
+      "authentication": { "type": "bearer", "token": "{{ _.access_token }}" },
+      "metaSortKey": 4000
+    },
+    {
+      "_id": "req_users_roles",
+      "_type": "request",
+      "parentId": "fld_users",
+      "name": "Replace User Roles",
+      "method": "PUT",
+      "url": "{{ _.base_url }}/users/{{ _.user_id }}/roles",
+      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "parameters": [],
+      "body": { "mimeType": "application/json", "text": "{\n  \"roles\": [\"FacilityOperator\"]\n}" },
+      "authentication": { "type": "bearer", "token": "{{ _.access_token }}" },
+      "metaSortKey": 5000
+    },
+    {
+      "_id": "req_users_facilities",
+      "_type": "request",
+      "parentId": "fld_users",
+      "name": "Replace User Facilities",
+      "method": "PUT",
+      "url": "{{ _.base_url }}/users/{{ _.user_id }}/facilities",
+      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "parameters": [],
+      "body": { "mimeType": "application/json", "text": "{\n  \"facility_ids\": [\"{{ _.facility_id }}\"]\n}" },
+      "authentication": { "type": "bearer", "token": "{{ _.access_token }}" },
+      "metaSortKey": 6000
+    },
+    {
+      "_id": "fld_facilities",
+      "_type": "request_group",
+      "parentId": "wrk_scep",
+      "name": "Facilities",
+      "description": "Facility lifecycle"
+    },
+    {
+      "_id": "req_facilities_create",
+      "_type": "request",
+      "parentId": "fld_facilities",
+      "name": "Create Facility",
+      "method": "POST",
+      "url": "{{ _.base_url }}/facilities",
+      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"name\": \"North Campus\",\n  \"facility_type\": \"University\",\n  \"timezone\": \"America/Sao_Paulo\",\n  \"country\": \"Brazil\",\n  \"city\": \"Juiz de Fora\",\n  \"address\": \"Rua José Lourenço Kelmer\",\n  \"latitude\": -21.7766,\n  \"longitude\": -43.3686,\n  \"operating_hours\": {\n    \"monday\": {\"opens\": \"08:00\", \"closes\": \"22:00\"}\n  },\n  \"status\": \"Active\"\n}"
+      },
+      "authentication": { "type": "bearer", "token": "{{ _.access_token }}" },
+      "metaSortKey": 1000
+    },
+    {
+      "_id": "req_facilities_list",
+      "_type": "request",
+      "parentId": "fld_facilities",
+      "name": "List Facilities",
+      "method": "GET",
+      "url": "{{ _.base_url }}/facilities",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "authentication": { "type": "bearer", "token": "{{ _.access_token }}" },
+      "metaSortKey": 2000
+    },
+    {
+      "_id": "req_facilities_get",
+      "_type": "request",
+      "parentId": "fld_facilities",
+      "name": "Get Facility",
+      "method": "GET",
+      "url": "{{ _.base_url }}/facilities/{{ _.facility_id }}",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "authentication": { "type": "bearer", "token": "{{ _.access_token }}" },
+      "metaSortKey": 3000
+    },
+    {
+      "_id": "req_facilities_update",
+      "_type": "request",
+      "parentId": "fld_facilities",
+      "name": "Update Facility",
+      "method": "PUT",
+      "url": "{{ _.base_url }}/facilities/{{ _.facility_id }}",
+      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"name\": \"North Campus Updated\",\n  \"facility_type\": \"University\",\n  \"timezone\": \"America/Sao_Paulo\",\n  \"country\": \"Brazil\",\n  \"city\": \"Juiz de Fora\",\n  \"address\": \"Rua José Lourenço Kelmer\",\n  \"latitude\": -21.7766,\n  \"longitude\": -43.3686,\n  \"operating_hours\": null,\n  \"status\": \"Active\"\n}"
+      },
+      "authentication": { "type": "bearer", "token": "{{ _.access_token }}" },
+      "metaSortKey": 4000
+    },
+    {
+      "_id": "fld_stations",
+      "_type": "request_group",
+      "parentId": "wrk_scep",
+      "name": "Charging Stations",
+      "description": "Charging station and connector lifecycle"
+    },
+    {
+      "_id": "req_stations_create",
+      "_type": "request",
+      "parentId": "fld_stations",
+      "name": "Create Station",
+      "method": "POST",
+      "url": "{{ _.base_url }}/facilities/{{ _.facility_id }}/stations",
+      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"name\": \"Station A\",\n  \"description\": \"North parking lot\",\n  \"serial_number\": \"SN-INSOMNIA-001\",\n  \"manufacturer\": \"SCEP Chargers\",\n  \"model\": \"SC-50\",\n  \"maximum_power_kw\": 50.0,\n  \"status\": \"Active\",\n  \"connectors\": [\n    {\n      \"connector_type\": \"CCS2\",\n      \"maximum_power_kw\": 50.0,\n      \"status\": \"Available\"\n    }\n  ]\n}"
+      },
+      "authentication": { "type": "bearer", "token": "{{ _.access_token }}" },
+      "metaSortKey": 1000
+    },
+    {
+      "_id": "req_stations_list",
+      "_type": "request",
+      "parentId": "fld_stations",
+      "name": "List Stations",
+      "method": "GET",
+      "url": "{{ _.base_url }}/facilities/{{ _.facility_id }}/stations",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "authentication": { "type": "bearer", "token": "{{ _.access_token }}" },
+      "metaSortKey": 2000
+    },
+    {
+      "_id": "req_stations_get",
+      "_type": "request",
+      "parentId": "fld_stations",
+      "name": "Get Station",
+      "method": "GET",
+      "url": "{{ _.base_url }}/stations/{{ _.station_id }}",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "authentication": { "type": "bearer", "token": "{{ _.access_token }}" },
+      "metaSortKey": 3000
+    },
+    {
+      "_id": "req_stations_patch",
+      "_type": "request",
+      "parentId": "fld_stations",
+      "name": "Update Station",
+      "method": "PATCH",
+      "url": "{{ _.base_url }}/stations/{{ _.station_id }}",
+      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "parameters": [],
+      "body": { "mimeType": "application/json", "text": "{\n  \"name\": \"Station A Updated\",\n  \"description\": \"Updated metadata\",\n  \"status\": \"UnderMaintenance\"\n}" },
+      "authentication": { "type": "bearer", "token": "{{ _.access_token }}" },
+      "metaSortKey": 4000
+    },
+    {
+      "_id": "req_connectors_add",
+      "_type": "request",
+      "parentId": "fld_stations",
+      "name": "Add Connector",
+      "method": "POST",
+      "url": "{{ _.base_url }}/stations/{{ _.station_id }}/connectors",
+      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "parameters": [],
+      "body": { "mimeType": "application/json", "text": "{\n  \"connector_type\": \"Type2\",\n  \"maximum_power_kw\": 22.0,\n  \"status\": \"Available\"\n}" },
+      "authentication": { "type": "bearer", "token": "{{ _.access_token }}" },
+      "metaSortKey": 5000
+    },
+    {
+      "_id": "req_connectors_status",
+      "_type": "request",
+      "parentId": "fld_stations",
+      "name": "Update Connector Status",
+      "method": "PATCH",
+      "url": "{{ _.base_url }}/connectors/{{ _.connector_id }}/status",
+      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "parameters": [],
+      "body": { "mimeType": "application/json", "text": "{\n  \"status\": \"OutOfService\"\n}" },
+      "authentication": { "type": "bearer", "token": "{{ _.access_token }}" },
+      "metaSortKey": 6000
+    }
+  ]
+}
