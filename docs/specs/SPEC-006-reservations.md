@@ -243,11 +243,39 @@ Charging Sessions are outside the scope of this specification but will later act
 
 Vehicle represents the physical or simulated electric vehicle participating in charging operations.
 
-Vehicle is introduced as a supporting domain entity for Reservations.
+Vehicle is introduced as a supporting domain entity for the Reservation capability. Although intentionally minimal in this specification, it establishes the ownership model required by Reservations and future Charging Sessions.
 
 This specification requires only the information necessary to uniquely identify the vehicle and its owner.
 
 Future specifications may extend Vehicle with battery, charging capability, manufacturer, model and simulation-related attributes without modifying the Reservation Aggregate.
+
+## Vehicle Minimum Model
+
+For the purposes of this specification, Vehicle requires only the minimum information necessary to support Reservations.
+
+```text
+Vehicle
+
+id
+
+owner_id
+
+display_name
+
+status
+
+created_at
+
+updated_at
+```
+
+The Vehicle must belong to the authenticated Reservation Owner.
+
+Its lifecycle and management capabilities are intentionally limited to what is required to support the Reservation capability.
+
+Battery characteristics, charging capabilities, manufacturer information, model information, connector compatibility and simulation-specific attributes are outside the scope of this specification.
+
+Future specifications may extend the Vehicle entity without modifying the Reservation Aggregate or the Reservation ownership rules.
 
 ---
 
