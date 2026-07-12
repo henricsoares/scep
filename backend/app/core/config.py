@@ -12,7 +12,15 @@ class Settings(BaseSettings):
         default="postgresql+psycopg://scep:scep@localhost:5432/scep", alias="DATABASE_URL"
     )
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
-    jwt_secret: str = Field(default="change-me-in-local-development", alias="JWT_SECRET")
+    jwt_secret_key: str = Field(default="change-me-in-local-development", alias="JWT_SECRET_KEY")
+    jwt_access_token_expire_minutes: int = Field(
+        default=30, alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES"
+    )
+    bootstrap_admin_email: str | None = Field(default=None, alias="BOOTSTRAP_ADMIN_EMAIL")
+    bootstrap_admin_password: str | None = Field(default=None, alias="BOOTSTRAP_ADMIN_PASSWORD")
+    bootstrap_admin_display_name: str | None = Field(
+        default=None, alias="BOOTSTRAP_ADMIN_DISPLAY_NAME"
+    )
     otel_exporter_otlp_endpoint: str = Field(
         default="http://localhost:4317", alias="OTEL_EXPORTER_OTLP_ENDPOINT"
     )

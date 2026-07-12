@@ -15,6 +15,14 @@ from app.modules.charging.application.facility_service import (
 )
 from app.modules.charging.domain.facility import Facility, FacilityStatus, FacilityType
 from app.modules.charging.infrastructure.facility_repository import SqlAlchemyFacilityRepository
+from app.modules.identity.api.dependencies import current_user
+from app.modules.identity.application.authorization import (
+    can_create_facility,
+    can_manage_facility,
+    can_read_facility,
+)
+from app.modules.identity.application.metrics import authorization_denied_total
+from app.modules.identity.domain.user import User
 
 router = APIRouter(prefix="/facilities", tags=["Facilities"])
 
@@ -62,8 +70,13 @@ def conflict_response(exc: Exception) -> HTTPException:
     summary="Create a facility",
 )
 def create_facility(
-    payload: FacilityPayload, service: Annotated[FacilityService, Depends(get_facility_service)]
+    payload: FacilityPayload,
+    service: Annotated[FacilityService, Depends(get_facility_service)],
+    user: Annotated[User, Depends(current_user)],
 ) -> FacilityResponse:
+    if not can_create_facility(user):
+        authorization_denied_total.inc()
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="insufficient permission")
     try:
         facility = service.create_facility(**payload.model_dump())
     except FacilityNameAlreadyExistsError as exc:
@@ -78,8 +91,13 @@ def create_facility(
 @router.get("", response_model=list[FacilityResponse], summary="List facilities")
 def list_facilities(
     service: Annotated[FacilityService, Depends(get_facility_service)],
+    user: Annotated[User, Depends(current_user)],
 ) -> list[FacilityResponse]:
-    return [to_response(facility) for facility in service.list_facilities()]
+    return [
+        to_response(facility)
+        for facility in service.list_facilities()
+        if can_read_facility(user, facility)
+    ]
 
 
 @router.get(
@@ -88,10 +106,15 @@ def list_facilities(
     summary="Get a facility by identifier",
 )
 def get_facility(
-    facilityId: UUID, service: Annotated[FacilityService, Depends(get_facility_service)]
+    facilityId: UUID,
+    service: Annotated[FacilityService, Depends(get_facility_service)],
+    user: Annotated[User, Depends(current_user)],
 ) -> FacilityResponse:
     try:
-        return to_response(service.get_facility(facilityId))
+        facility = service.get_facility(facilityId)
+        if not can_read_facility(user, facility):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="facility not found")
+        return to_response(facility)
     except FacilityNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="facility not found"
@@ -107,7 +130,10 @@ def update_facility(
     facilityId: UUID,
     payload: FacilityPayload,
     service: Annotated[FacilityService, Depends(get_facility_service)],
+    user: Annotated[User, Depends(current_user)],
 ) -> FacilityResponse:
+    if not can_manage_facility(user, facilityId):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="facility not found")
     try:
         return to_response(service.update_facility(facilityId, **payload.model_dump()))
     except FacilityNotFoundError as exc:
