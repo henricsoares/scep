@@ -589,7 +589,8 @@ Initial domain events include:
 - ReservationCreated
 - ReservationConfirmed
 - ReservationCancelled
-- ReservationExpired
+- ReservationLateCancelled
+- ReservationNoShow
 
 ### Charging Events
 

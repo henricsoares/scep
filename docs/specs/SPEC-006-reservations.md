@@ -1,10 +1,14 @@
 # SPEC-006 — Reservations
 
+## Smart Charging Experimentation Platform (SCEP)
+
 **Status:** Draft
 
-**Owner:** Henrique Soares
+**Version:** 1.0
 
-**Category:** Functional Specification
+**Document Owner:** Project Team
+
+**Last Update:** 2026
 
 **Depends on:**
 
@@ -21,42 +25,31 @@
 
 ---
 
-# 1. Overview
+# 1. Purpose
 
-This specification defines the Reservation capability of the Smart Charging Experimental Platform (SCEP).
+This specification defines the Reservation capability of the Smart Charging Experimentation
+Platform (SCEP) and introduces the minimum Vehicle capability required to schedule connector
+usage.
 
-A Reservation grants an authenticated identity the exclusive right to use a specific charging Connector during a scheduled time window.
-
-The Reservation capability is responsible for:
-
-- preventing reservation conflicts;
-- protecting Connector availability;
-- supporting fair resource allocation;
-- enabling future Charging Sessions;
-- enabling Digital Twin simulations;
-- providing reliable historical reservation data.
-
-Reservations are independent domain objects with their own lifecycle and business rules.
-
-They do **not** start charging.
-
-Charging begins only when a valid Charging Session is created.
+A Reservation grants one authenticated identity the exclusive right to use one specific
+Connector with one owned Vehicle during a scheduled time interval. A Reservation does not
+start charging. It exposes domain operations that a future Charging Session may use to activate
+and complete the Reservation.
 
 ---
 
 # 2. Goals
 
-The Reservation capability shall:
+This specification shall:
 
-- allow authenticated users to reserve Connectors;
-- prevent overlapping reservations;
-- support Human and Technical Client identities;
-- support multiple Vehicles owned by the same user;
-- allow early charging when infrastructure is available;
-- detect reservation no-shows;
-- support late cancellations while immediately releasing infrastructure;
-- preserve historical reservation information;
-- provide a consistent foundation for Charging Sessions.
+- define the Reservation Aggregate and its lifecycle;
+- define the minimum Vehicle entity and ownership model;
+- allow Human and Technical Client identities to manage owned Vehicles and Reservations;
+- prevent overlapping Reservations for the same Connector or Vehicle;
+- define deterministic cancellation, Early Start and No-Show behavior;
+- preserve historical Vehicle and Reservation records;
+- define REST contracts, persistence requirements and authorization rules;
+- prepare domain operations for Charging Sessions without requiring SPEC-007 implementation.
 
 ---
 
@@ -64,1431 +57,1029 @@ The Reservation capability shall:
 
 This specification defines:
 
-- Reservation Aggregate;
-- Reservation lifecycle;
-- Reservation business rules;
-- Reservation validation rules;
-- Reservation authorization rules;
-- REST API;
-- persistence model;
-- OpenAPI requirements.
-
-This specification intentionally avoids implementation details such as ORM mapping, messaging technologies or infrastructure decisions.
+- Vehicle creation, retrieval, listing and update;
+- Vehicle ownership and lifecycle;
+- Reservation creation, retrieval, listing, rescheduling and cancellation;
+- Connector and Vehicle calendar blocking;
+- Reservation lifecycle transitions;
+- temporal and overlap validation;
+- automatic No-Show reconciliation;
+- authorization and visibility;
+- REST API contracts and status codes;
+- persistence and concurrency requirements;
+- OpenAPI, testing and acceptance requirements.
 
 ---
 
 # 4. Out of Scope
 
-The following capabilities are intentionally excluded:
+The following capabilities are excluded:
 
-- Charging Session execution;
-- energy delivery;
-- charger communication protocols;
-- OCPP;
-- telemetry ingestion;
-- billing;
-- pricing;
-- payment processing;
-- reservation extensions;
-- reservation waiting lists;
-- recurring reservations;
-- notifications;
-- emails;
-- push notifications;
-- SMS;
-- calendar synchronization;
-- predictive reservation optimization;
-- Domain Events implementation;
-- analytics.
+- Charging Session endpoints or execution;
+- API-to-API integration with Charging Sessions;
+- energy interruption or electrical control;
+- battery, manufacturer, model or charging-power attributes for Vehicles;
+- connector compatibility and simulation-specific Vehicle attributes;
+- Vehicle deletion;
+- recurring Reservations, waiting lists or automatic extensions;
+- penalties, billing, pricing or payments;
+- email, push, SMS or lifecycle notification delivery;
+- telemetry ingestion, analytics or Domain Event implementation;
+- OCPP and charger communication protocols.
 
 ---
 
-# 5. Business Motivation
-
-Public charging infrastructure is a shared and limited resource.
-
-Reservations allow users to plan charging activities while ensuring infrastructure availability.
-
-A reservation guarantees exclusive access to a Connector during a defined period, but charging itself only begins when the user starts a Charging Session.
-
-The Reservation capability also provides the operational basis for:
-
-- no-show detection;
-- Digital Twin simulations;
-- infrastructure utilization metrics;
-- future scheduling algorithms.
-
----
-
-# 6. Ubiquitous Language
+# 5. Ubiquitous Language
 
 ## Reservation
 
-A scheduled exclusive allocation of one Connector to one Vehicle during a defined time interval.
-
----
+A scheduled exclusive allocation of one specific Connector to one owned Vehicle during a
+half-open time interval.
 
 ## Reservation Owner
 
-The authenticated identity responsible for the Reservation.
-
-A Reservation Owner may be:
-
-- Human account;
-- Technical Client account.
-
----
+The authenticated identity responsible for a Reservation. The owner may be a Human or Technical
+Client account.
 
 ## Vehicle
 
-A logical representation of a vehicle owned by a Reservation Owner.
+A physical or simulated electric vehicle owned by one authenticated identity. SPEC-006 models
+only the information required for reservation scheduling and historical association.
 
-Reservations belong to Vehicles rather than directly to users.
+## Connector Calendar
 
-This allows one owner to reserve multiple Connectors simultaneously for different vehicles.
+The set of CONFIRMED and ACTIVE Reservations that block a Connector during their scheduled
+intervals.
 
----
+## Vehicle Calendar
 
-## Connector
-
-The physical charging interface where charging occurs.
-
-Reservations are created for Connectors.
-
-Reservations are **not** created directly for Facilities or Charging Stations.
-
----
+The set of CONFIRMED and ACTIVE Reservations that block a Vehicle during their scheduled
+intervals.
 
 ## Early Start
 
-The ability to start charging before the official reservation start time.
-
-Early Start is allowed only when:
-
-- the Connector is available;
-- no Charging Session is currently active;
-- the configured Early Start window has begun.
-
----
+The ability to activate a CONFIRMED Reservation during the 15 minutes before `start_at`, subject
+to infrastructure and Charging Session invariants.
 
 ## Grace Period
 
-Additional time after the scheduled reservation start during which charging may still begin without being classified as a No-Show.
-
----
+The 15-minute interval after `start_at` during which a CONFIRMED Reservation may still be
+activated.
 
 ## No-Show
 
-A Reservation that was never activated before the Grace Period expired.
-
----
+A CONFIRMED Reservation that was not activated before its Grace Period expired.
 
 ## Late Cancellation
 
-A Reservation cancelled after the normal cancellation window but before charging actually begins.
+A cancellation requested after the normal cancellation cutoff but before activation.
 
-Late Cancellation releases the Connector immediately while preserving historical information.
+## Back-to-Back Reservations
 
----
-
-## Back-to-Back Reservation
-
-Two Reservations scheduled consecutively without any gap.
-
-Example:
-
-```text
-09:00 ───── 10:00
-
-10:00 ───── 11:00
-```
-
-Back-to-Back Reservations are valid.
-
-The API may warn users that the previous vehicle could still be disconnecting.
+Reservations whose half-open intervals meet at one boundary without overlapping, such as
+09:00–10:00 and 10:00–11:00.
 
 ---
 
-# 7. Domain Model
-
-The Reservation capability introduces the following primary concepts.
+# 6. Domain Model
 
 ```text
 Identity
-    │
-    ├── owns
-    ▼
-Vehicle
-    │
-    ├── creates
-    ▼
-Reservation
-    │
-    ├── reserves
-    ▼
-Connector
-    │
-    └── belongs to
-        Charging Station
-            │
-            └── belongs to
-                Facility
+    ├── owns ───────────► Vehicle
+    └── creates ────────► Reservation
+                              │
+                              ├── assigned to ───► Vehicle
+                              └── reserves ──────► Connector
+                                                       │
+                                                       └── belongs to
+                                                           Charging Station
+                                                               │
+                                                               └── belongs to Facility
 ```
 
-Reservation is the Aggregate Root.
+Reservation is the Aggregate Root of the Reservation Aggregate. Vehicle is a supporting domain
+entity introduced by this specification. Connector, Charging Station, Facility and Identity are
+external domain concepts referenced by identifier.
 
-Connector, Charging Station and Facility remain external aggregates referenced by identifier.
+Vehicle remains inside the Smart Charging domain and does not introduce a new bounded context,
+module, service or deployable container.
 
-Charging Sessions are outside the scope of this specification but will later activate Reservations.
+---
 
-Vehicle represents the physical or simulated electric vehicle participating in charging operations.
+# 7. Vehicle Model
 
-Vehicle is introduced as a supporting domain entity for the Reservation capability. Although intentionally minimal in this specification, it establishes the ownership model required by Reservations and future Charging Sessions.
-
-This specification requires only the information necessary to uniquely identify the vehicle and its owner.
-
-Future specifications may extend Vehicle with battery, charging capability, manufacturer, model and simulation-related attributes without modifying the Reservation Aggregate.
-
-## Vehicle Minimum Model
-
-For the purposes of this specification, Vehicle requires only the minimum information necessary to support Reservations.
+The minimum Vehicle model is:
 
 ```text
 Vehicle
 
 id
-
 owner_id
-
 display_name
-
 status
-
 created_at
-
 updated_at
 ```
 
-The Vehicle must belong to the authenticated Reservation Owner.
-
-Its lifecycle and management capabilities are intentionally limited to what is required to support the Reservation capability.
-
-Battery characteristics, charging capabilities, manufacturer information, model information, connector compatibility and simulation-specific attributes are outside the scope of this specification.
-
-Future specifications may extend the Vehicle entity without modifying the Reservation Aggregate or the Reservation ownership rules.
-
----
-
-# 8. Architectural Principles
-
-The Reservation Aggregate shall:
-
-- encapsulate reservation lifecycle rules;
-- validate scheduling conflicts;
-- prevent invalid state transitions;
-- remain independent from Charging Session implementation;
-- expose business behavior instead of persistence behavior.
-
-Persistence technology shall not influence the domain model.
-
-Reservation business rules must remain deterministic and independently testable.
-
----
-
-# 9. Reservation Aggregate
-
-Aggregate Root:
+Supported statuses are:
 
 ```text
-Reservation
+ACTIVE
+INACTIVE
 ```
 
-Primary attributes:
+## Vehicle Rules
+
+- A Vehicle shall belong to exactly one authenticated identity.
+- Human and Technical Client identities may own multiple Vehicles.
+- Only the owner may manage a Vehicle unless a Platform Administrator is acting.
+- Only ACTIVE Vehicles may receive new Reservations or be selected during rescheduling.
+- INACTIVE Vehicles shall remain visible in historical Reservation records.
+- Vehicle ownership shall be immutable.
+- Physical deletion is not required and shall not be exposed by this specification.
+- `display_name` shall be required and non-empty after trimming.
+- Advanced physical, electrical and simulation attributes are deferred.
+
+Deactivating a Vehicle shall prevent new Reservations and rescheduling to that Vehicle. It shall
+not rewrite history or automatically cancel existing Reservations. Existing blocking Reservations
+remain subject to their normal lifecycle and may be cancelled explicitly.
+
+---
+
+# 8. Reservation Aggregate
+
+The Reservation Aggregate contains:
 
 ```text
 Reservation
 
 id
-
 owner_id
-
 vehicle_id
-
 connector_id
-
 start_at
-
 end_at
-
 status
-
 created_at
-
 updated_at
-
 activated_at
-
 completed_at
-
 cancelled_at
-
 late_cancelled_at
-
 no_show_at
 ```
 
-The Reservation Aggregate owns:
+The Aggregate owns:
 
 - lifecycle transitions;
-- scheduling validation;
-- overlap validation;
-- cancellation policy;
-- no-show detection.
+- cancellation classification;
+- activation-window validation;
+- rescheduling eligibility;
+- historical timestamps.
 
-External aggregates are referenced only by identifier.
+Application services coordinate external existence, ownership, infrastructure eligibility,
+calendar overlap and atomic persistence checks.
 
-# 10. Reservation Lifecycle
-
-A Reservation follows a deterministic lifecycle.
-
-The initial state is always:
+The invariant below shall always hold:
 
 ```text
-CONFIRMED
+reservation.owner_id == vehicle.owner_id
 ```
 
-From that point, the Reservation may transition according to the following state machine.
-
-```text
-                    +----------------+
-                    |   CONFIRMED    |
-                    +----------------+
-                     │   │      │
-                     │   │      │
- Charging Session    │   │      │
- starts              │   │      │
-                     │   │      │
-                     ▼   ▼      ▼
-               +--------+   +----------------+
-               | ACTIVE |   | CANCELLED      |
-               +--------+   +----------------+
-                    │
-                    │
-                    │ Charging Session ends
-                    ▼
-             +--------------+
-             | COMPLETED    |
-             +--------------+
-
-CONFIRMED
-      │
-      │ Grace Period expires
-      ▼
-+---------------+
-| NO_SHOW       |
-+---------------+
-
-CONFIRMED
-      │
-      │ Cancelled inside late window
-      ▼
-+-------------------+
-| LATE_CANCELLED    |
-+-------------------+
-```
-
-Only the transitions defined by this specification are valid.
-
-No implementation may introduce additional lifecycle transitions without updating this specification.
+The Connector is immutable after Reservation creation. A different Connector requires a new
+Reservation after the existing Reservation is cancelled when eligible.
 
 ---
 
-# 11. Reservation Status
+# 9. Reservation Lifecycle
 
-The Reservation Aggregate supports the following states.
+Supported statuses are:
+
+```text
+CONFIRMED
+ACTIVE
+COMPLETED
+CANCELLED
+LATE_CANCELLED
+NO_SHOW
+```
+
+Valid transitions are:
+
+```text
+CONFIRMED → ACTIVE
+CONFIRMED → CANCELLED
+CONFIRMED → LATE_CANCELLED
+CONFIRMED → NO_SHOW
+ACTIVE → COMPLETED
+```
+
+No other transition is allowed.
 
 ## CONFIRMED
 
-A Reservation has been successfully created and is waiting for activation.
-
-The Connector is reserved.
-
-No Charging Session exists.
-
----
+The Reservation was accepted and blocks its Connector and Vehicle calendars.
 
 ## ACTIVE
 
-The Reservation has been activated by a valid Charging Session.
-
-The Connector is in use.
-
----
+A valid Charging Session activated the Reservation. It continues to block both calendars.
 
 ## COMPLETED
 
-The associated Charging Session has ended successfully.
-
-The Reservation lifecycle is finished.
-
----
+The future Charging Session completed. The Reservation is terminal and historical.
 
 ## CANCELLED
 
-The Reservation was cancelled before the normal cancellation deadline.
-
-No penalty or warning is associated with this outcome.
-
----
+The Reservation was cancelled no later than 60 minutes before `start_at`. It is terminal and
+releases both calendars immediately.
 
 ## LATE_CANCELLED
 
-The Reservation was cancelled after the cancellation deadline but before charging actually started.
-
-The Connector is immediately released.
-
-Historical information is preserved for future operational analysis.
-
----
+The Reservation was cancelled after the normal cutoff but before activation. It is terminal,
+releases both calendars immediately and remains distinguishable from NO_SHOW.
 
 ## NO_SHOW
 
-The Reservation was never activated before the Grace Period expired.
+The Reservation was not activated before the Grace Period expired. It is terminal and releases
+both calendars.
 
-The Connector becomes available again.
-
-Historical information is preserved.
-
----
-
-# 12. Reservation Timeline
-
-Example reservation:
-
-```text
-Reservation
-
-Start: 10:00
-
-End:   11:00
-```
-
-Timeline:
-
-```text
-09:45
-│
-│ Early Start Window Opens
-│
-10:00
-│
-│ Official Reservation Start
-│
-10:15
-│
-│ Grace Period Ends
-│
-11:00
-│
-│ Reservation Ends
-```
-
-If no Charging Session starts before the Grace Period expires:
-
-```text
-Reservation
-
-↓
-
-NO_SHOW
-```
-
-If charging starts during the valid activation window:
-
-```text
-CONFIRMED
-
-↓
-
-ACTIVE
-```
+ACTIVE and terminal Reservations are immutable through the Reservation API.
 
 ---
 
-# 13. Business Rules
+# 10. Time and Interval Semantics
 
-## BR-001 — Connector Exclusivity
-
-Two Reservations shall never overlap on the same Connector.
-
-For any Reservation:
-
-```
-existing.connector_id == new.connector_id
-```
-
-the following intervals are invalid:
+All Reservation intervals shall use half-open semantics:
 
 ```text
-09:00 ─────────────── 10:30
-
-09:45 ─────────────── 11:00
+[start_at, end_at)
 ```
+
+Two intervals overlap only when:
+
+```text
+existing.start_at < new.end_at
+and
+new.start_at < existing.end_at
+```
+
+Therefore, the following Reservations are valid and back-to-back:
+
+```text
+09:00–10:00
+10:00–11:00
+```
+
+Temporal requirements are:
+
+- persisted timestamps shall be timezone-aware UTC values;
+- API timestamps shall use ISO 8601 and include an explicit timezone offset;
+- application comparisons shall use one consistent application clock;
+- timestamps received through the API shall be normalized to UTC before comparison;
+- `start_at` shall be earlier than `end_at`;
+- new Reservations shall not start in the past relative to the application clock;
+- the minimum duration of 15 minutes is inclusive;
+- the maximum duration of 24 hours is inclusive;
+- no local server timezone shall be assumed.
+
+The 24-hour maximum is an upper validation boundary supporting slow, overnight and experimental
+charging scenarios. It is not the expected duration of every Charging Session.
+
+Facility timezone remains relevant for display and business interpretation, while persistence and
+comparison use UTC consistently.
 
 ---
 
-## BR-002 — Vehicle Exclusivity
+# 11. Calendar Blocking and Overlap
 
-A Vehicle shall not own overlapping Reservations.
+Only CONFIRMED and ACTIVE Reservations block Connector and Vehicle calendars.
 
-The same authenticated identity may own multiple Vehicles.
-
-Different Vehicles may reserve different Connectors simultaneously.
-
-Example:
+The following historical statuses do not block future Reservations:
 
 ```text
-Owner
-
-├── Vehicle A
-│     Reservation
-│
-└── Vehicle B
-      Reservation
-```
-
-This is valid.
-
----
-
-## BR-003 — Reservation Duration
-
-Reservations shall satisfy:
-
-Minimum duration:
-
-```text
-15 minutes
-```
-
-Maximum duration:
-
-```text
-24 hours
-```
-
-Reservations outside these limits shall be rejected.
-
----
-
-## BR-004 — Back-to-Back Reservations
-
-Back-to-Back Reservations are valid.
-
-Example:
-
-```text
-09:00 ───── 10:00
-
-10:00 ───── 11:00
-```
-
-The API may include an informational warning indicating that the previous user could still be disconnecting.
-
-This warning shall not prevent Reservation creation.
-
----
-
-## BR-005 — Early Start
-
-Charging may begin before the official reservation start.
-
-Early Start is permitted only when:
-
-- the Early Start window has opened;
-- the Connector is available;
-- no Charging Session is active;
-- the Reservation is still CONFIRMED.
-
-The default Early Start window is:
-
-```text
-15 minutes
-```
-
-Early Start shall never modify the Reservation end time.
-
----
-
-## BR-006 — Grace Period
-
-The Grace Period begins at the scheduled reservation start.
-
-The default Grace Period is:
-
-```text
-15 minutes
-```
-
-Charging Sessions created during the Grace Period activate the Reservation normally.
-
-After the Grace Period expires:
-
-```text
-CONFIRMED
-
-↓
-
-NO_SHOW
-```
-
----
-
-## BR-007 — Reservation Activation
-
-A Reservation may become ACTIVE only when:
-
-- its status is CONFIRMED;
-- the Reservation Owner starts a valid Charging Session;
-- the Charging Session references the reserved Connector;
-- the Charging Session references the reserved Vehicle;
-- the activation occurs within the valid activation window.
-
-No other operation may activate a Reservation.
-
----
-
-## BR-008 — Reservation Completion
-
-A Reservation becomes COMPLETED only when its Charging Session finishes.
-
-Completion is triggered by the Charging Session lifecycle.
-
-Reservations cannot be completed directly through the Reservation API.
-
----
-
-## BR-009 — Normal Cancellation
-
-Reservations may be cancelled freely until:
-
-```text
-60 minutes before start_at
-```
-
-The resulting status is:
-
-```text
+COMPLETED
 CANCELLED
-```
-
-The Connector becomes immediately available.
-
----
-
-## BR-010 — Late Cancellation
-
-Reservations may still be cancelled after the normal cancellation deadline provided that:
-
-- the Reservation has not been activated;
-- the Reservation is still CONFIRMED.
-
-The resulting status is:
-
-```text
 LATE_CANCELLED
-```
-
-Late Cancellation shall:
-
-- immediately release the Connector;
-- preserve historical information;
-- record the late cancellation timestamp.
-
-Future specifications may associate penalties or operational policies with Late Cancellation.
-
-No penalty behavior is defined by this specification.
-
----
-
-## BR-011 — No-Show Detection
-
-If no valid Charging Session starts before:
-
-```text
-start_at + grace_period
-```
-
-the Reservation becomes:
-
-```text
 NO_SHOW
 ```
 
-The Connector is immediately released.
+Creation and rescheduling shall reject an overlap when any blocking Reservation intersects the
+proposed interval for:
+
+- the same Connector; or
+- the same Vehicle.
+
+One identity may hold overlapping Reservations only when they use different Vehicles and
+different Connectors. Different Vehicles cannot reserve the same Connector for overlapping
+intervals, and one Vehicle cannot reserve different Connectors for overlapping intervals.
+
+Calendar availability queries and persistence conflict checks shall ignore terminal statuses.
+Cancellation and No-Show transitions shall release both calendars immediately without deleting
+the historical Reservation.
 
 ---
 
-## BR-012 — Fixed Reservation Window
+# 12. Business Rules
 
-Reservation end time is immutable.
+## BR-001 — Reservation Target
 
-Neither:
+A Reservation shall reference exactly one Connector. It shall not target a Facility, Charging
+Station or generic connector type.
 
-- Early Start;
-- Charging Session duration;
-- Connector availability;
+## BR-002 — Vehicle Ownership
 
-may automatically extend a Reservation.
+The selected Vehicle shall exist, be ACTIVE and belong to the Reservation Owner.
 
-Charging Sessions shall respect the Reservation end time.
+## BR-003 — Connector Eligibility
 
-Future Reservation extension capabilities are outside the scope of this specification.
+A new or rescheduled Reservation requires a Connector that:
+
+- exists;
+- is operationally eligible for future reservation under SPEC-004;
+- belongs to a Charging Station with `Active` status;
+- belongs to a Facility with `Active` status;
+- is not blocked by another CONFIRMED or ACTIVE Reservation during the proposed interval.
+
+An `OutOfService` Connector is not eligible. A current `Reserved` or `Charging` state does not by
+itself invalidate a non-overlapping future interval; actual interval eligibility is determined by
+the Connector calendar. No new Connector state is introduced by this specification.
+
+## BR-004 — Duration
+
+Reservation duration shall be at least 15 minutes and at most 24 hours, inclusive.
+
+## BR-005 — Connector Exclusivity
+
+Blocking Reservations for the same Connector shall not overlap.
+
+## BR-006 — Vehicle Exclusivity
+
+Blocking Reservations for the same Vehicle shall not overlap.
+
+## BR-007 — Back-to-Back Reservations
+
+Back-to-back Reservations shall be accepted. The synchronous response may contain a
+`BACK_TO_BACK_RESERVATION` warning.
+
+## BR-008 — Early Start
+
+The default Early Start window opens 15 minutes before `start_at`. Activation is allowed only
+when:
+
+- the Reservation is CONFIRMED;
+- the activation window has opened;
+- the Connector is operational and available;
+- no Charging Session is active on the Connector;
+- the Charging Session references the Reservation Owner, Vehicle and Connector.
+
+Early Start shall not automatically extend `end_at`.
+
+## BR-009 — Grace Period and Activation Window
+
+The default Grace Period ends 15 minutes after `start_at`. Activation is allowed while:
+
+```text
+start_at - 15 minutes <= now <= start_at + 15 minutes
+```
+
+## BR-010 — No-Show
+
+A CONFIRMED Reservation shall become NO_SHOW when:
+
+```text
+now > start_at + 15 minutes
+```
+
+and no valid Charging Session has activated it.
+
+The application shall reconcile overdue Reservations automatically and deterministically.
+Implementation may use scheduled processing, background processing or opportunistic overdue-state
+reconciliation, provided externally observable state is consistent and does not require manual
+user action.
+
+## BR-011 — Cancellation
+
+Cancellation is allowed only for a CONFIRMED, non-activated Reservation.
+
+The application shall reconcile an overdue CONFIRMED Reservation against BR-010 before applying
+the cancellation command. A Reservation already due for NO_SHOW shall not be reclassified as a
+Late Cancellation merely because reconciliation had not yet run.
+
+When:
+
+```text
+now <= start_at - 60 minutes
+```
+
+the result shall be CANCELLED. When:
+
+```text
+now > start_at - 60 minutes
+```
+
+the result shall be LATE_CANCELLED. Late cancellation shall always remain available before
+activation, release both calendars immediately and preserve history. No penalty is defined.
+
+## BR-012 — No Automatic Extension
+
+Early Start, Charging Session duration and later Connector availability shall never automatically
+extend `end_at`. Explicit rescheduling is a deliberate operation and is not an automatic
+extension.
+
+## BR-013 — Explicit Rescheduling
+
+An owned CONFIRMED Reservation may be rescheduled by changing `start_at`, `end_at` or `vehicle_id`.
+Rescheduling shall:
+
+- occur before the Early Start window opens;
+- revalidate Vehicle ownership and ACTIVE status;
+- revalidate Connector, Charging Station and Facility eligibility;
+- revalidate duration, temporal ordering and past-time rules;
+- revalidate Connector and Vehicle overlaps atomically;
+- preserve `owner_id`, `connector_id`, `id` and `created_at`.
+
+ACTIVE and terminal Reservations shall not be rescheduled.
+
+## BR-014 — Activation and Completion Domain Operations
+
+Reservation shall expose domain operations for future activation and completion. Activation shall
+enforce BR-008 and BR-009. Completion shall be allowed only from ACTIVE and shall record
+`completed_at`.
+
+HTTP integration with Charging Sessions is deferred to SPEC-007.
+
+## BR-015 — Historical Preservation
+
+Vehicles and Reservations referenced by operational history shall not be physically removed by
+normal application behavior.
 
 ---
 
-## BR-013 — Historical Preservation
+# 13. Authorization and Visibility
 
-Completed Reservations shall never be physically removed as part of normal application behavior.
-
-Historical Reservation information is required for:
-
-- analytics;
-- Digital Twin simulations;
-- utilization reports;
-- no-show analysis;
-- future scheduling optimization.
-
-Deletion behavior, if ever required, shall be defined by a dedicated specification.
-
-# 14. Authorization Matrix
-
-Authorization is defined by SPEC-005.
-
-This specification extends the authorization model with Reservation-specific permissions.
-
-Reservations always belong to the authenticated Reservation Owner.
-
-Administrative permissions remain governed by Identity and Access.
-
----
+Authorization shall evaluate account type, Human Role and resource ownership separately.
 
 ## Platform Administrator
 
-Platform Administrators may:
-
-- create Reservations;
-- view any Reservation;
-- cancel any Reservation;
-- inspect Reservation history;
-- perform administrative Reservation operations.
-
----
+May manage all Vehicles and Reservations, including creation, retrieval, rescheduling and
+cancellation subject to the same domain rules. Administrative action does not bypass temporal,
+overlap or lifecycle invariants.
 
 ## Facility Operator
 
-Facility Operators may:
-
-- view Reservations belonging to their managed Facilities;
-- inspect Reservation history for operational purposes.
-
-Facility Operators shall not:
-
-- create Reservations on behalf of users;
-- activate Reservations;
-- cancel Reservations unless future operational policies explicitly allow it.
-
----
+May view Reservations whose Connector belongs to a managed Facility. A Facility Operator shall
+not create, reschedule or cancel Reservations on behalf of owners unless a future policy explicitly
+adds that capability.
 
 ## Human Account
 
-Human accounts may:
+An authenticated Human account may:
 
-- create Reservations;
-- view their own Reservations;
-- cancel their own Reservations;
-- activate Reservations indirectly through Charging Sessions.
+- manage owned Vehicles;
+- create Reservations for owned ACTIVE Vehicles;
+- view owned Reservations;
+- reschedule eligible owned Reservations;
+- cancel owned CONFIRMED Reservations.
 
-Human accounts shall not access Reservations belonging to other users.
-
----
+These owned workflows do not require the `EVDriver` Role; ownership grants the capability unless
+another project-wide access rule explicitly restricts it.
 
 ## Technical Client
 
-Technical Clients participate in the reservation workflow exactly like Human accounts.
+A Technical Client may perform the same owned Vehicle and Reservation workflow required for
+simulation. It shall not administer identities or charging infrastructure.
 
-Technical Clients may:
+## Researcher and Data Scientist
 
-- create Reservations;
-- view their own Reservations;
-- cancel their own Reservations;
-- activate Reservations through Charging Sessions.
+Human accounts with Researcher or Data Scientist Roles retain read-only visibility according to
+SPEC-005 and future analytical visibility policies. They shall not gain modification rights from
+those Roles. They may still perform their own ownership-based workflow when acting on resources
+they own.
 
-Technical Clients are intended to support:
-
-- Digital Twin simulations;
-- automated testing;
-- fleet simulations;
-- synthetic charging workloads.
-
-Technical Clients shall not perform infrastructure administration.
+Unauthorized resource access shall use `404 Not Found` when resource existence is concealed in
+accordance with SPEC-005. Explicitly forbidden, non-concealed capabilities shall use `403
+Forbidden`.
 
 ---
 
-## Researcher
+# 14. Vehicle API Contract
 
-Researchers have read-only access.
+All Vehicle endpoints require authentication.
 
-Researchers may inspect Reservation information for analysis purposes.
+## 14.1 Create Vehicle
 
-Researchers shall not modify Reservations.
+```http
+POST /vehicles
+```
+
+Request:
+
+```json
+{
+  "display_name": "Primary EV"
+}
+```
+
+The owner is derived from the authenticated identity. A Platform Administrator acting for another
+owner may supply `owner_id` through an explicitly documented administrative request field.
+
+Response: `201 Created` with a Vehicle response.
+
+## 14.2 List Vehicles
+
+```http
+GET /vehicles
+```
+
+Owners receive their own Vehicles. Platform Administrators may filter by `owner_id`. Other roles
+shall not use this endpoint to enumerate Vehicles belonging to other identities.
+
+Response: `200 OK` with a list of Vehicle responses.
+
+## 14.3 Get Vehicle
+
+```http
+GET /vehicles/{vehicleId}
+```
+
+Returns an owned or administratively visible Vehicle. Non-visible Vehicles return `404 Not Found`.
+
+## 14.4 Update Vehicle
+
+```http
+PATCH /vehicles/{vehicleId}
+```
+
+Mutable fields:
+
+- `display_name`;
+- `status`.
+
+Request:
+
+```json
+{
+  "display_name": "Primary EV Updated",
+  "status": "INACTIVE"
+}
+```
+
+At least one field shall be supplied. Ownership and owner identifier are immutable.
+
+## Vehicle Response
+
+```json
+{
+  "id": "vehicle-id",
+  "owner_id": "identity-id",
+  "display_name": "Primary EV",
+  "status": "ACTIVE",
+  "created_at": "2026-07-12T12:00:00Z",
+  "updated_at": "2026-07-12T12:00:00Z"
+}
+```
+
+Common responses are `401 Unauthorized`, `403 Forbidden`, `404 Not Found` and `422
+Unprocessable Entity`.
 
 ---
 
-## Data Scientist
+# 15. Reservation API Contract
 
-Data Scientists have read-only access.
+All Reservation endpoints require authentication.
 
-Reservations may be consumed for experimentation and analytics.
-
-Modification operations are prohibited.
-
----
-
-# 15. API
-
-The Reservation capability exposes the following REST endpoints.
-
----
-
-## Create Reservation
+## 15.1 Create Reservation
 
 ```http
 POST /reservations
 ```
 
-Creates a new Reservation.
+Request:
 
-Possible responses:
-
-```
-201 Created
-400 Bad Request
-401 Unauthorized
-403 Forbidden
-404 Not Found
-409 Conflict
-422 Validation Error
+```json
+{
+  "vehicle_id": "vehicle-id",
+  "connector_id": "connector-id",
+  "start_at": "2026-07-13T09:00:00-03:00",
+  "end_at": "2026-07-13T10:00:00-03:00"
+}
 ```
 
----
+The owner is derived from the authenticated identity unless a Platform Administrator uses an
+explicitly documented `owner_id` administrative field. Success returns `201 Created` with the
+response envelope defined in Section 16.
 
-## List Reservations
+## 15.2 List Reservations
 
 ```http
 GET /reservations
 ```
 
-Returns Reservations visible to the authenticated identity.
+Supported filters shall include:
 
-Filtering may include:
+- `owner_id` where authorized;
+- `vehicle_id`;
+- `connector_id`;
+- `status`;
+- `facility_id`;
+- `station_id`;
+- interval boundaries;
+- pagination.
 
-- owner
-- vehicle
-- connector
-- status
-- Facility
-- Charging Station
-- time interval
+Owners receive owned Reservations. Platform Administrators may view all. Facility Operators may
+view Reservations for managed Facilities. Researcher and Data Scientist visibility remains
+read-only and shall follow authorized visibility rules.
 
-Pagination is implementation-defined.
-
----
-
-## Get Reservation
+## 15.3 Get Reservation
 
 ```http
 GET /reservations/{reservationId}
 ```
 
-Returns Reservation details.
+Returns a visible Reservation or `404 Not Found` when absent or concealed.
 
----
-
-## Update Reservation
+## 15.4 Reschedule Reservation
 
 ```http
 PATCH /reservations/{reservationId}
 ```
 
-Allows modification of mutable Reservation attributes.
+Request may contain one or more mutable fields:
 
-Allowed modifications are limited to:
+```json
+{
+  "vehicle_id": "another-owned-active-vehicle-id",
+  "start_at": "2026-07-13T10:00:00-03:00",
+  "end_at": "2026-07-13T11:00:00-03:00"
+}
+```
 
-- reservation start
-- reservation end
-- associated Vehicle
+All creation validations shall be reapplied. `connector_id` shall not be accepted. Success returns
+`200 OK`.
 
-provided that all validation rules remain satisfied.
-
-Immutable attributes include:
-
-- id
-- owner_id
-- connector_id
-- created_at
-
----
-
-## Cancel Reservation
+## 15.5 Cancel Reservation
 
 ```http
 POST /reservations/{reservationId}/cancel
 ```
 
-Cancellation follows the business rules defined in BR-009 and BR-010.
+The domain determines CANCELLED or LATE_CANCELLED. Clients shall not choose the result. Success
+returns `200 OK` with the updated Reservation and a `LATE_CANCELLATION` warning when applicable.
 
-The resulting status is automatically determined by the domain.
-
-Clients shall not choose:
-
-```
-CANCELLED
-
-or
-
-LATE_CANCELLED
-```
-
----
-
-## Connector Reservation Calendar
+## 15.6 Connector Reservation Calendar
 
 ```http
 GET /connectors/{connectorId}/reservations
 ```
 
-Returns Reservations for one Connector.
+Returns visible Reservations for one Connector and supports interval and status filters. Calendar
+availability calculations shall treat only CONFIRMED and ACTIVE as blocking.
 
-Implementations may support filtering by:
+## Reservation Response
 
-- date
-- interval
-- status
+```json
+{
+  "id": "reservation-id",
+  "owner_id": "identity-id",
+  "vehicle_id": "vehicle-id",
+  "connector_id": "connector-id",
+  "start_at": "2026-07-13T12:00:00Z",
+  "end_at": "2026-07-13T13:00:00Z",
+  "status": "CONFIRMED",
+  "created_at": "2026-07-12T12:00:00Z",
+  "updated_at": "2026-07-12T12:00:00Z",
+  "activated_at": null,
+  "completed_at": null,
+  "cancelled_at": null,
+  "late_cancelled_at": null,
+  "no_show_at": null
+}
+```
 
 ---
 
-# 16. API Warnings
+# 16. API Warnings and Future Notifications
 
-Reservation creation may return informational warnings.
-
-Warnings do not prevent Reservation creation.
-
-Example:
+Synchronous response warnings are informational and shall not become Reservation status.
 
 ```json
 {
   "reservation": {
-    "id": "...",
+    "id": "reservation-id",
     "status": "CONFIRMED"
   },
   "warnings": [
     {
       "code": "BACK_TO_BACK_RESERVATION",
-      "message": "Another reservation ends immediately before this reservation."
+      "message": "Another reservation ends when this reservation begins."
     }
   ]
 }
 ```
 
-Supported warning codes include:
+Supported synchronous warning codes are:
 
-```
+```text
 BACK_TO_BACK_RESERVATION
-
-EARLY_START_AVAILABLE
-
 LATE_CANCELLATION
+```
 
-NO_SHOW_WARNING
+Future lifecycle notification concepts include:
 
+```text
+EARLY_START_AVAILABLE
+NO_SHOW_DEADLINE_APPROACHING
 RESERVATION_ENDING_SOON
 ```
 
-Warnings are not persisted as Reservation state.
+These lifecycle concepts are not returned automatically during Reservation creation. Notification
+delivery by email, push or SMS remains out of scope.
 
 ---
 
-# 17. Validation Rules
+# 17. Status Codes and Error Semantics
 
-## VR-001
+Equivalent Vehicle and Reservation endpoints shall apply these conventions consistently:
 
-Connector shall exist.
+- `200 OK`: successful retrieval, update, rescheduling or cancellation;
+- `201 Created`: successful Vehicle or Reservation creation;
+- `401 Unauthorized`: missing or invalid authentication;
+- `403 Forbidden`: known identity explicitly lacks a non-concealed capability;
+- `404 Not Found`: resource does not exist or is concealed from the actor;
+- `409 Conflict`: Connector or Vehicle scheduling overlap, or another state conflict;
+- `422 Unprocessable Entity`: invalid payload, duration, temporal ordering, timestamp offset,
+  inactive Vehicle, ineligible infrastructure or invalid lifecycle request.
 
----
-
-## VR-002
-
-Vehicle shall exist.
-
----
-
-## VR-003
-
-Reservation Owner shall own the selected Vehicle.
-
----
-
-## VR-004
-
-Reservation interval shall satisfy:
-
-```
-15 minutes
-
-≤ duration ≤
-
-24 hours
-```
-
----
-
-## VR-005
-
-Connector shall not contain overlapping Reservations.
-
----
-
-## VR-006
-
-Vehicle shall not contain overlapping Reservations.
-
----
-
-## VR-007
-
-Reservation start shall occur before Reservation end.
-
----
-
-## VR-008
-
-Reservation shall not be created in the past.
-
----
-
-## VR-009
-
-Only CONFIRMED Reservations may be cancelled.
-
----
-
-## VR-010
-
-ACTIVE Reservations cannot be cancelled.
-
-Charging Session lifecycle controls Reservation completion.
-
----
-
-## VR-011
-
-COMPLETED Reservations are immutable.
-
----
-
-## VR-012
-
-NO_SHOW Reservations are immutable.
-
----
-
-## VR-013
-
-LATE_CANCELLED Reservations are immutable.
-
----
-
-## VR-014
-
-Reservation activation is allowed only inside the valid activation window.
-
----
-
-## VR-015
-
-Charging Session shall reference:
-
-- the reserved Connector;
-- the reserved Vehicle;
-- the Reservation Owner.
+Scheduling conflicts shall include a stable machine-readable code identifying Connector or Vehicle
+overlap without exposing another owner's private Reservation data.
 
 ---
 
 # 18. Persistence Model
 
-The Reservation Aggregate introduces the following persistence model.
+## vehicles
 
-```
-reservations
-
+```text
 id (UUID)
-
 owner_id
-
-vehicle_id
-
-connector_id
-
-start_at
-
-end_at
-
+display_name
 status
-
 created_at
-
 updated_at
+```
 
+Constraints shall include:
+
+- primary key on `id`;
+- foreign key from `owner_id` to the Identity/User owner;
+- valid ACTIVE or INACTIVE status;
+- non-empty display name;
+- immutable owner relationship;
+- indexes supporting owner listing and status filtering.
+
+## reservations
+
+```text
+id (UUID)
+owner_id
+vehicle_id
+connector_id
+start_at
+end_at
+status
+created_at
+updated_at
 activated_at
-
 completed_at
-
 cancelled_at
-
 late_cancelled_at
-
 no_show_at
 ```
 
----
+Constraints shall include:
 
-## Constraints
-
-Database constraints shall enforce:
-
+- primary key on `id`;
+- foreign keys to owner, Vehicle and Connector;
+- `reservations.vehicle_id` referencing `vehicles.id`;
 - valid Reservation status;
-- start_at < end_at;
-- duration ≥ 15 minutes;
-- duration ≤ 24 hours.
+- `start_at < end_at`;
+- inclusive duration boundaries from 15 minutes through 24 hours;
+- timezone-aware UTC persistence;
+- historical references that are not removed by Vehicle inactivation;
+- indexes supporting owner, Vehicle, Connector, status and interval queries.
 
-Connector overlap and Vehicle overlap shall be enforced through application validation and transactional consistency.
+The implementation shall preserve:
 
----
+```text
+reservation.owner_id == vehicle.owner_id
+```
 
-# 19. OpenAPI Requirements
-
-The generated OpenAPI documentation shall expose:
-
-- Reservation schemas;
-- Reservation status enumeration;
-- warning schemas;
-- authentication requirements;
-- authorization requirements.
-
-Bearer authentication shall follow SPEC-005.
-
-Sensitive internal fields shall never appear in public schemas.
-
-Examples shall be provided for:
-
-- Reservation creation;
-- successful cancellation;
-- late cancellation;
-- validation conflict;
-- Connector overlap.
-
-# 20. Acceptance Criteria
-
-The Reservation capability is considered complete only when all of the following conditions are satisfied.
-
-## Domain
-
-- [ ] Reservation Aggregate implemented.
-- [ ] Reservation lifecycle implemented.
-- [ ] Reservation state transitions enforce this specification.
-- [ ] Reservation invariants are preserved.
-- [ ] Reservation history is preserved.
+Application and persistence queries shall treat only CONFIRMED and ACTIVE as calendar-blocking.
+Terminal statuses shall remain queryable history and shall not cause overlap rejection.
 
 ---
 
-## Reservation Creation
+# 19. Concurrency and Transactional Consistency
 
-- [ ] Reservations can be created only by authenticated identities.
-- [ ] Human accounts may create Reservations.
-- [ ] Technical Clients may create Reservations.
-- [ ] Connector existence is validated.
-- [ ] Vehicle existence is validated.
-- [ ] Vehicle ownership is validated.
-- [ ] Reservation duration is validated.
-- [ ] Reservation cannot start in the past.
-- [ ] Connector overlap is rejected.
-- [ ] Vehicle overlap is rejected.
+Reservation creation and rescheduling shall be atomic.
 
----
+Concurrent requests shall not create overlapping blocking Reservations for:
 
-## Reservation Lifecycle
+- the same Connector;
+- the same Vehicle.
 
-- [ ] Reservation starts in CONFIRMED.
-- [ ] Charging Session activates Reservation.
-- [ ] Charging Session completes Reservation.
-- [ ] Grace Period correctly detects NO_SHOW.
-- [ ] Early Start follows the defined rules.
-- [ ] Reservation end time remains fixed.
-- [ ] ACTIVE Reservations cannot be cancelled.
-- [ ] COMPLETED Reservations cannot be modified.
+The implementation may use transactional locking, exclusion constraints or another safe strategy.
+No specific locking mechanism is mandated, but checking outside a transaction without equivalent
+conflict protection is insufficient.
+
+Lifecycle transitions shall avoid partial updates. Calendar release and status/timestamp changes
+shall become visible atomically.
 
 ---
 
-## Cancellation
+# 20. OpenAPI Requirements
 
-- [ ] Cancellation before the cutoff produces CANCELLED.
-- [ ] Cancellation after the cutoff produces LATE_CANCELLED.
-- [ ] Late Cancellation immediately releases the Connector.
-- [ ] Cancellation timestamps are preserved.
+OpenAPI shall document:
+
+- Vehicle and Reservation request and response schemas;
+- Vehicle and Reservation status enumerations;
+- warning and scheduling-conflict schemas;
+- bearer authentication;
+- mutable and immutable fields;
+- ISO 8601 timestamp examples with explicit offsets;
+- all status codes defined in Section 17;
+- visibility and ownership requirements without exposing sensitive fields.
+
+No Vehicle or Reservation endpoint in this specification shall use DELETE.
 
 ---
+
+# 21. Testing Requirements
+
+Tests are required but are not implemented by this documentation change.
+
+## Vehicle Domain and Persistence
+
+- creation and non-empty display name;
+- Human and Technical Client ownership;
+- multiple Vehicles per identity;
+- ACTIVE and INACTIVE transitions;
+- immutable ownership;
+- historical Reservation association after inactivation;
+- repository persistence, owner listing and status filtering.
+
+## Vehicle API
+
+- create, list, retrieve and patch owned Vehicles;
+- Platform Administrator management;
+- concealed non-owned Vehicle access;
+- inactive Vehicle rejection during Reservation creation and rescheduling.
+
+## Reservation Domain
+
+- every valid and invalid state transition;
+- minimum and maximum inclusive durations;
+- half-open overlap semantics;
+- Connector and Vehicle overlap;
+- valid back-to-back Reservations;
+- normal and late cancellation boundaries;
+- immediate calendar release;
+- Early Start and Grace Period boundaries;
+- deterministic No-Show processing;
+- no automatic extension;
+- explicit rescheduling before the Early Start window;
+- immutable ACTIVE and terminal Reservations.
+
+## Persistence and Concurrency
+
+- UTC timestamp persistence and offset normalization;
+- owner/Vehicle invariant;
+- valid status constraints;
+- terminal statuses excluded from blocking queries;
+- concurrent conflict requests for the same Connector;
+- concurrent conflict requests for the same Vehicle;
+- atomic creation, rescheduling and lifecycle transitions.
+
+## Authorization and API
+
+- Human owned workflow;
+- Technical Client owned Vehicle and Reservation workflow;
+- Platform Administrator access;
+- Facility Operator managed-Facility visibility without mutation;
+- Researcher and Data Scientist read-only behavior;
+- `401`, `403`, concealed `404`, conflict `409` and validation `422` behavior;
+- warning response shape and OpenAPI contracts.
+
+## Future Charging Session Boundary
+
+Unit tests shall validate Reservation activation and completion domain operations and invariants.
+Tests requiring real Charging Session endpoints, HTTP integration or energy interruption are
+deferred to SPEC-007.
+
+---
+
+# 22. Acceptance Criteria
+
+## Vehicle
+
+- [ ] Human and Technical Client identities can create multiple owned Vehicles.
+- [ ] Owners can list, retrieve and update visible Vehicles.
+- [ ] Platform Administrators can manage all Vehicles.
+- [ ] Vehicle ownership is immutable and unauthorized resources are concealed.
+- [ ] Vehicle can transition between ACTIVE and INACTIVE.
+- [ ] INACTIVE Vehicles cannot receive new or rescheduled Reservations.
+- [ ] Vehicle history is preserved without physical deletion.
+
+## Reservation Domain
+
+- [ ] Reservation targets one Connector and one owned ACTIVE Vehicle.
+- [ ] Intervals use `[start_at, end_at)` semantics.
+- [ ] Blocking Connector and Vehicle overlaps return `409 Conflict`.
+- [ ] Back-to-back Reservations are accepted.
+- [ ] Duration boundaries of 15 minutes and 24 hours are inclusive.
+- [ ] Normal cancellation produces CANCELLED.
+- [ ] Late cancellation produces LATE_CANCELLED and always remains available before activation.
+- [ ] Cancellation releases Connector and Vehicle calendars immediately.
+- [ ] No-Show processing is automatic and deterministic.
+- [ ] Early Start and Grace Period boundaries are enforced.
+- [ ] Early Start does not automatically extend the Reservation.
+- [ ] Eligible CONFIRMED Reservations can be explicitly rescheduled.
+- [ ] Rescheduling revalidates all temporal, ownership, eligibility and overlap rules.
+- [ ] ACTIVE and terminal Reservations are immutable.
+- [ ] Only CONFIRMED and ACTIVE block calendars.
 
 ## Authorization
 
-- [ ] Platform Administrators may manage all Reservations.
-- [ ] Human users may manage only their own Reservations.
-- [ ] Technical Clients may manage only their own Reservations.
-- [ ] Facility Operators may inspect Reservations within their managed Facilities.
-- [ ] Read-only roles cannot modify Reservations.
-
----
-
-## API
-
-- [ ] REST endpoints implemented.
-- [ ] OpenAPI documentation generated.
-- [ ] Bearer authentication applied.
-- [ ] Validation responses documented.
-- [ ] Warning responses documented.
-
----
+- [ ] Human and Technical Client identities can manage only owned workflows.
+- [ ] Platform Administrators can manage all Reservations.
+- [ ] Facility Operators have read-only visibility for managed Facilities.
+- [ ] Researcher and Data Scientist Roles do not grant Reservation mutation rights.
 
 ## Persistence
 
-- [ ] Reservation persistence implemented.
-- [ ] Database constraints implemented.
-- [ ] Status validation implemented.
-- [ ] Duration validation implemented.
+- [ ] Vehicle and Reservation persistence models and constraints are implemented.
+- [ ] Reservation owner equals Vehicle owner.
+- [ ] timestamps persist as timezone-aware UTC values.
+- [ ] historical Vehicle and Reservation references are preserved.
+- [ ] terminal Reservations do not block availability queries.
+- [ ] concurrent requests cannot create Connector or Vehicle overlaps.
+
+## API and Future Integration
+
+- [ ] Vehicle and Reservation REST contracts and OpenAPI schemas are implemented.
+- [ ] synchronous warnings are distinct from future notifications.
+- [ ] Reservation exposes domain operations for future activation and completion.
+- [ ] SPEC-006 completion does not require Charging Session endpoints or HTTP integration.
 
 ---
 
-## Testing
-
-Automated tests shall include at minimum:
-
-### Domain
-
-- Reservation creation.
-- Reservation overlap.
-- Vehicle overlap.
-- Duration validation.
-- Early Start.
-- Grace Period.
-- No-Show.
-- Normal Cancellation.
-- Late Cancellation.
-- Reservation completion.
-
-### Persistence
-
-- Repository CRUD.
-- Status persistence.
-- Constraint validation.
-
-### API
-
-- Reservation creation.
-- Reservation retrieval.
-- Reservation listing.
-- Reservation cancellation.
-- Validation failures.
-- Authentication.
-- Authorization.
-
-### Integration
-
-- Reservation creation followed by Charging Session activation.
-- Reservation completion after Charging Session completion.
-- Back-to-Back Reservation.
-- Concurrent Reservation conflict.
-- Technical Client Reservation workflow.
-
----
-
-# 21. Future Integration
-
-The Reservation capability prepares the foundation for the following specifications.
-
----
+# 23. Future Integration
 
 ## SPEC-007 — Charging Sessions
 
-Charging Sessions activate Reservations.
-
-Expected integration:
+Reservation exposes domain operations for future activation and completion:
 
 ```text
-Reservation
-
-CONFIRMED
-
-↓
-
-Charging Session Starts
-
-↓
-
-ACTIVE
-
-↓
-
-Charging Session Ends
-
-↓
-
-COMPLETED
+CONFIRMED → ACTIVE → COMPLETED
 ```
 
-Reservation lifecycle remains owned by the Reservation Aggregate.
-
-Charging Sessions shall request state transitions rather than modifying persistence directly.
-
----
+SPEC-007 shall define actual Charging Session endpoints, application integration, session lifecycle
+and energy interruption behavior. Charging Sessions shall request Reservation transitions rather
+than modifying Reservation persistence directly.
 
 ## SPEC-008 — Telemetry
 
-Telemetry will provide operational events associated with Reservations, including:
-
-- reservation activation;
-- reservation completion;
-- charging duration;
-- connector occupancy;
-- no-show statistics.
-
-Telemetry implementation is intentionally outside the scope of this specification.
-
----
+Telemetry may later describe charging activity associated with a Reservation through its Charging
+Session. SPEC-006 does not require telemetry ingestion or treat Reservation lifecycle changes as
+telemetry measurements.
 
 ## SPEC-009 — Domain Events
 
-Future Domain Events may include:
-
-```text
-ReservationCreated
-
-ReservationActivated
-
-ReservationCompleted
-
-ReservationCancelled
-
-ReservationLateCancelled
-
-ReservationNoShow
-```
-
-This specification defines the business events conceptually only.
-
-No messaging infrastructure is required.
-
----
+Future conceptual events may include ReservationCreated, ReservationRescheduled,
+ReservationActivated, ReservationCompleted, ReservationCancelled, ReservationLateCancelled and
+ReservationNoShow. Messaging and event persistence remain deferred to SPEC-009.
 
 ## SPEC-010 — Analytics
 
-Reservation history may later support:
-
-- occupancy reports;
-- utilization reports;
-- no-show rates;
-- cancellation rates;
-- reservation lead time;
-- connector demand;
-- infrastructure planning.
+Historical data may support no-show, cancellation, lead-time, utilization and demand analysis.
 
 ---
 
-# 22. Implementation Notes
+# 24. Implementation Guidance
 
-The implementation shall follow the architectural principles established by the project.
+Reservation and Vehicle business rules belong in the Smart Charging domain layer. Application
+services coordinate repositories, authorization, infrastructure eligibility and transactions. The
+API layer maps DTOs, responses and warnings without implementing lifecycle rules.
 
-Reservation business rules belong to the Domain layer.
-
-Application Services coordinate Reservation use cases.
-
-Infrastructure owns:
-
-- persistence;
-- repository implementations;
-- database migrations.
-
-The API layer shall:
-
-- expose REST endpoints;
-- validate request DTOs;
-- map domain responses to HTTP responses;
-- expose warnings without embedding business logic.
-
-Reservation state transitions shall never be implemented directly inside controllers.
+The implementation shall use one injectable or otherwise consistent application clock so boundary
+and No-Show tests remain deterministic. No scheduler technology or persistence locking strategy is
+mandated by this specification.
 
 ---
 
-# 23. Non-Functional Requirements
+# 25. Final Considerations
 
-The Reservation capability shall:
-
-- remain deterministic;
-- support concurrent reservation requests safely;
-- preserve transactional consistency;
-- avoid partial state transitions;
-- expose OpenAPI documentation;
-- support automated testing;
-- integrate with the project observability stack.
-
-Reservation creation shall be atomic.
-
-Concurrent requests for the same Connector shall never result in two overlapping Reservations.
-
----
-
-# 24. Design Rationale
-
-Several design decisions intentionally prioritize long-term maintainability.
-
-Reservations are created for Connectors rather than Charging Stations because charging ultimately occurs through a specific physical connector.
-
-Reservations belong to Vehicles rather than directly to users, allowing one authenticated identity to manage multiple vehicles while preventing conflicting reservations for the same vehicle.
-
-Late Cancellation is modeled separately from No-Show because the operational consequences differ.
-
-A user who informs the platform that charging will not occur should immediately release the Connector while still preserving historical information.
-
-The Reservation end time remains immutable to guarantee predictable infrastructure scheduling and avoid cascading conflicts.
-
-Warnings are represented as API responses rather than Reservation state to avoid polluting the domain model with transient operational information.
-
----
-
-# 25. Summary
-
-This specification introduces the Reservation capability as the scheduling foundation of SCEP.
-
-It establishes:
-
-- the Reservation Aggregate;
-- Reservation lifecycle;
-- scheduling invariants;
-- cancellation policies;
-- no-show detection;
-- authorization model;
-- REST API;
-- persistence model;
-- validation rules;
-- implementation guidance.
-
-Together with Facilities, Charging Stations and Identity, Reservations complete the operational planning layer of the platform and provide the necessary foundation for Charging Sessions, Telemetry and Analytics.
+SPEC-006 establishes an implementation-ready scheduling model centered on one owner, one Vehicle,
+one Connector and one half-open time interval. It introduces only the minimum Vehicle capability
+needed by Reservations, preserves Technical Client equivalence for simulation and prepares clean
+domain operations for future Charging Sessions without prematurely requiring SPEC-007.

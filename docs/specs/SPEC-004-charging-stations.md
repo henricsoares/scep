@@ -186,7 +186,8 @@ The connector can be reserved or used.
 
 ## Reserved
 
-The connector has an active reservation for a future or current time window.
+The connector has a CONFIRMED or ACTIVE Reservation relevant to its current operational window.
+This instantaneous status does not by itself prevent a non-overlapping future Reservation.
 
 ## Charging
 
@@ -240,7 +241,12 @@ A Charging Station under maintenance cannot receive new Reservations or Charging
 
 ## BR-007 — Connector Availability
 
-Only Available Connectors may receive new Reservations or start direct Charging Sessions.
+A Connector shall be operationally eligible before receiving a new Reservation. OutOfService
+Connectors shall reject new Reservations. A current Reserved or Charging state shall not by
+itself reject a non-overlapping future Reservation; SPEC-006 defines calendar eligibility for the
+proposed interval.
+
+Only an Available Connector may start a direct Charging Session.
 
 ---
 

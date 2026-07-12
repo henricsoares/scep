@@ -910,7 +910,7 @@ Allowed:
 * EV Driver: all Active Facilities, read-only;
 * Researcher: all Facilities, read-only;
 * Data Scientist: all Facilities, read-only;
-* Simulation Client: all Active Facilities, read-only.
+* Technical Client: all Active Facilities, read-only.
 
 ---
 
@@ -927,7 +927,7 @@ Allowed:
 * EV Driver: Active Facilities only;
 * Researcher: any Facility;
 * Data Scientist: any Facility;
-* Simulation Client: Active Facilities only.
+* Technical Client: Active Facilities only.
 
 ---
 
@@ -972,7 +972,7 @@ Allowed:
 * EV Driver for Active Facilities;
 * Researcher;
 * Data Scientist;
-* Simulation Client for Active Facilities.
+* Technical Client for Active Facilities.
 
 ---
 
@@ -1230,7 +1230,7 @@ Tests shall cover:
 * Facility Operator assigned access;
 * Facility Operator unassigned access rejection;
 * read-only role access;
-* Simulation Client restrictions;
+* Technical Client restrictions;
 * insufficient Role rejection;
 * deactivated account token rejection.
 
@@ -1340,7 +1340,7 @@ This specification is complete when:
 * Facility Operators are restricted to assigned Facilities;
 * existing Facilities endpoints are protected;
 * existing Charging Stations and Connectors endpoints are protected;
-* Simulation Clients authenticate as technical accounts;
+* Technical Clients authenticate as technical accounts;
 * the first Platform Administrator can be bootstrapped safely;
 * the last Active Platform Administrator is protected;
 * sensitive credential data is never returned or logged;

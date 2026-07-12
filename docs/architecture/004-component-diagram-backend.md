@@ -74,7 +74,7 @@ C4Component
     Container_Boundary(api, "Backend API — Python 3.13 / FastAPI Modular Monolith") {
         Component(apiLayer, "API Layer", "FastAPI Routers", "Exposes REST endpoints and handles request/response mapping.")
         Component(auth, "Identity & Access Component", "Application Module", "Handles authentication, authorization, users and roles.")
-        Component(charging, "Smart Charging Component", "Application Module", "Manages charging stations, reservations, sessions and occupancy rules.")
+        Component(charging, "Smart Charging Component", "Application Module", "Manages charging stations, Vehicles, reservations, sessions and occupancy rules.")
         Component(telemetry, "Telemetry Component", "Application Module", "Ingests and normalizes operational telemetry.")
         Component(events, "Domain Event Component", "Internal Event Bus / Event Store", "Publishes, persists and dispatches domain events.")
         Component(analytics, "Analytics Component", "Application Module", "Consumes events and produces operational indicators.")
@@ -166,9 +166,10 @@ Initial roles include:
 * EV Driver;
 * Facility Operator;
 * Platform Administrator;
-* Simulation Client.
+* Technical Client account type.
 
-The Simulation Client role is used by the external Digital Twin Simulation Engine to interact with SCEP through public APIs.
+The Technical Client account type is used by the external Digital Twin Simulation Engine to
+interact with SCEP through public APIs. It is not a Human Role.
 
 ---
 
@@ -180,6 +181,7 @@ Responsibilities:
 
 * manage charging stations;
 * manage charger status;
+* manage the minimal Vehicle capability required by Reservations;
 * create reservations;
 * cancel reservations;
 * validate reservation conflicts;
@@ -189,6 +191,9 @@ Responsibilities:
 * publish charging-related domain events.
 
 This component owns the core operational rules of the Smart Charging domain.
+
+Vehicle remains a supporting domain entity inside this component. It does not introduce a new
+component, module boundary or deployable service.
 
 It must not directly execute analytics, model training or notification delivery.
 
@@ -463,6 +468,7 @@ Initial API groups:
 
 * `/auth`
 * `/users`
+* `/vehicles`
 * `/stations`
 * `/reservations`
 * `/sessions`
