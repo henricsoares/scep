@@ -3,8 +3,11 @@
 ## Smart Charging Experimentation Platform (SCEP)
 
 **Status:** Approved
+
 **Version:** 1.0
+
 **Document Owner:** Project Team
+
 **Last Update:** 2026
 
 ---

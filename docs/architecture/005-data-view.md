@@ -1,4 +1,4 @@
-# SPEC-005 — Data View
+# Architecture View 005 — Data View
 
 ## Smart Charging Experimentation Platform (SCEP)
 

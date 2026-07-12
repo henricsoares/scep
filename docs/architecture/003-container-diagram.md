@@ -1,4 +1,4 @@
-# SPEC-003 — Container Diagram
+# Architecture View 003 — Container Diagram
 
 ## Smart Charging Experimentation Platform (SCEP)
 

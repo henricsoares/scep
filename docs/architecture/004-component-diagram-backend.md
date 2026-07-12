@@ -1,4 +1,4 @@
-# SPEC-004 — Backend Component Diagram
+# Architecture View 004 — Backend Component Diagram
 
 ## Smart Charging Experimentation Platform (SCEP)
 

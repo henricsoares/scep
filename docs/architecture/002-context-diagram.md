@@ -1,4 +1,4 @@
-# SPEC-002 — Context Diagram
+# Architecture View 002 — Context Diagram
 
 ## Smart Charging Experimentation Platform (SCEP)
 
