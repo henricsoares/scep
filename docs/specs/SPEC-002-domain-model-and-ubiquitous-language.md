@@ -517,8 +517,8 @@ Facility
                      └── contains ──► Connector ◄── reserves ── Reservation
                                                                        ▲
 Identity ── owns ──► Vehicle ◄──────────── assigned to ────────────────┘
-    │                  │
-    └── creates ───────┘
+    │                                                                  │
+    └── creates ───────────────────────────────────────────────────────┘
 
 Reservation ── may originate ──► Charging Session
                                       └── generates ──► Telemetry
