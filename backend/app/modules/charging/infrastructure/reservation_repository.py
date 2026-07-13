@@ -105,6 +105,8 @@ class SqlAlchemyReservationRepository:
         connector_id: UUID | None = None,
         status: ReservationStatus | None = None,
         facility_ids: tuple[UUID, ...] | None = None,
+        visibility_owner_id: UUID | None = None,
+        facility_id: UUID | None = None,
         station_id: UUID | None = None,
         starts_before: datetime | None = None,
         ends_after: datetime | None = None,
@@ -124,7 +126,7 @@ class SqlAlchemyReservationRepository:
             stmt = stmt.where(ReservationModel.start_at < starts_before)
         if ends_after is not None:
             stmt = stmt.where(ReservationModel.end_at > ends_after)
-        if station_id is not None or facility_ids is not None:
+        if station_id is not None or facility_id is not None or facility_ids is not None:
             from app.modules.charging.infrastructure.station_model import (
                 ChargingStationModel,
                 ConnectorModel,
@@ -137,8 +139,21 @@ class SqlAlchemyReservationRepository:
             )
             if station_id is not None:
                 stmt = stmt.where(ChargingStationModel.id == station_id)
+            if facility_id is not None:
+                stmt = stmt.where(ChargingStationModel.facility_id == facility_id)
             if facility_ids is not None:
-                stmt = stmt.where(ChargingStationModel.facility_id.in_(facility_ids))
+                facility_scope = ChargingStationModel.facility_id.in_(facility_ids)
+                if visibility_owner_id is not None:
+                    stmt = stmt.where(
+                        or_(
+                            ReservationModel.owner_id == visibility_owner_id,
+                            facility_scope,
+                        )
+                    )
+                else:
+                    stmt = stmt.where(facility_scope)
+        elif visibility_owner_id is not None:
+            stmt = stmt.where(ReservationModel.owner_id == visibility_owner_id)
         stmt = (
             stmt.order_by(ReservationModel.start_at, ReservationModel.id)
             .offset(offset)

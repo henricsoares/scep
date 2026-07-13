@@ -509,6 +509,69 @@ def test_facility_operator_has_scoped_read_and_forbidden_mutation(
     )
 
 
+def test_facility_operator_visibility_combines_ownership_and_facility_scope(
+    review_context: ReservationApiContext,
+) -> None:
+    context = review_context
+    operator = context.create_user(
+        "review-operator-union@example.com",
+        roles=[HumanRole.FACILITY_OPERATOR],
+        facility_ids=[context.facility_ids[0]],
+    )
+    operator_vehicle = create_vehicle(context, operator, "Operator EV")
+    other_vehicle = create_vehicle(context, context.owner, "Other Owner EV")
+    start = datetime.now(UTC) + timedelta(hours=4)
+
+    owned_outside_scope = create_reservation(
+        context,
+        operator,
+        operator_vehicle["id"],
+        context.connector_ids[2],
+        start=start,
+    )["reservation"]
+    managed_facility = create_reservation(
+        context,
+        context.owner,
+        other_vehicle["id"],
+        context.connector_ids[0],
+        start=start + timedelta(hours=2),
+    )["reservation"]
+    concealed = create_reservation(
+        context,
+        context.owner,
+        other_vehicle["id"],
+        context.connector_ids[2],
+        start=start + timedelta(hours=4),
+    )["reservation"]
+
+    listed = context.client.get("/reservations", headers=context.headers(operator))
+    assert listed.status_code == 200
+    assert [item["id"] for item in listed.json()] == [
+        owned_outside_scope["id"],
+        managed_facility["id"],
+    ]
+    assert (
+        context.client.get(
+            f"/reservations/{owned_outside_scope['id']}",
+            headers=context.headers(operator),
+        ).status_code
+        == 200
+    )
+    assert (
+        context.client.get(
+            f"/reservations/{managed_facility['id']}",
+            headers=context.headers(operator),
+        ).status_code
+        == 200
+    )
+    assert (
+        context.client.get(
+            f"/reservations/{concealed['id']}", headers=context.headers(operator)
+        ).status_code
+        == 404
+    )
+
+
 def test_technical_client_and_read_only_roles_keep_owned_scope(
     review_context: ReservationApiContext,
 ) -> None:

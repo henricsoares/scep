@@ -223,17 +223,19 @@ class ReservationService:
     ) -> list[Reservation]:
         self.reconcile_overdue()
         facility_ids: tuple[UUID, ...] | None = None
+        visibility_owner_id: UUID | None = None
         if not is_admin(actor):
             if HumanRole.FACILITY_OPERATOR in actor.roles:
                 facility_ids = actor.facility_ids
-                if facility_id is not None:
-                    facility_ids = (facility_id,) if facility_id in actor.facility_ids else ()
+                visibility_owner_id = actor.id
             else:
                 owner_id = actor.id
-        elif facility_id is not None:
-            facility_ids = (facility_id,)
         return self.reservations.list(
-            owner_id=owner_id, facility_ids=facility_ids, **filters  # type: ignore[arg-type]
+            owner_id=owner_id,
+            facility_ids=facility_ids,
+            visibility_owner_id=visibility_owner_id,
+            facility_id=facility_id,
+            **filters,  # type: ignore[arg-type]
         )
 
     def reschedule(
