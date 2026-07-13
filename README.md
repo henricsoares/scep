@@ -106,6 +106,8 @@ Key documents:
 * Domain model specification: `docs/specs/SPEC-002-domain-model-and-ubiquitous-language.md`
 * Facilities specification: `docs/specs/SPEC-003-facilities.md`
 * Charging Stations specification: `docs/specs/SPEC-004-charging-stations.md`
+* Identity and Access specification: `docs/specs/SPEC-005-identity-and-access.md`
+* Reservations specification: `docs/specs/SPEC-006-reservations.md`
 
 ---
 

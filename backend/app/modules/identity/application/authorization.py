@@ -24,3 +24,15 @@ def can_manage_facility(u: User, facility_id: UUID) -> bool:
 
 def can_create_facility(u: User) -> bool:
     return is_admin(u)
+
+
+def can_manage_owned_resource(u: User, owner_id: UUID) -> bool:
+    return is_admin(u) or u.id == owner_id
+
+
+def can_read_reservation_owner(u: User, owner_id: UUID) -> bool:
+    return (
+        can_manage_owned_resource(u, owner_id)
+        or HumanRole.RESEARCHER in u.roles
+        or HumanRole.DATA_SCIENTIST in u.roles
+    )
