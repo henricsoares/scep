@@ -3,15 +3,21 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy.orm import Session
 
 from app.infrastructure.database import get_db
+from app.modules.charging.application.facility_service import FacilityNotFoundError
 from app.modules.charging.application.reservation_service import (
     ReservationNotFoundError,
     ReservationService,
     SchedulingConflictError,
 )
+from app.modules.charging.application.station_service import (
+    ChargingStationNotFoundError,
+    ConnectorNotFoundError,
+)
+from app.modules.charging.application.vehicle_service import VehicleNotFoundError
 from app.modules.charging.domain.reservation import Reservation, ReservationStatus, normalize_utc
 from app.modules.charging.infrastructure.facility_repository import SqlAlchemyFacilityRepository
 from app.modules.charging.infrastructure.reservation_repository import (
@@ -42,6 +48,13 @@ class ReservationPatchPayload(BaseModel):
     start_at: datetime | None = None
     end_at: datetime | None = None
     model_config = ConfigDict(extra="forbid")
+
+    @model_validator(mode="after")
+    def reject_explicit_nulls(self) -> "ReservationPatchPayload":
+        for field_name in self.model_fields_set:
+            if getattr(self, field_name) is None:
+                raise ValueError(f"{field_name} must not be null")
+        return self
 
 
 class ReservationResponse(BaseModel):
@@ -108,6 +121,14 @@ def map_error(exc: Exception) -> HTTPException:
         )
     if isinstance(exc, ReservationNotFoundError):
         return HTTPException(status_code=404, detail="reservation not found")
+    if isinstance(exc, VehicleNotFoundError):
+        return HTTPException(status_code=404, detail="vehicle not found")
+    if isinstance(exc, ConnectorNotFoundError):
+        return HTTPException(status_code=404, detail="connector not found")
+    if isinstance(exc, ChargingStationNotFoundError):
+        return HTTPException(status_code=404, detail="charging station not found")
+    if isinstance(exc, FacilityNotFoundError):
+        return HTTPException(status_code=404, detail="facility not found")
     if isinstance(exc, PermissionError):
         return HTTPException(status_code=403, detail=str(exc))
     return HTTPException(status_code=422, detail=str(exc))
@@ -127,7 +148,15 @@ def create_reservation(
     try:
         item, adjacent = service.create(actor=user, **payload.model_dump())
         return envelope(item, "BACK_TO_BACK_RESERVATION" if adjacent else None)
-    except (ValueError, PermissionError, SchedulingConflictError) as exc:
+    except (
+        ValueError,
+        PermissionError,
+        SchedulingConflictError,
+        VehicleNotFoundError,
+        ConnectorNotFoundError,
+        ChargingStationNotFoundError,
+        FacilityNotFoundError,
+    ) as exc:
         raise map_error(exc) from exc
 
 
@@ -200,7 +229,16 @@ def patch_reservation(
             end_at=changes.get("end_at"),
         )
         return envelope(item, "BACK_TO_BACK_RESERVATION" if adjacent else None)
-    except (ValueError, PermissionError, ReservationNotFoundError, SchedulingConflictError) as exc:
+    except (
+        ValueError,
+        PermissionError,
+        ReservationNotFoundError,
+        SchedulingConflictError,
+        VehicleNotFoundError,
+        ConnectorNotFoundError,
+        ChargingStationNotFoundError,
+        FacilityNotFoundError,
+    ) as exc:
         raise map_error(exc) from exc
 
 

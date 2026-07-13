@@ -24,8 +24,12 @@ def upgrade() -> None:
         sa.Column("owner_id", sa.Uuid(), nullable=False),
         sa.Column("display_name", sa.String(255), nullable=False),
         sa.Column("status", sa.String(16), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.CheckConstraint("length(trim(display_name)) > 0", name="ck_vehicles_display_name"),
         sa.CheckConstraint("status IN ('ACTIVE', 'INACTIVE')", name="ck_vehicles_status"),
         sa.ForeignKeyConstraint(["owner_id"], ["users.id"]),
@@ -43,8 +47,12 @@ def upgrade() -> None:
         sa.Column("start_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("end_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("status", sa.String(24), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.Column("activated_at", sa.DateTime(timezone=True)),
         sa.Column("completed_at", sa.DateTime(timezone=True)),
         sa.Column("cancelled_at", sa.DateTime(timezone=True)),
@@ -64,7 +72,8 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["owner_id"], ["users.id"]),
         sa.ForeignKeyConstraint(["connector_id"], ["connectors.id"]),
         sa.ForeignKeyConstraint(
-            ["vehicle_id", "owner_id"], ["vehicles.id", "vehicles.owner_id"],
+            ["vehicle_id", "owner_id"],
+            ["vehicles.id", "vehicles.owner_id"],
             name="fk_reservations_vehicle_owner",
         ),
         sa.PrimaryKeyConstraint("id"),

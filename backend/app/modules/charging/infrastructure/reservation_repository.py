@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import and_, or_, select, text
+from sqlalchemy import and_, or_, select, text, update
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
@@ -14,6 +13,9 @@ from app.modules.charging.domain.reservation import (
     ReservationStatus,
 )
 from app.modules.charging.domain.vehicle import Vehicle, VehicleStatus
+from app.modules.charging.infrastructure.persistence_errors import (
+    classify_reservation_calendar_write,
+)
 from app.modules.charging.infrastructure.reservation_model import ReservationModel, VehicleModel
 
 
@@ -83,8 +85,11 @@ class SqlAlchemyReservationRepository:
         self.session.add(self._model(reservation))
         try:
             self.session.commit()
-        except DBAPIError:
+        except DBAPIError as exc:
             self.session.rollback()
+            conflict = classify_reservation_calendar_write(exc)
+            if conflict is not None:
+                raise conflict from exc
             raise
         return self.get(reservation.id) or reservation
 
@@ -203,14 +208,27 @@ class SqlAlchemyReservationRepository:
             stmt = stmt.where(ReservationModel.id != exclude_id)
         return self.session.scalar(stmt.limit(1)) is not None
 
-    def overdue_confirmed(self, now: datetime) -> Sequence[Reservation]:
-        from datetime import timedelta
-
-        stmt = select(ReservationModel).where(
-            ReservationModel.status == ReservationStatus.CONFIRMED.value,
-            ReservationModel.start_at < now - timedelta(minutes=15),
+    def reconcile_overdue(self, now: datetime) -> int:
+        stmt = (
+            update(ReservationModel)
+            .where(
+                ReservationModel.status == ReservationStatus.CONFIRMED.value,
+                ReservationModel.start_at < now - timedelta(minutes=15),
+            )
+            .values(
+                status=ReservationStatus.NO_SHOW.value,
+                no_show_at=now,
+                updated_at=now,
+            )
+            .returning(ReservationModel.id)
         )
-        return [self._domain(item) for item in self.session.scalars(stmt).all()]
+        try:
+            transitioned = tuple(self.session.scalars(stmt).all())
+            self.session.commit()
+        except DBAPIError:
+            self.session.rollback()
+            raise
+        return len(transitioned)
 
     def update(self, reservation: Reservation) -> Reservation:
         model = self.session.get(ReservationModel, reservation.id)
@@ -231,8 +249,11 @@ class SqlAlchemyReservationRepository:
         model.status = reservation.status.value
         try:
             self.session.commit()
-        except DBAPIError:
+        except DBAPIError as exc:
             self.session.rollback()
+            conflict = classify_reservation_calendar_write(exc)
+            if conflict is not None:
+                raise conflict from exc
             raise
         return self.get(reservation.id) or reservation
 

@@ -2,19 +2,26 @@ import logging
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy.exc import DBAPIError
-
+from app.modules.charging.application.facility_service import FacilityNotFoundError
 from app.modules.charging.application.reservation_metrics import (
     reservation_conflicts_total,
     reservations_cancelled_total,
     reservations_created_total,
     reservations_no_show_total,
 )
+from app.modules.charging.application.station_service import (
+    ChargingStationNotFoundError,
+    ConnectorNotFoundError,
+)
+from app.modules.charging.application.vehicle_service import VehicleNotFoundError
 from app.modules.charging.domain.facility import FacilityStatus
 from app.modules.charging.domain.reservation import Reservation, ReservationStatus
 from app.modules.charging.domain.station import ChargingStationStatus, ConnectorStatus
 from app.modules.charging.domain.vehicle import VehicleStatus
 from app.modules.charging.infrastructure.facility_repository import SqlAlchemyFacilityRepository
+from app.modules.charging.infrastructure.persistence_errors import (
+    ReservationCalendarWriteConflict,
+)
 from app.modules.charging.infrastructure.reservation_repository import (
     SqlAlchemyReservationRepository,
     SqlAlchemyVehicleRepository,
@@ -56,36 +63,34 @@ class ReservationService:
 
     def reconcile_overdue(self) -> int:
         now = self.clock.now()
-        count = 0
-        for reservation in self.reservations.overdue_confirmed(now):
-            self.reservations.update(reservation.mark_no_show(now=now))
-            reservations_no_show_total.inc()
-            count += 1
+        count = self.reservations.reconcile_overdue(now)
         if count:
+            reservations_no_show_total.inc(count)
             logger.info("reservation no-show reconciliation completed", extra={"count": count})
         return count
 
     def _vehicle_for_owner(self, vehicle_id: UUID, actor: User) -> tuple[UUID, object]:
         vehicle = self.vehicles.get(vehicle_id)
         if vehicle is None:
-            raise ValueError("vehicle not found")
+            raise VehicleNotFoundError("vehicle not found")
         if vehicle.status != VehicleStatus.ACTIVE:
             raise ValueError("vehicle must be ACTIVE")
         if vehicle.owner_id != actor.id and not is_admin(actor):
-            raise ValueError("vehicle not found")
+            raise VehicleNotFoundError("vehicle not found")
         return vehicle.owner_id, vehicle
 
     def _eligible_connector(self, connector_id: UUID) -> None:
         connector = self.stations.get_connector(connector_id)
         if connector is None:
-            raise ValueError("connector not found")
+            raise ConnectorNotFoundError("connector not found")
         station = self.stations.get(connector.charging_station_id)
         if station is None:
-            raise ValueError("charging station not found")
+            raise ChargingStationNotFoundError("charging station not found")
         facility = self.facilities.get(station.facility_id)
+        if facility is None:
+            raise FacilityNotFoundError("facility not found")
         if (
-            facility is None
-            or facility.status != FacilityStatus.ACTIVE
+            facility.status != FacilityStatus.ACTIVE
             or station.status != ChargingStationStatus.ACTIVE
             or connector.status == ConnectorStatus.OUT_OF_SERVICE
         ):
@@ -115,7 +120,7 @@ class ReservationService:
 
     def _race_conflict(
         self,
-        exc: DBAPIError,
+        exc: ReservationCalendarWriteConflict,
         *,
         connector_id: UUID,
         vehicle_id: UUID,
@@ -123,22 +128,21 @@ class ReservationService:
         end_at: datetime,
         exclude_id: UUID | None = None,
     ) -> SchedulingConflictError:
-        text = str(exc.orig)
-        code = self.reservations.find_conflict(
-            connector_id=connector_id,
-            vehicle_id=vehicle_id,
-            start_at=start_at,
-            end_at=end_at,
-            exclude_id=exclude_id,
-        )
+        code = exc.code
         if code is None:
-            code = (
-                "VEHICLE_RESERVATION_CONFLICT"
-                if "reservations_vehicle_no_overlap" in text
-                else "CONNECTOR_RESERVATION_CONFLICT"
+            code = self.reservations.find_conflict(
+                connector_id=connector_id,
+                vehicle_id=vehicle_id,
+                start_at=start_at,
+                end_at=end_at,
+                exclude_id=exclude_id,
             )
+        if code is None:
+            code = "RESERVATION_CALENDAR_CONFLICT"
         reservation_conflicts_total.labels(
-            "vehicle" if code.startswith("VEHICLE") else "connector"
+            "vehicle"
+            if code.startswith("VEHICLE")
+            else "connector" if code.startswith("CONNECTOR") else "calendar"
         ).inc()
         return SchedulingConflictError(code)
 
@@ -179,7 +183,7 @@ class ReservationService:
         )
         try:
             saved = self.reservations.add(reservation)
-        except DBAPIError as exc:
+        except ReservationCalendarWriteConflict as exc:
             raise self._race_conflict(
                 exc,
                 connector_id=reservation.connector_id,
@@ -193,8 +197,6 @@ class ReservationService:
 
     def _can_view(self, actor: User, reservation: Reservation) -> bool:
         if is_admin(actor) or actor.id == reservation.owner_id:
-            return True
-        if HumanRole.RESEARCHER in actor.roles or HumanRole.DATA_SCIENTIST in actor.roles:
             return True
         if HumanRole.FACILITY_OPERATOR in actor.roles:
             connector = self.stations.get_connector(reservation.connector_id)
@@ -226,10 +228,7 @@ class ReservationService:
                 facility_ids = actor.facility_ids
                 if facility_id is not None:
                     facility_ids = (facility_id,) if facility_id in actor.facility_ids else ()
-            elif (
-                HumanRole.RESEARCHER not in actor.roles
-                and HumanRole.DATA_SCIENTIST not in actor.roles
-            ):
+            else:
                 owner_id = actor.id
         elif facility_id is not None:
             facility_ids = (facility_id,)
@@ -249,15 +248,15 @@ class ReservationService:
         item = self.get(reservation_id, actor=actor)
         if item.owner_id != actor.id and not is_admin(actor):
             raise PermissionError("reservation mutation is forbidden")
-        target_vehicle_id = vehicle_id or item.vehicle_id
+        target_vehicle_id = item.vehicle_id if vehicle_id is None else vehicle_id
         owner_id, _ = self._vehicle_for_owner(target_vehicle_id, actor)
         if owner_id != item.owner_id:
             raise ValueError("Vehicle owner must match Reservation owner")
         self._eligible_connector(item.connector_id)
         updated = item.reschedule(
             vehicle_id=target_vehicle_id,
-            start_at=start_at or item.start_at,
-            end_at=end_at or item.end_at,
+            start_at=item.start_at if start_at is None else start_at,
+            end_at=item.end_at if end_at is None else end_at,
             now=self.clock.now(),
         )
         self._check_conflict(
@@ -276,7 +275,7 @@ class ReservationService:
         )
         try:
             return self.reservations.update(updated), adjacent
-        except DBAPIError as exc:
+        except ReservationCalendarWriteConflict as exc:
             raise self._race_conflict(
                 exc,
                 connector_id=updated.connector_id,

@@ -3,8 +3,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy.exc import DBAPIError
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy.orm import Session
 
 from app.infrastructure.database import get_db
@@ -32,6 +31,13 @@ class VehiclePatchPayload(BaseModel):
     display_name: str | None = Field(default=None, min_length=1, max_length=255)
     status: VehicleStatus | None = None
     model_config = ConfigDict(extra="forbid")
+
+    @model_validator(mode="after")
+    def reject_explicit_nulls(self) -> "VehiclePatchPayload":
+        for field_name in self.model_fields_set:
+            if getattr(self, field_name) is None:
+                raise ValueError(f"{field_name} must not be null")
+        return self
 
 
 class VehicleResponse(BaseModel):
@@ -66,8 +72,6 @@ def create_vehicle(
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except DBAPIError as exc:
-        raise HTTPException(status_code=422, detail="vehicle could not be persisted") from exc
 
 
 @router.get("", response_model=list[VehicleResponse])
