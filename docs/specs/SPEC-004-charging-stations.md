@@ -249,7 +249,8 @@ Connectors shall reject new Reservations. A current Reserved or Charging state s
 itself reject a non-overlapping future Reservation; SPEC-006 defines calendar eligibility for the
 proposed interval.
 
-Only an Available Connector may start a direct Charging Session.
+Any future direct Charging Session workflow would require an Available Connector. Direct or
+otherwise unreserved Charging Sessions remain outside the scope of SPEC-007.
 
 ---
 
@@ -485,9 +486,8 @@ Required roles:
 - Platform Administrator;
 - Facility Operator.
 
-Until SPEC-005 — Identity and Access is implemented, these authorization rules may be enforced through a temporary development mechanism or disabled in local development.
-
-The API design must preserve the assumption that these operations will become protected.
+SPEC-005 — Identity and Access governs authentication, authorization and Facility-scoped access
+for these protected operations.
 
 Simulation clients may read Charging Station and Connector data but shall not modify infrastructure configuration unless explicitly allowed.
 

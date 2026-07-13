@@ -925,9 +925,9 @@ Implementation should be possible without requiring additional conceptual clarif
 
 This specification serves as the foundation for:
 
-* **SPEC-004 — Charging Stations**, where physical charging equipment will be introduced.
-* **SPEC-006 — Reservations**, which will validate reservation requests against Facility context.
-* **SPEC-007 — Charging Sessions**, which will execute within a Facility.
+* **SPEC-004 — Charging Stations**, which introduces physical charging equipment.
+* **SPEC-006 — Reservations**, which validates Reservation requests against Facility context.
+* **SPEC-007 — Charging Sessions**, whose draft defines execution within a Facility.
 * **SPEC-009 — Analytics**, which will aggregate operational metrics by Facility.
 * **SPEC-010 — Dataset Export**, which will use Facilities as a primary analytical dimension.
 * **SPEC-011 — Predictions**, which will forecast charging infrastructure utilization within Facilities.

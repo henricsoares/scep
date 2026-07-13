@@ -216,11 +216,11 @@ A Reservation represents the intention to occupy a specific Connector during a f
 Reservations:
 
 * belong to exactly one Connector;
-* belong to exactly one authenticated identity;
+* belong to exactly one Authenticated Identity;
 * are assigned to exactly one Vehicle owned by that identity;
 * may become a No-Show;
 * may be cancelled;
-* may result in a Charging Session.
+* may originate at most one Charging Session.
 
 A Reservation does not guarantee that charging will occur.
 
@@ -231,6 +231,10 @@ A Reservation does not guarantee that charging will occur.
 A Charging Session represents the effective utilization of a Connector by a Vehicle.
 
 A Charging Session begins when charging starts and ends when charging finishes.
+
+Under SPEC-007, every Charging Session originates from exactly one Reservation. Direct or
+otherwise unreserved Charging Sessions require a future specification and remain outside the
+SPEC-007 scope.
 
 Operational telemetry is associated with Charging Sessions.
 
@@ -516,11 +520,11 @@ Facility
     └── owns ──► Charging Station
                      └── contains ──► Connector ◄── reserves ── Reservation
                                                                        ▲
-Identity ── owns ──► Vehicle ◄──────────── assigned to ────────────────┘
+Authenticated Identity ── owns ──► Vehicle ◄── assigned to ───────────┘
     │                                                                  │
     └── creates ───────────────────────────────────────────────────────┘
 
-Reservation ── may originate ──► Charging Session
+Reservation ── originates 0..1 ──► Charging Session
                                       └── generates ──► Telemetry
                                                                │
                                                                ▼
@@ -591,7 +595,7 @@ Responsibilities:
 
 Associated Entities:
 
-* authenticated Identity;
+* Authenticated Identity;
 * Vehicle;
 * Connector.
 
@@ -606,18 +610,19 @@ Root Entity:
 Responsibilities:
 
 * represent effective connector utilization;
-* own operational telemetry;
+* provide the association target for future operational telemetry;
 * calculate charging duration.
 
-Owned Entities:
+External Associations:
 
-* Telemetry Records.
+* Telemetry Records introduced by SPEC-008; they are not owned by the Charging Session Aggregate.
 
 Associated Entities:
 
 * Vehicle;
 * Connector;
-* authenticated Identity.
+* Authenticated Identity;
+* Reservation.
 
 ---
 
@@ -708,7 +713,7 @@ Identity:
 
 * Vehicle ID
 
-Represents a physical or simulated electric vehicle owned by one authenticated identity and
+Represents a physical or simulated electric vehicle owned by one Authenticated Identity and
 participating in Reservations and future Charging Sessions.
 
 Vehicle is a supporting entity introduced by SPEC-006, not a separate Aggregate in the current
@@ -847,23 +852,23 @@ This Value Object is central to analytical capabilities.
 
 The domain relationships are summarized below.
 
-| Source           | Relationship    | Target           |
-| ---------------- | --------------- | ---------------- |
-| Facility         | owns            | Charging Station |
-| Charging Station | contains        | Connector        |
-| Identity         | owns            | Vehicle          |
-| Identity         | creates         | Reservation      |
-| Reservation      | assigned to     | Vehicle          |
-| Reservation      | reserves        | Connector        |
-| Reservation      | may originate   | Charging Session |
-| Identity         | starts          | Charging Session |
-| Vehicle          | participates in | Charging Session |
-| Charging Session | uses            | Connector        |
-| Charging Session | generates       | Telemetry        |
-| Charging Session | publishes       | Domain Events    |
-| Analytics        | consumes        | Domain Events    |
-| Dataset Export   | consumes        | Domain Events    |
-| Prediction       | consumes        | Datasets         |
+| Source                 | Relationship    | Target           |
+| ---------------------- | --------------- | ---------------- |
+| Facility               | owns            | Charging Station |
+| Charging Station       | contains        | Connector        |
+| Authenticated Identity | owns            | Vehicle          |
+| Authenticated Identity | creates         | Reservation      |
+| Reservation            | assigned to     | Vehicle          |
+| Reservation            | reserves        | Connector        |
+| Reservation            | originates 0..1 | Charging Session |
+| Authenticated Identity | owns            | Charging Session |
+| Vehicle                | participates in | Charging Session |
+| Charging Session       | uses            | Connector        |
+| Charging Session       | generates       | Telemetry        |
+| Charging Session       | publishes       | Domain Events    |
+| Analytics              | consumes        | Domain Events    |
+| Dataset Export         | consumes        | Domain Events    |
+| Prediction             | consumes        | Datasets         |
 
 ---
 
@@ -985,11 +990,12 @@ The following invariants shall always hold true.
 * Every Connector belongs to exactly one Charging Station.
 * Every Reservation belongs to exactly one Connector.
 * Every Reservation is assigned to exactly one Vehicle.
-* Every Vehicle belongs to exactly one authenticated identity.
+* Every Vehicle belongs to exactly one Authenticated Identity.
 * Every Reservation owner is the owner of its assigned Vehicle.
 * One Vehicle cannot participate in overlapping blocking Reservations.
+* Every Charging Session originates from exactly one Reservation under SPEC-007.
 * Every Charging Session uses exactly one Connector.
-* Every Charging Session belongs to one User.
+* Every Charging Session belongs to one Authenticated Identity.
 * Every Telemetry Record belongs to one Charging Session.
 * Every Prediction references a single experiment or operational dataset.
 * Operational truth always originates from business activity.
@@ -1050,12 +1056,8 @@ NO_SHOW Reservations release Connector and Vehicle calendars automatically and r
 
 ## BR-006 — Charging Session Creation
 
-A Charging Session may begin:
-
-* from an existing Reservation; or
-* directly, when the Connector is available.
-
-This allows the platform to support both reservation-based and walk-in charging.
+A Charging Session defined by SPEC-007 begins only from an eligible Reservation. Direct or
+otherwise unreserved charging is a possible future capability that requires its own specification.
 
 ---
 
@@ -1162,28 +1164,13 @@ Every transition generates a Domain Event.
 
 Charging Sessions represent the effective utilization of charging infrastructure.
 
-Lifecycle:
+Lifecycle defined by SPEC-007:
 
-```text id="5v9o7p"
-Started
-
-    │
-
-    ▼
-
-Charging
-
-    │
-
-    ▼
-
-Completed
+```text
+ACTIVE ──► COMPLETED
 ```
 
-Possible interruptions:
-
-* Paused (future enhancement);
-* Failed (future enhancement).
+Paused, interrupted and failed states remain future enhancements.
 
 The MVP considers only successful completion.
 

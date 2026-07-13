@@ -1182,6 +1182,9 @@ Deliverables:
 - reservations;
 - charging sessions.
 
+Current progress: charging stations and Reservations are implemented; Charging Sessions are
+documented in draft SPEC-007 and are not yet implemented.
+
 ---
 
 ## Phase 3 — Event Platform
