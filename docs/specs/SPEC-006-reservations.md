@@ -2,7 +2,7 @@
 
 ## Smart Charging Experimentation Platform (SCEP)
 
-**Status:** Draft
+**Status:** Approved
 
 **Version:** 1.0
 
@@ -31,7 +31,7 @@ This specification defines the Reservation capability of the Smart Charging Expe
 Platform (SCEP) and introduces the minimum Vehicle capability required to schedule connector
 usage.
 
-A Reservation grants one authenticated identity the exclusive right to use one specific
+A Reservation grants one Authenticated Identity the exclusive right to use one specific
 Connector with one owned Vehicle during a scheduled time interval. A Reservation does not
 start charging. It exposes domain operations that a future Charging Session may use to activate
 and complete the Reservation.
@@ -98,12 +98,12 @@ half-open time interval.
 
 ## Reservation Owner
 
-The authenticated identity responsible for a Reservation. The owner may be a Human or Technical
+The Authenticated Identity responsible for a Reservation. The owner may be a Human or Technical
 Client account.
 
 ## Vehicle
 
-A physical or simulated electric vehicle owned by one authenticated identity. SPEC-006 models
+A physical or simulated electric vehicle owned by one Authenticated Identity. SPEC-006 models
 only the information required for reservation scheduling and historical association.
 
 ## Connector Calendar
@@ -190,7 +190,7 @@ INACTIVE
 
 ## Vehicle Rules
 
-- A Vehicle shall belong to exactly one authenticated identity.
+- A Vehicle shall belong to exactly one Authenticated Identity.
 - Human and Technical Client identities may own multiple Vehicles.
 - Only the owner may manage a Vehicle unless a Platform Administrator is acting.
 - Only ACTIVE Vehicles may receive new Reservations or be selected during rescheduling.
@@ -580,7 +580,7 @@ Request:
 }
 ```
 
-The owner is derived from the authenticated identity. A Platform Administrator acting for another
+The owner is derived from the Authenticated Identity. A Platform Administrator acting for another
 owner may supply `owner_id` through an explicitly documented administrative request field.
 
 Response: `201 Created` with a Vehicle response.
@@ -665,7 +665,7 @@ Request:
 }
 ```
 
-The owner is derived from the authenticated identity unless a Platform Administrator uses an
+The owner is derived from the Authenticated Identity unless a Platform Administrator uses an
 explicitly documented `owner_id` administrative field. Success returns `201 Created` with the
 response envelope defined in Section 16.
 

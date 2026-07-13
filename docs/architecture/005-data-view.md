@@ -223,6 +223,10 @@ Only the owning module may modify its entities.
 
 Other modules may consume data through APIs, repositories or events according to architectural rules.
 
+Within Smart Charging, every Charging Session originates from exactly one Reservation, and a
+Reservation originates at most one Charging Session. SPEC-007 does not include direct or
+otherwise unreserved Charging Sessions.
+
 ---
 
 # 6. Domain Events

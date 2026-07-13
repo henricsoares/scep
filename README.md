@@ -108,6 +108,7 @@ Key documents:
 * Charging Stations specification: `docs/specs/SPEC-004-charging-stations.md`
 * Identity and Access specification: `docs/specs/SPEC-005-identity-and-access.md`
 * Reservations specification: `docs/specs/SPEC-006-reservations.md`
+* Charging Sessions specification: `docs/specs/SPEC-007-charging-sessions.md`
 
 ---
 
@@ -265,6 +266,15 @@ However, migrations are normally executed automatically when the backend contain
 
 ## Implemented Business Capabilities
 
+The current domain includes Identity, Facilities, Charging Stations, Connectors, Vehicles and
+Reservations. Charging Sessions are the next capability and are currently documented in draft
+SPEC-007; they are not yet implemented.
+
+### Identity and Access
+
+The platform currently supports Authenticated Identities for Human and Technical Client accounts,
+role-based authorization, and Facility-scoped access for Facility Operators.
+
 ### Facilities
 
 The platform currently supports:
@@ -298,6 +308,13 @@ The currently supported Connector types are:
 * NACS
 * Type 2
 
+### Vehicles and Reservations
+
+The platform currently supports owned Vehicles and Reservation scheduling for Connectors,
+including lifecycle management, conflict prevention, cancellation, rescheduling and No-Show
+handling. Every future Charging Session defined by SPEC-007 must originate from exactly one
+Reservation; direct or unreserved Charging Sessions remain out of scope.
+
 ---
 
 ## Research Focus
@@ -328,12 +345,15 @@ Completed:
 * ✅ SPEC-002 — Domain Model and Ubiquitous Language
 * ✅ SPEC-003 — Facilities
 * ✅ SPEC-004 — Charging Stations
+* ✅ SPEC-005 — Identity and Access
+* ✅ SPEC-006 — Reservations
+
+Current:
+
+* 📝 SPEC-007 — Charging Sessions (documented, Draft; not implemented)
 
 Next Steps:
 
-* SPEC-005 — Identity and Access
-* Reservations
-* Charging Sessions
 * Telemetry
 * Analytics
 * Digital Twin Simulation Engine

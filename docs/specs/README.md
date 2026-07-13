@@ -58,9 +58,9 @@ Implementation becomes the translation of approved specifications into software.
 | SPEC-002 | Domain Model and Ubiquitous Language | ✅ Approved |
 | SPEC-003 | Facilities                           | ✅ Approved |
 | SPEC-004 | Charging Stations                    | ✅ Approved |
-| SPEC-005 | Identity and Access                  | ⏳ Planned  |
-| SPEC-006 | Reservations                         | ⏳ Planned  |
-| SPEC-007 | Charging Sessions                    | ⏳ Planned  |
+| SPEC-005 | Identity and Access                  | ✅ Approved |
+| SPEC-006 | Reservations                         | ✅ Approved |
+| SPEC-007 | Charging Sessions                    | 📝 Draft    |
 | SPEC-008 | Smart Charging Domain Telemetry      | ⏳ Planned  |
 | SPEC-009 | Domain Events                        | ⏳ Planned  |
 | SPEC-010 | Analytics                            | ⏳ Planned  |
@@ -251,8 +251,8 @@ Defines charging execution.
 Topics include:
 
 * charging lifecycle;
-* session validation;
-* connector occupation;
+* activation from exactly one Reservation;
+* Connector and Vehicle exclusivity;
 * session completion.
 
 ---
@@ -375,9 +375,12 @@ Completed:
 * ✅ Domain Model and Ubiquitous Language
 * ✅ Facilities
 * ✅ Charging Stations
+* ✅ Identity and Access implementation
+* ✅ Vehicles and Reservations implementation
 
-Next milestone:
+Current milestone:
 
-**Implementation Phase**
+**SPEC-007 — Charging Sessions documentation**
 
-The next specification (`SPEC-005 — Identity and Access`) will introduce authentication and authorization, after which the implementation of the first operational aggregates can begin.
+SPEC-007 is currently a draft. Charging Sessions are not yet implemented; direct or unreserved
+Charging Sessions remain outside its scope.

@@ -277,7 +277,8 @@ The EV Driver represents a future consumer of Reservations and Charging Sessions
 
 In this specification, EV Drivers may authenticate and inspect their own identity.
 
-Reservation and Charging Session permissions will be defined in SPEC-006 and SPEC-007.
+Reservation permissions are defined in SPEC-006, and Charging Session permissions are defined in
+draft SPEC-007.
 
 ---
 
