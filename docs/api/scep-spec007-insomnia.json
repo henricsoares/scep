@@ -1,0 +1,268 @@
+{
+  "_type": "export",
+  "__export_format": 4,
+  "__export_date": "2026-07-14T00:00:00.000Z",
+  "__export_source": "scep.repository",
+  "resources": [
+    {
+      "_id": "wrk_scep_spec007",
+      "_type": "workspace",
+      "name": "SCEP SPEC-007 Automated Acceptance",
+      "description": "Automated Charging Session lifecycle acceptance. Run the requests in numeric order with the Insomnia Collection Runner.",
+      "scope": "collection"
+    },
+    {
+      "_id": "env_scep_spec007",
+      "_type": "environment",
+      "parentId": "wrk_scep_spec007",
+      "name": "Base Environment",
+      "data": {
+        "base_url": "http://localhost:8000",
+        "admin_email": "admin@scep.local",
+        "admin_password": "LocalAdmin123!",
+        "test_password": "Spec007!Local123",
+        "run_id": "",
+        "admin_token": "",
+        "driver_token": "",
+        "facility_id": "",
+        "station_id": "",
+        "connector_id": "",
+        "driver_id": "",
+        "vehicle_id": "",
+        "reservation_id": "",
+        "session_id": "",
+        "start_at": "",
+        "end_at": ""
+      }
+    },
+    {
+      "_id": "jar_scep_spec007",
+      "_type": "cookie_jar",
+      "parentId": "wrk_scep_spec007",
+      "name": "Default Jar",
+      "cookies": []
+    },
+    {
+      "_id": "fld_spec007_automated",
+      "_type": "request_group",
+      "parentId": "wrk_scep_spec007",
+      "name": "SPEC-007 Automated Lifecycle",
+      "description": "Run all requests in numeric order. Scripts generate unique data, calculate the activation window, capture response values, and assert the contract."
+    },
+    {
+      "_id": "req_spec007_01_admin_login",
+      "_type": "request",
+      "parentId": "fld_spec007_automated",
+      "name": "01 - Login Administrator and Initialize Run",
+      "method": "POST",
+      "url": "{{ _.base_url }}/auth/login",
+      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"email\": \"{{ _.admin_email }}\",\n  \"password\": \"{{ _.admin_password }}\"\n}"
+      },
+      "authentication": {},
+      "preRequestScript": "const runId = Date.now().toString();\nconst start = new Date(Date.now() + 5 * 60 * 1000);\nconst end = new Date(start.getTime() + 60 * 60 * 1000);\ninsomnia.baseEnvironment.set('run_id', runId);\ninsomnia.baseEnvironment.set('start_at', start.toISOString());\ninsomnia.baseEnvironment.set('end_at', end.toISOString());\n",
+      "afterResponseScript": "const body = insomnia.response.json();\ninsomnia.baseEnvironment.set('admin_token', body.access_token);\ninsomnia.test('administrator login returns 200', () => insomnia.expect(insomnia.response.code).to.eql(200));\n",
+      "metaSortKey": 1000
+    },
+    {
+      "_id": "req_spec007_02_facility",
+      "_type": "request",
+      "parentId": "fld_spec007_automated",
+      "name": "02 - Create Facility",
+      "method": "POST",
+      "url": "{{ _.base_url }}/facilities",
+      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"name\": \"SPEC-007 Automated {{ _.run_id }}\",\n  \"facility_type\": \"University\",\n  \"timezone\": \"America/Sao_Paulo\",\n  \"country\": \"Brazil\",\n  \"city\": \"Juiz de Fora\",\n  \"address\": \"Automated acceptance\",\n  \"status\": \"Active\"\n}"
+      },
+      "authentication": { "type": "bearer", "token": "{{ _.admin_token }}" },
+      "afterResponseScript": "const body = insomnia.response.json();\ninsomnia.baseEnvironment.set('facility_id', body.id);\ninsomnia.test('facility creation returns 201', () => insomnia.expect(insomnia.response.code).to.eql(201));\n",
+      "metaSortKey": 2000
+    },
+    {
+      "_id": "req_spec007_03_station",
+      "_type": "request",
+      "parentId": "fld_spec007_automated",
+      "name": "03 - Create Station and Connector",
+      "method": "POST",
+      "url": "{{ _.base_url }}/facilities/{{ _.facility_id }}/stations",
+      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"name\": \"SPEC-007 Station\",\n  \"description\": \"Automated acceptance\",\n  \"serial_number\": \"SPEC007-{{ _.run_id }}\",\n  \"manufacturer\": \"SCEP\",\n  \"model\": \"Automated\",\n  \"maximum_power_kw\": 22,\n  \"status\": \"Active\",\n  \"connectors\": [{\"connector_type\": \"Type2\", \"maximum_power_kw\": 22, \"status\": \"Available\"}]\n}"
+      },
+      "authentication": { "type": "bearer", "token": "{{ _.admin_token }}" },
+      "afterResponseScript": "const body = insomnia.response.json();\nconst connectorId = body.connectors[0].id;\ninsomnia.baseEnvironment.set('station_id', body.id);\ninsomnia.baseEnvironment.set('connector_id', connectorId);\ninsomnia.test('station creation returns 201', () => insomnia.expect(insomnia.response.code).to.eql(201));\ninsomnia.test('station response contains a Connector ID', () => insomnia.expect(connectorId).to.be.a('string'));\n",
+      "metaSortKey": 3000
+    },
+    {
+      "_id": "req_spec007_04_driver",
+      "_type": "request",
+      "parentId": "fld_spec007_automated",
+      "name": "04 - Create EV Driver",
+      "method": "POST",
+      "url": "{{ _.base_url }}/users",
+      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"email\": \"spec007.{{ _.run_id }}@example.com\",\n  \"display_name\": \"SPEC-007 Driver\",\n  \"password\": \"{{ _.test_password }}\",\n  \"account_type\": \"Human\",\n  \"status\": \"Active\",\n  \"roles\": [\"EVDriver\"],\n  \"facility_ids\": []\n}"
+      },
+      "authentication": { "type": "bearer", "token": "{{ _.admin_token }}" },
+      "afterResponseScript": "const body = insomnia.response.json();\ninsomnia.baseEnvironment.set('driver_id', body.id);\ninsomnia.test('driver creation returns 201', () => insomnia.expect(insomnia.response.code).to.eql(201));\n",
+      "metaSortKey": 4000
+    },
+    {
+      "_id": "req_spec007_05_driver_login",
+      "_type": "request",
+      "parentId": "fld_spec007_automated",
+      "name": "05 - Login EV Driver",
+      "method": "POST",
+      "url": "{{ _.base_url }}/auth/login",
+      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"email\": \"spec007.{{ _.run_id }}@example.com\",\n  \"password\": \"{{ _.test_password }}\"\n}"
+      },
+      "authentication": {},
+      "afterResponseScript": "const body = insomnia.response.json();\ninsomnia.baseEnvironment.set('driver_token', body.access_token);\ninsomnia.test('driver login returns 200', () => insomnia.expect(insomnia.response.code).to.eql(200));\n",
+      "metaSortKey": 5000
+    },
+    {
+      "_id": "req_spec007_06_vehicle",
+      "_type": "request",
+      "parentId": "fld_spec007_automated",
+      "name": "06 - Create Vehicle",
+      "method": "POST",
+      "url": "{{ _.base_url }}/vehicles",
+      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "parameters": [],
+      "body": { "mimeType": "application/json", "text": "{\n  \"display_name\": \"SPEC-007 EV {{ _.run_id }}\"\n}" },
+      "authentication": { "type": "bearer", "token": "{{ _.driver_token }}" },
+      "afterResponseScript": "const body = insomnia.response.json();\ninsomnia.baseEnvironment.set('vehicle_id', body.id);\ninsomnia.test('vehicle creation returns 201', () => insomnia.expect(insomnia.response.code).to.eql(201));\n",
+      "metaSortKey": 6000
+    },
+    {
+      "_id": "req_spec007_07_reservation",
+      "_type": "request",
+      "parentId": "fld_spec007_automated",
+      "name": "07 - Create Eligible Reservation",
+      "method": "POST",
+      "url": "{{ _.base_url }}/reservations",
+      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"vehicle_id\": \"{{ _.vehicle_id }}\",\n  \"connector_id\": \"{{ _.connector_id }}\",\n  \"start_at\": \"{{ _.start_at }}\",\n  \"end_at\": \"{{ _.end_at }}\"\n}"
+      },
+      "authentication": { "type": "bearer", "token": "{{ _.driver_token }}" },
+      "afterResponseScript": "const body = insomnia.response.json();\ninsomnia.baseEnvironment.set('reservation_id', body.reservation.id);\ninsomnia.test('reservation creation returns 201', () => insomnia.expect(insomnia.response.code).to.eql(201));\ninsomnia.test('reservation starts CONFIRMED', () => insomnia.expect(body.reservation.status).to.eql('CONFIRMED'));\n",
+      "metaSortKey": 7000
+    },
+    {
+      "_id": "req_spec007_08_activate",
+      "_type": "request",
+      "parentId": "fld_spec007_automated",
+      "name": "08 - Activate Charging Session",
+      "method": "POST",
+      "url": "{{ _.base_url }}/reservations/{{ _.reservation_id }}/charging-session",
+      "headers": [{ "name": "X-Request-ID", "value": "spec007-{{ _.run_id }}-activate" }],
+      "parameters": [],
+      "body": {},
+      "authentication": { "type": "bearer", "token": "{{ _.driver_token }}" },
+      "afterResponseScript": "const body = insomnia.response.json();\ninsomnia.baseEnvironment.set('session_id', body.id);\ninsomnia.test('activation returns 201', () => insomnia.expect(insomnia.response.code).to.eql(201));\ninsomnia.test('session is ACTIVE', () => insomnia.expect(body.status).to.eql('ACTIVE'));\n",
+      "metaSortKey": 8000
+    },
+    {
+      "_id": "req_spec007_09_connector_charging",
+      "_type": "request",
+      "parentId": "fld_spec007_automated",
+      "name": "09 - Verify Connector Charging",
+      "method": "GET",
+      "url": "{{ _.base_url }}/stations/{{ _.station_id }}",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "authentication": { "type": "bearer", "token": "{{ _.admin_token }}" },
+      "afterResponseScript": "const body = insomnia.response.json();\nconst connector = body.connectors.find(item => item.id === insomnia.baseEnvironment.get('connector_id'));\ninsomnia.test('station detail returns 200', () => insomnia.expect(insomnia.response.code).to.eql(200));\ninsomnia.test('station contains the Connector', () => insomnia.expect(connector).to.be.an('object'));\ninsomnia.test('connector is Charging', () => insomnia.expect(connector.status).to.eql('Charging'));\n",
+      "metaSortKey": 9000
+    },
+    {
+      "_id": "req_spec007_10_list",
+      "_type": "request",
+      "parentId": "fld_spec007_automated",
+      "name": "10 - List Owned Active Sessions",
+      "method": "GET",
+      "url": "{{ _.base_url }}/charging-sessions?status=ACTIVE&vehicle_id={{ _.vehicle_id }}&limit=10",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "authentication": { "type": "bearer", "token": "{{ _.driver_token }}" },
+      "afterResponseScript": "const body = insomnia.response.json();\ninsomnia.test('session list returns 200', () => insomnia.expect(insomnia.response.code).to.eql(200));\ninsomnia.test('created session is listed', () => insomnia.expect(body.some(item => item.id === insomnia.baseEnvironment.get('session_id'))).to.eql(true));\n",
+      "metaSortKey": 10000
+    },
+    {
+      "_id": "req_spec007_11_complete",
+      "_type": "request",
+      "parentId": "fld_spec007_automated",
+      "name": "11 - Complete Charging Session",
+      "method": "POST",
+      "url": "{{ _.base_url }}/charging-sessions/{{ _.session_id }}/complete",
+      "headers": [{ "name": "X-Request-ID", "value": "spec007-{{ _.run_id }}-complete" }],
+      "parameters": [],
+      "body": {},
+      "authentication": { "type": "bearer", "token": "{{ _.driver_token }}" },
+      "afterResponseScript": "const body = insomnia.response.json();\ninsomnia.test('completion returns 200', () => insomnia.expect(insomnia.response.code).to.eql(200));\ninsomnia.test('session is COMPLETED', () => insomnia.expect(body.status).to.eql('COMPLETED'));\ninsomnia.test('ended_at is populated', () => insomnia.expect(body.ended_at).to.not.eql(null));\n",
+      "metaSortKey": 11000
+    },
+    {
+      "_id": "req_spec007_12_reservation_completed",
+      "_type": "request",
+      "parentId": "fld_spec007_automated",
+      "name": "12 - Verify Reservation Completed",
+      "method": "GET",
+      "url": "{{ _.base_url }}/reservations/{{ _.reservation_id }}",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "authentication": { "type": "bearer", "token": "{{ _.driver_token }}" },
+      "afterResponseScript": "insomnia.test('reservation detail returns 200', () => insomnia.expect(insomnia.response.code).to.eql(200));\ninsomnia.test('reservation is COMPLETED', () => insomnia.expect(insomnia.response.json().status).to.eql('COMPLETED'));\n",
+      "metaSortKey": 12000
+    },
+    {
+      "_id": "req_spec007_13_connector_available",
+      "_type": "request",
+      "parentId": "fld_spec007_automated",
+      "name": "13 - Verify Connector Available",
+      "method": "GET",
+      "url": "{{ _.base_url }}/stations/{{ _.station_id }}",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "authentication": { "type": "bearer", "token": "{{ _.admin_token }}" },
+      "afterResponseScript": "const body = insomnia.response.json();\nconst connector = body.connectors.find(item => item.id === insomnia.baseEnvironment.get('connector_id'));\ninsomnia.test('station detail returns 200', () => insomnia.expect(insomnia.response.code).to.eql(200));\ninsomnia.test('station contains the Connector', () => insomnia.expect(connector).to.be.an('object'));\ninsomnia.test('connector is Available', () => insomnia.expect(connector.status).to.eql('Available'));\n",
+      "metaSortKey": 13000
+    },
+    {
+      "_id": "req_spec007_14_metrics",
+      "_type": "request",
+      "parentId": "fld_spec007_automated",
+      "name": "14 - Verify SPEC-007 Metrics",
+      "method": "GET",
+      "url": "{{ _.base_url }}/metrics",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "authentication": {},
+      "afterResponseScript": "const body = insomnia.response.text();\ninsomnia.test('metrics returns 200', () => insomnia.expect(insomnia.response.code).to.eql(200));\ninsomnia.test('activation counter is exposed', () => insomnia.expect(body).to.include('scep_charging_sessions_activated_total'));\ninsomnia.test('completion counter is exposed', () => insomnia.expect(body).to.include('scep_charging_sessions_completed_total'));\n",
+      "metaSortKey": 14000
+    }
+  ]
+}
