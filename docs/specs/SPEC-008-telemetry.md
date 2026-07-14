@@ -436,7 +436,15 @@ The observation timestamp shall belong to the Charging Session interval.
 For ACTIVE Charging Sessions:
 
 ```text
-recorded_at >= started_at
+started_at <= recorded_at <= received_at + clock_skew_tolerance
+```
+
+The platform shall tolerate small clock differences between telemetry producers and the platform.
+
+The default tolerance is:
+
+```text
+clock_skew_tolerance = 5 minutes
 ```
 
 For COMPLETED Charging Sessions:
@@ -445,7 +453,7 @@ For COMPLETED Charging Sessions:
 started_at <= recorded_at <= ended_at
 ```
 
-Observations outside the Charging Session interval shall be rejected.
+Observations outside the valid Charging Session interval shall be rejected.
 
 ---
 
@@ -501,6 +509,10 @@ energy_kwh >= 0
 
 Negative values shall be rejected.
 
+Measurements shall be finite numerical values.
+
+NaN, positive infinity and negative infinity shall be rejected.
+
 ---
 
 ## BR-007 — Immutable Records
@@ -529,11 +541,29 @@ sample_id
 
 Submitting an identical TelemetrySample multiple times shall not create duplicates.
 
-If the same identifier is reused with different measurement values, the platform shall return:
+The first successful submission shall return:
+
+```http
+201 Created
+```
+
+Subsequent identical submissions shall return:
+
+```http
+200 OK
+```
+
+and the previously persisted TelemetrySample.
+
+If the same identifier is reused with different producer-supplied data, the platform shall return:
 
 ```http
 409 Conflict
 ```
+
+Equality is evaluated using producer-supplied fields only.
+
+Platform-generated fields, including `received_at` and `created_at`, shall not participate in idempotency comparisons.
 
 ---
 
@@ -565,13 +595,24 @@ Batch ingestion is atomic.
 
 Either:
 
-- every TelemetrySample is persisted;
+- every TelemetrySample is accepted;
 
 or
 
 - none of them are persisted.
 
 Partial success is not supported.
+
+Duplicate TelemetrySamples already persisted shall be treated according to the idempotency rules.
+
+If duplicate identifiers appear within the same batch:
+
+- identical producer-supplied payloads shall be treated as a single observation;
+- conflicting payloads shall cause the entire batch to fail with:
+
+```http
+409 Conflict
+```
 
 ---
 
@@ -654,17 +695,25 @@ Facility Operators shall not ingest telemetry on behalf of users.
 
 ## Researcher
 
-Researchers have read-only access according to the authorization model established by SPEC-005.
+The `Researcher` Role grants no additional Telemetry permissions by itself.
 
-Researchers shall never ingest telemetry.
+An Authenticated Identity holding this Role may still ingest and retrieve TelemetrySamples for owned Charging Sessions through the ownership-based Human workflow.
+
+The Role shall not grant ingestion permissions for another owner's Charging Sessions.
+
+Future analytical specifications may introduce broader read-only visibility.
 
 ---
 
 ## Data Scientist
 
-Data Scientists have read-only access according to the authorization model established by SPEC-005.
+The `DataScientist` Role grants no additional Telemetry permissions by itself.
 
-Data Scientists shall never ingest telemetry.
+An Authenticated Identity holding this Role may still ingest and retrieve TelemetrySamples for owned Charging Sessions through the ownership-based Human workflow.
+
+The Role shall not grant ingestion permissions for another owner's Charging Sessions.
+
+Future analytical specifications may introduce broader read-only visibility.
 
 ---
 
@@ -706,6 +755,14 @@ POST /charging-sessions/{sessionId}/telemetry/batch
 ```
 
 Persists multiple TelemetrySamples atomically.
+
+Batch size shall satisfy:
+
+```text
+minimum: 1 TelemetrySample
+
+maximum: 1000 TelemetrySamples
+```
 
 If any sample is invalid, the entire batch shall be rejected.
 
@@ -750,6 +807,8 @@ Results shall be ordered by:
 
 ```text
 recorded_at ASC
+
+id ASC
 ```
 
 unless another ordering is explicitly requested.
@@ -807,6 +866,22 @@ The persistence model shall enforce:
 - non-negative measurements;
 - state of charge range;
 - unique(session_id, source, sample_id).
+- at least one measurement field is present;
+- finite numerical values only;
+
+The persistence layer shall enforce that at least one of the following attributes is non-null:
+
+```text
+power_kw
+
+OR
+
+energy_kwh
+
+OR
+
+state_of_charge_percent
+```
 
 TelemetrySamples are immutable.
 
