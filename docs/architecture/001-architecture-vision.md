@@ -1182,8 +1182,8 @@ Deliverables:
 - reservations;
 - charging sessions.
 
-Current progress: charging stations and Reservations are implemented; Charging Sessions are
-documented in draft SPEC-007 and are not yet implemented.
+Current progress: charging stations, Reservations and Charging Sessions are implemented. Telemetry
+is documented in draft SPEC-008 and is not yet implemented.
 
 ---
 

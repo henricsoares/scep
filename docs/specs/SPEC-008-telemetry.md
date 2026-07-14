@@ -739,6 +739,7 @@ Possible responses:
 
 ```text
 201 Created
+200 OK
 401 Unauthorized
 403 Forbidden
 404 Not Found
@@ -778,6 +779,7 @@ Possible responses:
 
 ```text
 201 Created
+200 OK
 401 Unauthorized
 403 Forbidden
 404 Not Found
@@ -865,7 +867,7 @@ The persistence model shall enforce:
 - timezone-aware timestamps;
 - non-negative measurements;
 - state of charge range;
-- unique(session_id, source, sample_id).
+- unique(session_id, source, sample_id);
 - at least one measurement field is present;
 - finite numerical values only;
 
@@ -1005,8 +1007,8 @@ The implementation shall satisfy the following acceptance criteria.
 - Human ownership validated.
 - Technical Client ownership validated.
 - Facility Operator read permissions validated.
-- Researcher read-only behavior validated.
-- Data Scientist read-only behavior validated.
+- Researcher ownership behavior validated.
+- Data Scientist ownership behavior validated.
 - Resource concealment respected.
 
 ---

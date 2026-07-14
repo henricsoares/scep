@@ -236,7 +236,8 @@ Under SPEC-007, every Charging Session originates from exactly one Reservation. 
 otherwise unreserved Charging Sessions require a future specification and remain outside the
 SPEC-007 scope.
 
-Operational telemetry is associated with Charging Sessions.
+Operational telemetry consists of immutable observations owned by the Telemetry domain and
+associated with Charging Sessions.
 
 Charging Sessions are the primary source of operational data.
 
@@ -615,7 +616,7 @@ Responsibilities:
 
 External Associations:
 
-* Telemetry Records introduced by SPEC-008; they are not owned by the Charging Session Aggregate.
+* TelemetrySamples introduced by SPEC-008; they are not owned by the Charging Session Aggregate.
 
 Associated Entities:
 
@@ -750,15 +751,16 @@ This is the primary operational entity of the platform.
 
 ---
 
-## Telemetry Record
+## TelemetrySample
 
 Identity:
 
-* Telemetry Record ID
+* TelemetrySample ID
 
 Represents an individual operational measurement.
 
-Telemetry records always belong to a Charging Session.
+TelemetrySamples are immutable observations owned by the Telemetry domain and always belong to a
+Charging Session.
 
 ---
 
@@ -996,7 +998,7 @@ The following invariants shall always hold true.
 * Every Charging Session originates from exactly one Reservation under SPEC-007.
 * Every Charging Session uses exactly one Connector.
 * Every Charging Session belongs to one Authenticated Identity.
-* Every Telemetry Record belongs to one Charging Session.
+* Every TelemetrySample belongs to one Charging Session.
 * Every Prediction references a single experiment or operational dataset.
 * Operational truth always originates from business activity.
 
@@ -1063,7 +1065,7 @@ otherwise unreserved charging is a possible future capability that requires its 
 
 ## BR-007 — Telemetry Association
 
-Every Telemetry Record shall belong to exactly one Charging Session.
+Every TelemetrySample shall belong to exactly one Charging Session.
 
 Telemetry shall never be associated directly with:
 
