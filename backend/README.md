@@ -39,3 +39,26 @@ write first marks overdue `CONFIRMED` rows as `NO_SHOW` when the current applica
 is later than `start_at + 15 minutes`. This releases both calendars before externally observable
 Reservation behavior without requiring a separate scheduler or manual action. The reconciliation
 operation is idempotent because it selects only `CONFIRMED` rows.
+
+## Charging Sessions
+
+SPEC-007 executes eligible Reservations through historical Charging Sessions:
+
+```text
+POST /reservations/{reservationId}/charging-session
+GET  /charging-sessions
+GET  /charging-sessions/{sessionId}
+POST /charging-sessions/{sessionId}/complete
+GET  /connectors/{connectorId}/charging-sessions
+GET  /vehicles/{vehicleId}/charging-sessions
+```
+
+Activation and completion each use one database transaction. PostgreSQL advisory transaction
+locks serialize Reservation, Vehicle and Connector keys, while unique indexes provide final
+database guards. On completion, the Connector becomes `OutOfService` when its Station or Facility
+is inactive, `Reserved` when another currently effective confirmed Reservation exists, and
+otherwise `Available`.
+
+Prometheus exposes activation, completion, failure and conflict counters under the
+`scep_charging_session*` namespace. Direct sessions, telemetry, OCPP, energy calculation, billing,
+notifications and Domain Events remain outside SPEC-007.

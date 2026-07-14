@@ -195,8 +195,8 @@ Examples:
 
 * reservations created;
 * reservation cancellations;
-* charging sessions started;
-* charging sessions finished;
+* charging sessions activated and completed;
+* charging session activation/completion failures and concurrency conflicts;
 * charger occupancy;
 * delivered energy;
 * charger availability.

@@ -7,6 +7,7 @@ from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.core.observability import RequestCorrelationMiddleware, configure_tracing
 from app.infrastructure.database import SessionLocal
+from app.modules.charging.api.charging_sessions import router as charging_sessions_router
 from app.modules.charging.api.facilities import router as facilities_router
 from app.modules.charging.api.reservations import router as reservations_router
 from app.modules.charging.api.stations import router as stations_router
@@ -46,6 +47,7 @@ def create_app(*, export_telemetry: bool | None = None) -> FastAPI:
     app.include_router(stations_router)
     app.include_router(vehicles_router)
     app.include_router(reservations_router)
+    app.include_router(charging_sessions_router)
     Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
     if endpoint:
         configure_tracing(app, endpoint)

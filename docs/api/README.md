@@ -8,6 +8,32 @@ Import `scep-insomnia.json` using **Import → File**. The collection points to
 
 Do not commit real access tokens or non-local credentials to the collection.
 
+## SPEC-007 automated collection
+
+Import `scep-spec007-insomnia.json` for a self-contained Charging Session acceptance flow. Start
+the local stack, open **SPEC-007 Automated Lifecycle**, and run every request in numeric order with
+the Insomnia Collection Runner.
+
+The collection requires only the local bootstrap administrator values already present in
+`.env.example`. Pre-request and after-response scripts automatically:
+
+- generate a unique run identifier used directly in the email, Facility name and station serial
+  number;
+- calculate a Reservation starting five minutes in the future, inside Early Start;
+- capture administrator and driver access tokens;
+- capture Facility, Station, Connector, User, Vehicle, Reservation and Charging Session IDs;
+- assert response codes and the Reservation, Charging Session and Connector lifecycle;
+- verify the SPEC-007 Prometheus metrics are exposed.
+
+No environment value needs to be copied or edited between requests. Running request 01 starts a
+fresh dataset, so the complete collection can be executed repeatedly against the same local
+database. Insomnia 9.3 or newer is required because the flow uses pre-request and after-response
+scripts.
+
+The scripts write directly to the collection Base Environment through
+`insomnia.baseEnvironment`. After importing a newer version of the collection, remove the old
+workspace first so Insomnia does not retain scripts or environment state from the previous import.
+
 ## SPEC-006 visual acceptance
 
 Start the complete local stack before running the collection:
@@ -275,7 +301,7 @@ Insomnia X-Request-ID
 
 ## Scope notes
 
-SPEC-006 does not expose public activation or completion endpoints; these transitions are domain
-operations reserved for the future Charging Session integration. PostgreSQL concurrent-write
-protection is validated by the dedicated integration test rather than by sequential Insomnia
-requests.
+SPEC-007 exposes Reservation activation and Charging Session completion. The automated collection
+covers the sequential lifecycle; PostgreSQL race protection remains validated by the dedicated
+concurrency integration tests because a Collection Runner does not provide a deterministic
+concurrent-request barrier.
