@@ -210,7 +210,7 @@ Responsibilities:
 * receive telemetry events;
 * validate telemetry payloads;
 * normalize telemetry data;
-* associate telemetry with stations, connectors or sessions;
+* associate telemetry with Charging Sessions;
 * persist telemetry records;
 * publish telemetry-related domain events.
 
@@ -495,7 +495,8 @@ Recommended separation:
 
 * Identity tables belong to Identity & Access.
 * Charging tables belong to Smart Charging.
-* Telemetry tables belong to Telemetry.
+* Telemetry tables belong to Telemetry; their immutable observations reference Charging Sessions
+  owned by Smart Charging.
 * Event tables belong to Domain Event.
 * Analytics tables belong to Analytics.
 * Prediction tables belong to Prediction.

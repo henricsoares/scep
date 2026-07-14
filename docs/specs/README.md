@@ -60,8 +60,8 @@ Implementation becomes the translation of approved specifications into software.
 | SPEC-004 | Charging Stations                    | ✅ Approved |
 | SPEC-005 | Identity and Access                  | ✅ Approved |
 | SPEC-006 | Reservations                         | ✅ Approved |
-| SPEC-007 | Charging Sessions                    | 📝 Draft    |
-| SPEC-008 | Smart Charging Domain Telemetry      | ⏳ Planned  |
+| SPEC-007 | Charging Sessions                    | ✅ Approved |
+| SPEC-008 | Smart Charging Domain Telemetry      | 📝 Draft    |
 | SPEC-009 | Domain Events                        | ⏳ Planned  |
 | SPEC-010 | Analytics                            | ⏳ Planned  |
 | SPEC-011 | Dataset Export                       | ⏳ Planned  |
@@ -380,7 +380,7 @@ Completed:
 
 Current milestone:
 
-**SPEC-007 — Charging Sessions documentation**
+**SPEC-008 — Smart Charging Domain Telemetry documentation**
 
-SPEC-007 is currently a draft. Charging Sessions are not yet implemented; direct or unreserved
-Charging Sessions remain outside its scope.
+SPEC-007 is approved and implemented. SPEC-008 is currently documented in draft and is not
+implemented.

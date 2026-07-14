@@ -212,7 +212,7 @@ The same operational data simultaneously supports:
 | Vehicle          | Smart Charging |
 | Reservation      | Smart Charging |
 | Charging Session | Smart Charging |
-| Telemetry        | Telemetry      |
+| Telemetry Sample | Telemetry      |
 | Domain Event     | Events         |
 | KPI              | Analytics      |
 | Dataset          | Analytics      |
@@ -226,6 +226,9 @@ Other modules may consume data through APIs, repositories or events according to
 Within Smart Charging, every Charging Session originates from exactly one Reservation, and a
 Reservation originates at most one Charging Session. SPEC-007 does not include direct or
 otherwise unreserved Charging Sessions.
+
+Telemetry Samples are immutable observations owned by Telemetry. Every Telemetry Sample is
+associated with exactly one Charging Session owned by Smart Charging.
 
 ---
 

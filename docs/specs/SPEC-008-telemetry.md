@@ -1,0 +1,1280 @@
+# SPEC-008 — Telemetry
+
+## Smart Charging Experimentation Platform (SCEP)
+
+**Status:** Draft
+
+**Version:** 1.0
+
+**Document Owner:** Project Team
+
+**Last Update:** 2026
+
+---
+
+# 1. Purpose
+
+This specification defines the Telemetry capability of the Smart Charging Experimentation Platform (SCEP).
+
+Telemetry represents immutable operational observations collected during Charging Sessions.
+
+Unlike Reservations and Charging Sessions, which model business workflows, Telemetry models measurements produced while a charging session is in progress or received after its completion.
+
+This specification defines:
+
+- TelemetrySample Aggregate;
+- telemetry ownership;
+- measurement model;
+- ingestion APIs;
+- batch ingestion;
+- idempotency;
+- temporal validation;
+- persistence;
+- authorization;
+- observability.
+
+This specification intentionally focuses on data ingestion and preservation.
+
+Telemetry interpretation, anomaly detection, analytics, machine learning, domain events and Digital Twin execution remain outside the scope of this specification.
+
+---
+
+# 2. Scope
+
+This specification includes:
+
+- TelemetrySample Aggregate;
+- telemetry ingestion;
+- single-sample ingestion;
+- batch ingestion;
+- immutable telemetry records;
+- idempotency;
+- measurement validation;
+- temporal validation;
+- REST API;
+- persistence;
+- authorization;
+- OpenAPI;
+- observability;
+- testing requirements.
+
+---
+
+## Out of Scope
+
+The following capabilities are intentionally deferred.
+
+- OCPP communication;
+- MQTT;
+- Kafka;
+- streaming telemetry;
+- charging control;
+- energy optimization;
+- anomaly detection;
+- analytics;
+- dashboards;
+- dataset generation;
+- domain events;
+- billing;
+- payments;
+- artificial intelligence;
+- Digital Twin execution.
+
+These capabilities are introduced by later specifications.
+
+---
+
+# 3. Relationship with Charging Sessions
+
+Telemetry extends the Charging Session lifecycle.
+
+Every TelemetrySample shall belong to exactly one Charging Session.
+
+The relationship is:
+
+```text
+ChargingSession
+
+1 -------- * TelemetrySample
+
+TelemetrySample
+
+* -------- 1 ChargingSession
+```
+
+TelemetrySamples shall never exist without an associated Charging Session.
+
+Telemetry does not own operational workflow.
+
+Its responsibility is to preserve observations produced during Charging Sessions.
+
+---
+
+# 4. Domain Model
+
+The TelemetrySample Aggregate represents one immutable observation produced during a Charging Session.
+
+Each TelemetrySample records one point-in-time measurement received by the platform.
+
+TelemetrySamples do not own:
+
+- Charging Sessions;
+- Reservations;
+- Vehicles;
+- Connectors.
+
+TelemetrySamples reference those concepts indirectly through their associated Charging Session.
+
+---
+
+## TelemetrySample
+
+```text
+TelemetrySample
+
+id
+
+session_id
+
+sample_id
+source
+
+recorded_at
+received_at
+
+power_kw
+energy_kwh
+state_of_charge_percent
+
+created_at
+```
+
+---
+
+## Attributes
+
+### id
+
+Unique identifier of the TelemetrySample.
+
+Immutable.
+
+---
+
+### session_id
+
+Reference to the Charging Session that produced the observation.
+
+Mandatory.
+
+Immutable.
+
+---
+
+### sample_id
+
+Producer-defined identifier used for idempotency.
+
+Mandatory.
+
+Immutable.
+
+Uniqueness is defined by:
+
+```text
+session_id
++
+source
++
+sample_id
+```
+
+---
+
+### source
+
+Origin of the telemetry observation.
+
+Supported values:
+
+```text
+SIMULATOR
+
+API_CLIENT
+```
+
+Immutable.
+
+---
+
+### recorded_at
+
+Timestamp indicating when the observation was produced.
+
+Mandatory.
+
+Immutable.
+
+---
+
+### received_at
+
+Timestamp indicating when the platform received the observation.
+
+Mandatory.
+
+Automatically assigned by the platform.
+
+Immutable.
+
+---
+
+### power_kw
+
+Instantaneous charging power.
+
+Optional.
+
+Must be greater than or equal to zero.
+
+---
+
+### energy_kwh
+
+Accumulated delivered energy.
+
+Optional.
+
+Must be greater than or equal to zero.
+
+---
+
+### state_of_charge_percent
+
+Battery state of charge.
+
+Optional.
+
+Valid range:
+
+```text
+0
+
+↓
+
+100
+```
+
+---
+
+### created_at
+
+Persistence timestamp.
+
+Automatically assigned.
+
+Immutable.
+
+---
+
+# 5. Ubiquitous Language
+
+## Telemetry Sample
+
+One immutable observation collected during a Charging Session.
+
+A TelemetrySample represents exactly one measurement instant.
+
+---
+
+## Measurement
+
+A numerical value describing one operational aspect of the charging process.
+
+Measurements include:
+
+- charging power;
+- accumulated energy;
+- battery state of charge.
+
+Future specifications may introduce additional measurement types without modifying existing TelemetrySamples.
+
+---
+
+## Recorded Time
+
+The instant at which the observation occurred.
+
+Represented by:
+
+```text
+recorded_at
+```
+
+This timestamp reflects the producer's perception of time.
+
+---
+
+## Received Time
+
+The instant at which the platform received the observation.
+
+Represented by:
+
+```text
+received_at
+```
+
+This timestamp is generated by the platform.
+
+---
+
+## Telemetry Source
+
+Logical origin responsible for producing the observation.
+
+Supported sources:
+
+```text
+SIMULATOR
+
+API_CLIENT
+```
+
+---
+
+## Immutable Observation
+
+TelemetrySamples are historical facts.
+
+After persistence they shall never be modified.
+
+---
+
+## Idempotent Submission
+
+Multiple identical submissions referring to the same observation shall produce only one persisted TelemetrySample.
+
+---
+
+# 6. Telemetry Lifecycle
+
+TelemetrySamples have no operational lifecycle.
+
+Creation is the only state transition.
+
+```text
+Observation Produced
+
+        │
+
+        ▼
+
+TelemetrySample Persisted
+```
+
+Once persisted:
+
+- updates are not supported;
+- deletion is not supported;
+- historical preservation is mandatory.
+
+---
+
+## Creation
+
+TelemetrySamples are created exclusively through telemetry ingestion APIs.
+
+Applications shall never create TelemetrySamples through generic CRUD endpoints.
+
+---
+
+## Historical Records
+
+TelemetrySamples remain permanently available for:
+
+- auditing;
+- analytics;
+- dataset generation;
+- machine learning;
+- Digital Twin execution.
+
+Historical TelemetrySamples shall never be physically deleted.
+
+---
+
+# 7. Business Rules
+
+## BR-001 — Charging Session Requirement
+
+Every TelemetrySample shall belong to exactly one Charging Session.
+
+TelemetrySamples without Charging Sessions are invalid.
+
+---
+
+## BR-002 — Eligible Charging Session
+
+Telemetry may only be ingested for Charging Sessions whose status is:
+
+```text
+ACTIVE
+
+or
+
+COMPLETED
+```
+
+Telemetry shall never be associated with non-existent Charging Sessions.
+
+---
+
+## BR-003 — Temporal Consistency
+
+The observation timestamp shall belong to the Charging Session interval.
+
+For ACTIVE Charging Sessions:
+
+```text
+started_at <= recorded_at <= received_at + clock_skew_tolerance
+```
+
+The platform shall tolerate small clock differences between telemetry producers and the platform.
+
+The default tolerance is:
+
+```text
+clock_skew_tolerance = 5 minutes
+```
+
+For COMPLETED Charging Sessions:
+
+```text
+started_at <= recorded_at <= ended_at
+```
+
+Observations outside the valid Charging Session interval shall be rejected.
+
+---
+
+## BR-004 — Delayed Ingestion
+
+Telemetry may be received after the Charging Session has completed.
+
+The platform validates the observation time, not the reception time.
+
+Example:
+
+```text
+recorded_at
+
+14:10
+
+received_at
+
+14:30
+```
+
+is valid provided the Charging Session includes 14:10.
+
+---
+
+## BR-005 — Measurement Presence
+
+Every TelemetrySample shall contain at least one measurement.
+
+The following payload is invalid:
+
+```json
+{
+  "sample_id": "sample-001",
+  "recorded_at": "...",
+  "source": "SIMULATOR"
+}
+```
+
+---
+
+## BR-006 — Measurement Validation
+
+Measurements shall satisfy:
+
+```text
+power_kw >= 0
+
+energy_kwh >= 0
+
+0 <= state_of_charge_percent <= 100
+```
+
+Negative values shall be rejected.
+
+Measurements shall be finite numerical values.
+
+NaN, positive infinity and negative infinity shall be rejected.
+
+---
+
+## BR-007 — Immutable Records
+
+TelemetrySamples shall never be updated.
+
+PATCH, PUT and unrestricted DELETE operations are prohibited.
+
+---
+
+## BR-008 — Idempotency
+
+Uniqueness is defined by:
+
+```text
+session_id
+
++
+
+source
+
++
+
+sample_id
+```
+
+Submitting an identical TelemetrySample multiple times shall not create duplicates.
+
+The first successful submission shall return:
+
+```http
+201 Created
+```
+
+Subsequent identical submissions shall return:
+
+```http
+200 OK
+```
+
+and the previously persisted TelemetrySample.
+
+If the same identifier is reused with different producer-supplied data, the platform shall return:
+
+```http
+409 Conflict
+```
+
+Equality is evaluated using producer-supplied fields only.
+
+Platform-generated fields, including `received_at` and `created_at`, shall not participate in idempotency comparisons.
+
+---
+
+## BR-009 — No Physical Consistency Validation
+
+Telemetry ingestion validates only:
+
+- structure;
+- data types;
+- supported ranges;
+- temporal validity;
+- Charging Session ownership;
+- idempotency.
+
+The platform intentionally does not validate:
+
+- monotonic energy growth;
+- power continuity;
+- battery evolution;
+- chronological ordering between observations.
+
+These responsibilities belong to later analytical specifications.
+
+---
+
+## BR-010 — Batch Atomicity
+
+Batch ingestion is atomic.
+
+Either:
+
+- every TelemetrySample is accepted;
+
+or
+
+- none of them are persisted.
+
+Partial success is not supported.
+
+Duplicate TelemetrySamples already persisted shall be treated according to the idempotency rules.
+
+If duplicate identifiers appear within the same batch:
+
+- identical producer-supplied payloads shall be treated as a single observation;
+- the successful response shall contain one canonical TelemetrySample for that observation;
+- conflicting payloads shall cause the entire batch to fail with:
+
+```http
+409 Conflict
+```
+
+The entire batch shall be rolled back when a conflicting payload is detected.
+
+A successful batch response shall contain the canonical accepted TelemetrySamples, including
+previously persisted TelemetrySamples accepted as identical idempotent retries.
+
+The response status shall be:
+
+- `201 Created` when at least one new TelemetrySample is persisted, including a mixed batch of new
+  samples and previously persisted identical samples;
+- `200 OK` when every accepted TelemetrySample already exists as an identical idempotent retry.
+
+---
+
+## BR-011 — Ordering
+
+TelemetrySamples may arrive out of chronological order.
+
+Arrival order shall never invalidate otherwise valid observations.
+
+Applications consuming telemetry shall order observations using:
+
+```text
+recorded_at
+```
+
+rather than:
+
+```text
+received_at
+```
+
+---
+
+# 8. Authorization
+
+Telemetry authorization combines:
+
+- authenticated identity;
+- account type;
+- assigned roles;
+- Charging Session ownership;
+- Facility scope.
+
+Authorization follows the model established by SPEC-005 and the ownership rules introduced by SPEC-007.
+
+---
+
+## Platform Administrator
+
+May:
+
+- ingest telemetry for any Charging Session;
+- retrieve any TelemetrySample;
+- list telemetry from any Charging Session.
+
+---
+
+## Human Account
+
+May:
+
+- ingest telemetry for owned Charging Sessions;
+- list telemetry for owned Charging Sessions;
+- retrieve owned TelemetrySamples.
+
+---
+
+## Technical Client
+
+Technical Client accounts follow the same ownership workflow as Human accounts.
+
+They may:
+
+- ingest telemetry for owned Charging Sessions;
+- list owned telemetry;
+- retrieve owned telemetry.
+
+---
+
+## Facility Operator
+
+Facility Operators may:
+
+- list telemetry belonging to Charging Sessions executed within managed Facilities;
+- retrieve telemetry belonging to Charging Sessions executed within managed Facilities.
+
+Facility Operators shall not ingest telemetry on behalf of users.
+
+---
+
+## Researcher
+
+The `Researcher` Role grants no additional Telemetry permissions by itself.
+
+An Authenticated Identity holding this Role may still ingest and retrieve TelemetrySamples for owned Charging Sessions through the ownership-based Human workflow.
+
+The Role shall not grant ingestion permissions for another owner's Charging Sessions.
+
+Future analytical specifications may introduce broader read-only visibility.
+
+---
+
+## Data Scientist
+
+The `DataScientist` Role grants no additional Telemetry permissions by itself.
+
+An Authenticated Identity holding this Role may still ingest and retrieve TelemetrySamples for owned Charging Sessions through the ownership-based Human workflow.
+
+The Role shall not grant ingestion permissions for another owner's Charging Sessions.
+
+Future analytical specifications may introduce broader read-only visibility.
+
+---
+
+# 9. REST API
+
+## Ingest Telemetry Sample
+
+```http
+POST /charging-sessions/{sessionId}/telemetry
+```
+
+Creates one immutable TelemetrySample.
+
+Successful ingestion returns:
+
+```http
+201 Created
+```
+
+---
+
+Possible responses:
+
+```text
+201 Created
+200 OK
+401 Unauthorized
+403 Forbidden
+404 Not Found
+409 Conflict
+422 Unprocessable Entity
+```
+
+---
+
+## Batch Ingestion
+
+```http
+POST /charging-sessions/{sessionId}/telemetry/batch
+```
+
+Persists multiple TelemetrySamples atomically.
+
+Batch size shall satisfy:
+
+```text
+minimum: 1 TelemetrySample
+
+maximum: 1000 TelemetrySamples
+```
+
+If any sample is invalid, the entire batch shall be rejected.
+
+Successful responses contain the canonical accepted TelemetrySamples. Identical duplicate keys
+within the request produce one canonical response entry.
+
+The endpoint returns:
+
+- `201 Created` when at least one new TelemetrySample is persisted;
+- `200 OK` when every accepted TelemetrySample already exists as an identical idempotent retry.
+
+A mixed batch containing new TelemetrySamples and previously persisted identical samples returns
+`201 Created`.
+
+Conflicting payloads return `409 Conflict`, and no samples from the batch are persisted.
+
+---
+
+Possible responses:
+
+```text
+201 Created
+200 OK
+401 Unauthorized
+403 Forbidden
+404 Not Found
+409 Conflict
+422 Unprocessable Entity
+```
+
+---
+
+## List Telemetry
+
+```http
+GET /charging-sessions/{sessionId}/telemetry
+```
+
+Returns TelemetrySamples visible to the authenticated actor.
+
+Pagination shall follow existing platform conventions.
+
+Supported filters include:
+
+- recorded_from;
+- recorded_to;
+- source.
+
+Results shall be ordered by:
+
+```text
+recorded_at ASC
+
+id ASC
+```
+
+unless another ordering is explicitly requested.
+
+---
+
+## Retrieve Telemetry Sample
+
+```http
+GET /telemetry/{telemetryId}
+```
+
+Returns one visible TelemetrySample.
+
+Invisible resources shall be concealed using:
+
+```http
+404 Not Found
+```
+
+---
+
+# 10. Persistence
+
+TelemetrySamples are persisted independently from Charging Sessions.
+
+The persistence model shall include, at minimum:
+
+```text
+telemetry_samples
+
+id
+
+session_id
+
+sample_id
+source
+
+recorded_at
+received_at
+
+power_kw
+energy_kwh
+state_of_charge_percent
+
+created_at
+```
+
+The persistence model shall enforce:
+
+- primary key;
+- Charging Session foreign key;
+- valid source constraint;
+- timezone-aware timestamps;
+- non-negative measurements;
+- state of charge range;
+- unique(session_id, source, sample_id);
+- at least one measurement field is present;
+- finite numerical values only;
+
+The persistence layer shall enforce that at least one of the following attributes is non-null:
+
+```text
+power_kw
+
+OR
+
+energy_kwh
+
+OR
+
+state_of_charge_percent
+```
+
+TelemetrySamples are immutable.
+
+The persistence model shall not support updates after insertion.
+
+---
+
+# 11. Observability
+
+Telemetry ingestion shall expose operational metrics consistent with the platform observability model.
+
+Metrics shall never include high-cardinality labels such as:
+
+- telemetry identifiers;
+- Charging Session identifiers;
+- user identifiers;
+- sample identifiers.
+
+At minimum, the implementation shall expose:
+
+- TelemetrySamples received;
+- TelemetrySamples persisted;
+- Batch ingestions;
+- Batch failures;
+- Validation failures;
+- Duplicate submissions.
+
+Structured logs shall be emitted for:
+
+- single-sample ingestion;
+- batch ingestion;
+- validation failures;
+- duplicate submissions;
+- authorization failures.
+
+Logs shall follow the structured logging conventions established by the platform.
+
+Sensitive information shall never be written to logs.
+
+---
+
+# 12. OpenAPI
+
+The generated OpenAPI documentation shall include:
+
+- TelemetrySample schema;
+- source enumeration;
+- measurement examples;
+- authentication requirements;
+- validation responses;
+- conflict responses;
+- batch response schema and status semantics;
+- batch examples.
+
+Bearer authentication shall be declared for every protected endpoint.
+
+Example payloads shall be provided for:
+
+- single-sample ingestion;
+- batch ingestion;
+- batch ingestion with only identical idempotent retries;
+- batch ingestion mixing new and previously persisted identical samples;
+- duplicate keys within one batch;
+- conflicting batch payloads;
+- duplicate submission;
+- invalid measurement;
+- invalid timestamp.
+
+---
+
+# 13. Acceptance Criteria
+
+The implementation shall satisfy the following acceptance criteria.
+
+---
+
+## Telemetry Sample
+
+- TelemetrySample Aggregate implemented.
+- Charging Session association is mandatory.
+- Immutable persistence implemented.
+- Flexible measurement model implemented.
+- At least one measurement required.
+
+---
+
+## Measurement Validation
+
+- Non-negative power values accepted.
+- Non-negative accumulated energy values accepted.
+- State of charge restricted to the range [0,100].
+- Invalid measurements rejected.
+- Empty observations rejected.
+
+---
+
+## Temporal Validation
+
+- recorded_at validated against the Charging Session interval.
+- Delayed ingestion supported.
+- Future timestamps outside the Charging Session rejected.
+- Observations before session start rejected.
+
+---
+
+## Idempotency
+
+- Duplicate submissions do not create additional records.
+- Identical retries return the previously persisted TelemetrySample.
+- Same idempotency key with different payload returns 409 Conflict.
+
+---
+
+## Batch Ingestion
+
+- Atomic persistence.
+- Entire batch rejected when one sample is invalid.
+- Duplicate samples handled according to idempotency rules.
+- At least one newly persisted sample returns 201 Created.
+- A batch containing only previously persisted identical samples returns 200 OK.
+- A mixed batch containing new and previously persisted identical samples returns 201 Created.
+- Successful responses contain the canonical accepted TelemetrySamples.
+- Identical duplicate keys within a request produce one canonical response entry.
+- Conflicting payloads return 409 Conflict and roll back the entire batch.
+- Batch validation produces deterministic results.
+
+---
+
+## Authorization
+
+- Platform Administrator permissions validated.
+- Human ownership validated.
+- Technical Client ownership validated.
+- Facility Operator read permissions validated.
+- Researcher ownership behavior validated.
+- Data Scientist ownership behavior validated.
+- Resource concealment respected.
+
+---
+
+## Persistence
+
+- Charging Session foreign key enforced.
+- Measurement constraints enforced.
+- UTC timestamps persisted.
+- Idempotency constraint enforced.
+- Immutable persistence validated.
+
+---
+
+## API
+
+- All endpoints documented.
+- Authentication enforced.
+- Ownership enforced.
+- Stable HTTP contracts implemented.
+- Validation errors returned consistently.
+
+---
+
+## Observability
+
+- Metrics exposed.
+- Structured logs emitted.
+- OpenAPI updated.
+
+---
+
+# 14. Testing Requirements
+
+The implementation shall include automated tests covering:
+
+---
+
+## Domain
+
+- TelemetrySample creation.
+- Immutable behavior.
+- Measurement validation.
+- Temporal validation.
+- Idempotency rules.
+
+---
+
+## Charging Session Integration
+
+- ACTIVE Charging Session ingestion.
+- COMPLETED Charging Session ingestion.
+- Invalid Charging Session.
+- Invalid timestamps.
+- Ownership enforcement.
+
+---
+
+## Authorization
+
+- Platform Administrator.
+- Human owner.
+- Technical Client.
+- Facility Operator.
+- Researcher.
+- Data Scientist.
+- Concealment behavior.
+
+---
+
+## API
+
+- Single-sample ingestion.
+- Batch ingestion.
+- Telemetry retrieval.
+- Pagination.
+- Filtering.
+- Validation failures.
+- Authentication failures.
+- Authorization failures.
+- Duplicate submission handling.
+
+---
+
+## Persistence
+
+- Migration.
+- Constraints.
+- Foreign keys.
+- Measurement validation.
+- Idempotency constraint.
+- Historical preservation.
+
+---
+
+## Batch Processing
+
+Integration tests shall validate:
+
+- fully valid batches;
+- batches containing invalid measurements;
+- identical duplicate keys within the batch produce one canonical response entry;
+- batches containing only identical samples already persisted return 200 OK;
+- mixed batches containing new and previously persisted identical samples return 201 Created;
+- successful responses contain the canonical accepted TelemetrySamples;
+- conflicting payloads return 409 Conflict;
+- rollback of partially valid batches.
+
+No partial persistence shall occur.
+
+---
+
+## Docker Compose
+
+A complete smoke test shall validate:
+
+- automatic migrations;
+- backend health;
+- single-sample ingestion;
+- batch ingestion;
+- telemetry retrieval;
+- OpenAPI;
+- Prometheus metrics;
+- Grafana dashboards;
+- existing Charging Session functionality remains unaffected.
+
+---
+
+# 15. Future Integration
+
+Telemetry establishes the data acquisition layer of the Smart Charging Experimentation Platform.
+
+Future specifications may extend Telemetry with:
+
+- OCPP integration;
+- MQTT ingestion;
+- streaming pipelines;
+- Domain Events;
+- analytics;
+- KPI generation;
+- dataset export;
+- anomaly detection;
+- machine learning;
+- Digital Twin execution.
+
+These capabilities shall consume TelemetrySamples without modifying their immutable nature.
+
+---
+
+# 16. Dependencies
+
+Telemetry depends on the capabilities introduced by previous specifications.
+
+The implementation requires:
+
+- SPEC-004 — Charging Stations
+- SPEC-005 — Identity and Access
+- SPEC-006 — Reservations
+- SPEC-007 — Charging Sessions
+
+Telemetry shall not redefine concepts already owned by those specifications.
+
+In particular:
+
+- authentication and authorization remain governed by SPEC-005;
+- Reservation ownership remains governed by SPEC-006;
+- Charging Session lifecycle remains governed by SPEC-007.
+
+Whenever a rule is already defined by an earlier specification, that specification takes precedence.
+
+---
+
+# 17. Implementation Notes
+
+The implementation shall preserve the architectural principles established by the platform.
+
+In particular:
+
+- Telemetry business rules shall remain independent from the HTTP layer.
+- Persistence technology shall not leak into the Domain layer.
+- TelemetrySamples are immutable after persistence.
+- Batch ingestion shall be transactional.
+- Idempotency shall be deterministic.
+- The implementation shall not infer, correct or reinterpret measurements.
+- Physical consistency between observations shall not be enforced during ingestion.
+
+Telemetry is an observational data model.
+
+Responsibilities introduced by future specifications—including Domain Events, Analytics, AI and Digital Twin execution—shall consume TelemetrySamples without changing the ingestion semantics defined by this specification.
+
+---
+
+# 18. Specification Summary
+
+This specification introduces the telemetry layer of the Smart Charging Experimentation Platform.
+
+Charging Sessions represent operational execution.
+
+TelemetrySamples represent immutable observations collected during that execution.
+
+Together, SPEC-007 and SPEC-008 establish the complete operational data flow.
+
+```text
+Reservation
+
+CONFIRMED
+
+        │
+
+POST /reservations/{reservationId}/charging-session
+
+        │
+
+ChargingSession ACTIVE
+
+        │
+
+POST /charging-sessions/{sessionId}/telemetry
+
+        │
+
+TelemetrySample*
+
+        │
+
+POST /charging-sessions/{sessionId}/complete
+
+        │
+
+ChargingSession COMPLETED
+```
+
+Telemetry intentionally records observations without interpreting them.
+
+Subsequent specifications build upon these immutable records to introduce Domain Events, Analytics, Machine Learning, Digital Twin execution and intelligent decision support while preserving the integrity of the original operational data.
+
+---
+
+# End of Specification

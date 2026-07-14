@@ -18,7 +18,8 @@ This specification defines the **Facility Aggregate**, which represents the high
 
 A Facility provides the operational context in which charging infrastructure exists, users interact with the platform and experiments are conducted.
 
-All Charging Stations, Connectors, Reservations, Charging Sessions and Telemetry Records ultimately belong to a Facility.
+All Charging Stations, Connectors, Reservations and Charging Sessions ultimately belong to a
+Facility. TelemetrySamples are associated with Charging Sessions within that operational context.
 
 For this reason, the Facility Aggregate serves as the root of the Smart Charging domain.
 
@@ -927,7 +928,7 @@ This specification serves as the foundation for:
 
 * **SPEC-004 — Charging Stations**, which introduces physical charging equipment.
 * **SPEC-006 — Reservations**, which validates Reservation requests against Facility context.
-* **SPEC-007 — Charging Sessions**, whose draft defines execution within a Facility.
+* **SPEC-007 — Charging Sessions**, which defines execution within a Facility.
 * **SPEC-009 — Analytics**, which will aggregate operational metrics by Facility.
 * **SPEC-010 — Dataset Export**, which will use Facilities as a primary analytical dimension.
 * **SPEC-011 — Predictions**, which will forecast charging infrastructure utilization within Facilities.

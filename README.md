@@ -266,9 +266,9 @@ However, migrations are normally executed automatically when the backend contain
 
 ## Implemented Business Capabilities
 
-The current domain includes Identity, Facilities, Charging Stations, Connectors, Vehicles and
-Reservations. Charging Sessions are the next capability and are currently documented in draft
-SPEC-007; they are not yet implemented.
+The current domain includes Identity, Facilities, Charging Stations, Connectors, Vehicles,
+Reservations and Charging Sessions. Telemetry is documented in draft SPEC-008 and is not yet
+implemented.
 
 ### Identity and Access
 
@@ -310,9 +310,9 @@ The currently supported Connector types are:
 
 ### Vehicles and Reservations
 
-The platform currently supports owned Vehicles and Reservation scheduling for Connectors,
-including lifecycle management, conflict prevention, cancellation, rescheduling and No-Show
-handling. Every future Charging Session defined by SPEC-007 must originate from exactly one
+The platform currently supports owned Vehicles, Reservation scheduling for Connectors and
+Charging Sessions, including lifecycle management, conflict prevention, cancellation, rescheduling
+and No-Show handling. Every Charging Session defined by SPEC-007 originates from exactly one
 Reservation; direct or unreserved Charging Sessions remain out of scope.
 
 ---
@@ -347,14 +347,14 @@ Completed:
 * ✅ SPEC-004 — Charging Stations
 * ✅ SPEC-005 — Identity and Access
 * ✅ SPEC-006 — Reservations
+* ✅ SPEC-007 — Charging Sessions
 
 Current:
 
-* 📝 SPEC-007 — Charging Sessions (documented, Draft; not implemented)
+* 📝 SPEC-008 — Telemetry (documented, Draft; not implemented)
 
 Next Steps:
 
-* Telemetry
 * Analytics
 * Digital Twin Simulation Engine
 * AI Experiments

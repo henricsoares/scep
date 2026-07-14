@@ -2,7 +2,7 @@
 
 ## Smart Charging Experimentation Platform (SCEP)
 
-**Status:** Draft
+**Status:** Approved
 
 **Version:** 1.0
 
