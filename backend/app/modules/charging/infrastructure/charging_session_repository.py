@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import or_, select, text
@@ -235,8 +235,8 @@ class SqlAlchemyChargingSessionRepository:
                 ReservationModel.id != item.reservation_id,
                 ReservationModel.connector_id == item.connector_id,
                 ReservationModel.status == ReservationStatus.CONFIRMED.value,
-                ReservationModel.start_at <= now,
-                ReservationModel.end_at > now,
+                ReservationModel.start_at <= now + timedelta(minutes=15),
+                ReservationModel.start_at >= now - timedelta(minutes=15),
             )
             .limit(1)
         )
