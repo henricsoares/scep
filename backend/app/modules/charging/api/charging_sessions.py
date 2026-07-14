@@ -89,7 +89,7 @@ def map_error(exc: Exception) -> HTTPException:
             status_code=409,
             detail={"code": exc.code, "message": "charging session exclusivity conflict"},
         )
-    if isinstance(exc, (ChargingSessionNotFoundError,)):
+    if isinstance(exc, ChargingSessionNotFoundError):
         return HTTPException(status_code=404, detail="charging session not found")
     if isinstance(exc, ReservationNotFoundError):
         return HTTPException(status_code=404, detail="reservation not found")
@@ -118,12 +118,7 @@ def activate_charging_session(
     except Exception as exc:
         if isinstance(
             exc,
-            (
-                ValueError,
-                PermissionError,
-                ReservationNotFoundError,
-                ChargingSessionConflictError,
-            ),
+            ValueError | PermissionError | ReservationNotFoundError | ChargingSessionConflictError,
         ):
             raise map_error(exc) from exc
         raise

@@ -165,7 +165,7 @@ class ChargingSessionService:
     def _reason(exc: Exception) -> str:
         if isinstance(exc, PermissionError):
             return "authorization"
-        if isinstance(exc, (ReservationNotFoundError, ChargingSessionNotFoundError)):
+        if isinstance(exc, ReservationNotFoundError | ChargingSessionNotFoundError):
             return "not_found"
         if isinstance(exc, ChargingSessionWriteConflict):
             return "conflict"

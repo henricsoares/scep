@@ -33,9 +33,7 @@ def upgrade() -> None:
         sa.Column(
             "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
         ),
-        sa.CheckConstraint(
-            "status IN ('ACTIVE', 'COMPLETED')", name="ck_charging_sessions_status"
-        ),
+        sa.CheckConstraint("status IN ('ACTIVE', 'COMPLETED')", name="ck_charging_sessions_status"),
         sa.CheckConstraint(
             "(status = 'ACTIVE' AND ended_at IS NULL) OR "
             "(status = 'COMPLETED' AND ended_at IS NOT NULL)",
