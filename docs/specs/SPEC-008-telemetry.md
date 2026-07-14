@@ -608,11 +608,23 @@ Duplicate TelemetrySamples already persisted shall be treated according to the i
 If duplicate identifiers appear within the same batch:
 
 - identical producer-supplied payloads shall be treated as a single observation;
+- the successful response shall contain one canonical TelemetrySample for that observation;
 - conflicting payloads shall cause the entire batch to fail with:
 
 ```http
 409 Conflict
 ```
+
+The entire batch shall be rolled back when a conflicting payload is detected.
+
+A successful batch response shall contain the canonical accepted TelemetrySamples, including
+previously persisted TelemetrySamples accepted as identical idempotent retries.
+
+The response status shall be:
+
+- `201 Created` when at least one new TelemetrySample is persisted, including a mixed batch of new
+  samples and previously persisted identical samples;
+- `200 OK` when every accepted TelemetrySample already exists as an identical idempotent retry.
 
 ---
 
@@ -767,11 +779,18 @@ maximum: 1000 TelemetrySamples
 
 If any sample is invalid, the entire batch shall be rejected.
 
-Successful ingestion returns:
+Successful responses contain the canonical accepted TelemetrySamples. Identical duplicate keys
+within the request produce one canonical response entry.
 
-```http
-201 Created
-```
+The endpoint returns:
+
+- `201 Created` when at least one new TelemetrySample is persisted;
+- `200 OK` when every accepted TelemetrySample already exists as an identical idempotent retry.
+
+A mixed batch containing new TelemetrySamples and previously persisted identical samples returns
+`201 Created`.
+
+Conflicting payloads return `409 Conflict`, and no samples from the batch are persisted.
 
 ---
 
@@ -935,6 +954,7 @@ The generated OpenAPI documentation shall include:
 - authentication requirements;
 - validation responses;
 - conflict responses;
+- batch response schema and status semantics;
 - batch examples.
 
 Bearer authentication shall be declared for every protected endpoint.
@@ -943,6 +963,10 @@ Example payloads shall be provided for:
 
 - single-sample ingestion;
 - batch ingestion;
+- batch ingestion with only identical idempotent retries;
+- batch ingestion mixing new and previously persisted identical samples;
+- duplicate keys within one batch;
+- conflicting batch payloads;
 - duplicate submission;
 - invalid measurement;
 - invalid timestamp.
@@ -997,6 +1021,12 @@ The implementation shall satisfy the following acceptance criteria.
 - Atomic persistence.
 - Entire batch rejected when one sample is invalid.
 - Duplicate samples handled according to idempotency rules.
+- At least one newly persisted sample returns 201 Created.
+- A batch containing only previously persisted identical samples returns 200 OK.
+- A mixed batch containing new and previously persisted identical samples returns 201 Created.
+- Successful responses contain the canonical accepted TelemetrySamples.
+- Identical duplicate keys within a request produce one canonical response entry.
+- Conflicting payloads return 409 Conflict and roll back the entire batch.
 - Batch validation produces deterministic results.
 
 ---
@@ -1110,8 +1140,11 @@ Integration tests shall validate:
 
 - fully valid batches;
 - batches containing invalid measurements;
-- duplicate samples within the batch;
-- duplicate samples already persisted;
+- identical duplicate keys within the batch produce one canonical response entry;
+- batches containing only identical samples already persisted return 200 OK;
+- mixed batches containing new and previously persisted identical samples return 201 Created;
+- successful responses contain the canonical accepted TelemetrySamples;
+- conflicting payloads return 409 Conflict;
 - rollback of partially valid batches.
 
 No partial persistence shall occur.
