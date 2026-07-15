@@ -16,6 +16,7 @@ from app.modules.identity.api.auth import router as auth_router
 from app.modules.identity.api.users import router as users_router
 from app.modules.identity.application.user_service import UserService, bootstrap_admin
 from app.modules.identity.infrastructure.user_repository import SqlAlchemyUserRepository
+from app.modules.telemetry.api import router as telemetry_router
 
 
 def create_app(*, export_telemetry: bool | None = None) -> FastAPI:
@@ -48,6 +49,7 @@ def create_app(*, export_telemetry: bool | None = None) -> FastAPI:
     app.include_router(vehicles_router)
     app.include_router(reservations_router)
     app.include_router(charging_sessions_router)
+    app.include_router(telemetry_router)
     Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
     if endpoint:
         configure_tracing(app, endpoint)
