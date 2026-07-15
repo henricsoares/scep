@@ -49,9 +49,7 @@ def upgrade() -> None:
             "state_of_charge_percent NOT IN ('Infinity', '-Infinity', 'NaN'))",
             name="ck_telemetry_finite",
         ),
-        sa.ForeignKeyConstraint(
-            ["session_id"], ["charging_sessions.id"], ondelete="RESTRICT"
-        ),
+        sa.ForeignKeyConstraint(["session_id"], ["charging_sessions.id"], ondelete="RESTRICT"),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(

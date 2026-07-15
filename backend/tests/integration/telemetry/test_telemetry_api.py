@@ -71,9 +71,9 @@ def test_batch_is_deterministic_atomic_and_reports_creation_semantics(
     client, _, connector_id = telemetry_client
     charging_session = active_session(client, connector_id)
     session_id = charging_session["id"]
-    recorded = str(charging_session["started_at"])
-    first = payload("first", recorded)
-    second = payload("second", recorded, 11.0)
+    recorded = datetime.fromisoformat(str(charging_session["started_at"]))
+    first = payload("first", recorded.isoformat())
+    second = payload("second", (recorded + timedelta(seconds=1)).isoformat(), 11.0)
 
     created = client.post(
         f"/charging-sessions/{session_id}/telemetry/batch",
@@ -91,7 +91,7 @@ def test_batch_is_deterministic_atomic_and_reports_creation_semantics(
 
     conflict = client.post(
         f"/charging-sessions/{session_id}/telemetry/batch",
-        json={"samples": [payload("third", recorded), first | {"power_kw": 99}]},
+        json={"samples": [payload("third", recorded.isoformat()), first | {"power_kw": 99}]},
     )
     assert conflict.status_code == 409
     listed = client.get(f"/charging-sessions/{session_id}/telemetry").json()
