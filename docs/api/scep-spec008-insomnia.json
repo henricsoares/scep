@@ -38,6 +38,7 @@
         "recorded_2": "",
         "recorded_3": "",
         "recorded_4": "",
+        "completed_recorded": "",
         "before_start": "",
         "outside_skew": ""
       }
@@ -194,7 +195,7 @@
       "parameters": [],
       "body": {},
       "authentication": { "type": "bearer", "token": "{{ _.driver_token }}" },
-      "afterResponseScript": "const body = insomnia.response.json();\nconst started = new Date(body.started_at);\ninsomnia.baseEnvironment.set('session_id', body.id);\ninsomnia.baseEnvironment.set('recorded_1', started.toISOString());\ninsomnia.baseEnvironment.set('recorded_2', new Date(started.getTime() + 1000).toISOString());\ninsomnia.baseEnvironment.set('recorded_3', new Date(started.getTime() + 2000).toISOString());\ninsomnia.baseEnvironment.set('recorded_4', new Date(started.getTime() + 3000).toISOString());\ninsomnia.baseEnvironment.set('before_start', new Date(started.getTime() - 1000).toISOString());\ninsomnia.baseEnvironment.set('outside_skew', new Date(Date.now() + 10 * 60 * 1000).toISOString());\ninsomnia.test('activation returns 201', () => insomnia.expect(insomnia.response.code).to.eql(201));\ninsomnia.test('session is ACTIVE', () => insomnia.expect(body.status).to.eql('ACTIVE'));\n",
+      "afterResponseScript": "const body = insomnia.response.json();\nconst started = new Date(body.started_at);\ninsomnia.baseEnvironment.set('session_id', body.id);\ninsomnia.baseEnvironment.set('recorded_1', new Date(started.getTime() + 1000).toISOString());\ninsomnia.baseEnvironment.set('recorded_2', new Date(started.getTime() + 2000).toISOString());\ninsomnia.baseEnvironment.set('recorded_3', new Date(started.getTime() + 3000).toISOString());\ninsomnia.baseEnvironment.set('recorded_4', new Date(started.getTime() + 4000).toISOString());\ninsomnia.baseEnvironment.set('before_start', new Date(started.getTime() - 1000).toISOString());\ninsomnia.baseEnvironment.set('outside_skew', new Date(Date.now() + 10 * 60 * 1000).toISOString());\ninsomnia.test('activation returns 201', () => insomnia.expect(insomnia.response.code).to.eql(201));\ninsomnia.test('session is ACTIVE', () => insomnia.expect(body.status).to.eql('ACTIVE'));\n",
       "metaSortKey": 10000
     },
     {
@@ -446,7 +447,7 @@
       "parameters": [],
       "body": {},
       "authentication": { "type": "bearer", "token": "{{ _.driver_token }}" },
-      "afterResponseScript": "const body = insomnia.response.json();\ninsomnia.test('completion returns 200', () => insomnia.expect(insomnia.response.code).to.eql(200));\ninsomnia.test('session is COMPLETED', () => insomnia.expect(body.status).to.eql('COMPLETED'));\n",
+      "afterResponseScript": "const body = insomnia.response.json();\nconst completedRecorded = new Date(new Date(body.ended_at).getTime() - 1).toISOString();\ninsomnia.baseEnvironment.set('completed_recorded', completedRecorded);\ninsomnia.test('completion returns 200', () => insomnia.expect(insomnia.response.code).to.eql(200));\ninsomnia.test('session is COMPLETED', () => insomnia.expect(body.status).to.eql('COMPLETED'));\n",
       "metaSortKey": 28000
     },
     {
@@ -458,7 +459,7 @@
       "url": "{{ _.base_url }}/charging-sessions/{{ _.session_id }}/telemetry",
       "headers": [{ "name": "Content-Type", "value": "application/json" }],
       "parameters": [],
-      "body": { "mimeType": "application/json", "text": "{\n  \"sample_id\": \"delayed-{{ _.run_id }}\",\n  \"source\": \"API_CLIENT\",\n  \"recorded_at\": \"{{ _.recorded_1 }}\",\n  \"energy_kwh\": 3.0\n}" },
+      "body": { "mimeType": "application/json", "text": "{\n  \"sample_id\": \"delayed-{{ _.run_id }}\",\n  \"source\": \"API_CLIENT\",\n  \"recorded_at\": \"{{ _.completed_recorded }}\",\n  \"energy_kwh\": 3.0\n}" },
       "authentication": { "type": "bearer", "token": "{{ _.driver_token }}" },
       "afterResponseScript": "insomnia.test('delayed valid observation returns 201', () => insomnia.expect(insomnia.response.code).to.eql(201));\n",
       "metaSortKey": 29000
