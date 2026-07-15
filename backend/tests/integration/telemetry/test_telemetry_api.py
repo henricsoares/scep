@@ -125,12 +125,30 @@ def test_temporal_measurement_authentication_and_openapi(
     )
 
     paths = client.get("/openapi.json").json()["paths"]
-    for path in (
-        "/charging-sessions/{sessionId}/telemetry",
-        "/charging-sessions/{sessionId}/telemetry/batch",
-        "/telemetry/{telemetryId}",
-    ):
-        assert path in paths
-        assert "delete" not in paths[path]
-        for operation in paths[path].values():
-            assert operation["security"] == [{"HTTPBearer": []}]
+    expected_responses = {
+        ("/charging-sessions/{sessionId}/telemetry", "post"): {
+            "200",
+            "201",
+            "401",
+            "404",
+            "409",
+            "422",
+        },
+        ("/charging-sessions/{sessionId}/telemetry/batch", "post"): {
+            "200",
+            "201",
+            "401",
+            "404",
+            "409",
+            "422",
+        },
+        ("/charging-sessions/{sessionId}/telemetry", "get"): {"200", "401", "404", "422"},
+        ("/telemetry/{telemetryId}", "get"): {"200", "401", "404", "422"},
+    }
+    for (path, method), responses in expected_responses.items():
+        operation = paths[path][method]
+        assert operation["security"] == [{"HTTPBearer": []}]
+        assert set(operation["responses"]) == responses
+        assert operation["responses"]["401"]["description"] == (
+            "Missing or invalid Bearer authentication"
+        )

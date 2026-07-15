@@ -54,6 +54,7 @@ class TelemetryResponse(BaseModel):
 
 
 ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
+    401: {"description": "Missing or invalid Bearer authentication"},
     404: {"description": "Charging Session or TelemetrySample absent or concealed"},
     409: {
         "description": "The idempotency key was reused with different producer data",
@@ -167,7 +168,7 @@ def ingest_telemetry_batch(
 @router.get(
     "/charging-sessions/{sessionId}/telemetry",
     response_model=list[TelemetryResponse],
-    responses={404: ERROR_RESPONSES[404]},
+    responses={code: ERROR_RESPONSES[code] for code in (401, 404)},
 )
 def list_telemetry(
     sessionId: UUID,
@@ -199,7 +200,7 @@ def list_telemetry(
 @router.get(
     "/telemetry/{telemetryId}",
     response_model=TelemetryResponse,
-    responses={404: ERROR_RESPONSES[404]},
+    responses={code: ERROR_RESPONSES[code] for code in (401, 404)},
 )
 def get_telemetry(
     telemetryId: UUID,
