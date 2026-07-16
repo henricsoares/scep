@@ -76,10 +76,10 @@ C4Component
         Component(auth, "Identity & Access Component", "Application Module", "Handles authentication, authorization, users and roles.")
         Component(charging, "Smart Charging Component", "Application Module", "Manages charging stations, Vehicles, reservations, sessions and occupancy rules.")
         Component(telemetry, "Telemetry Component", "Application Module", "Ingests and normalizes operational telemetry.")
-        Component(events, "Domain Event Component", "Internal Event Bus / Event Store", "Publishes, persists and dispatches domain events.")
-        Component(analytics, "Analytics Component", "Application Module", "Consumes events and produces operational indicators.")
-        Component(datasets, "Dataset Export Component", "Application Module", "Generates research datasets from historical data and events.")
-        Component(prediction, "Prediction Component", "Application Module", "Stores prediction results and exposes AI-related outputs.")
+        Component(events, "Domain Event Component", "Event Store / Internal Event Dispatcher", "Transactionally persists events and dispatches them after commit.")
+        Component(analytics, "Analytics Component (Future)", "Application Module", "Will consume events and produce operational indicators.")
+        Component(datasets, "Dataset Export Component (Future)", "Application Module", "Will generate research datasets from historical data and events.")
+        Component(prediction, "Prediction Component (Future)", "Application Module", "Will store prediction results and expose AI-related outputs.")
         Component(notification, "Notification Component", "Application Module", "Sends notification requests to the Notification Mock or future providers.")
         Component(observability, "Observability Component", "Cross-Cutting", "Emits logs, metrics, traces and health information.")
         Component(persistence, "Persistence Component", "SQLAlchemy / Repositories", "Provides controlled access to PostgreSQL.")
@@ -188,7 +188,7 @@ Responsibilities:
 * start charging sessions;
 * finish charging sessions;
 * manage occupancy rules;
-* publish charging-related domain events.
+* publish charging-related Domain Events as defined by SPEC-009.
 
 This component owns the core operational rules of the Smart Charging domain.
 
@@ -212,7 +212,7 @@ Responsibilities:
 * normalize telemetry data;
 * associate telemetry with Charging Sessions;
 * persist telemetry records;
-* publish telemetry-related domain events.
+* publish TelemetrySampleReceived as defined by SPEC-009.
 
 Telemetry may originate from:
 
@@ -231,14 +231,15 @@ The Domain Event Component provides event publication, persistence and dispatchi
 Responsibilities:
 
 * define the domain event envelope;
-* persist emitted events;
-* dispatch events to internal consumers;
+* persist emitted events in the same transaction as the originating business state;
+* dispatch persisted events to internal consumers after commit with at-least-once delivery;
 * provide event history for analytics and datasets;
 * support future integration with external brokers.
 
-Initial implementation may use an in-process event bus.
+The initial design uses an in-process Internal Event Dispatcher backed by a persistent Event Store.
 
-The architecture must allow future migration to Kafka, RabbitMQ or another broker if needed.
+Future specifications may add an Outbox and Kafka transport without changing current producer,
+Event Store or Internal Event Dispatcher responsibilities.
 
 Events must represent facts that already happened.
 

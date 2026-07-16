@@ -267,8 +267,8 @@ However, migrations are normally executed automatically when the backend contain
 ## Implemented Business Capabilities
 
 The current domain includes Identity, Facilities, Charging Stations, Connectors, Vehicles,
-Reservations and Charging Sessions. Telemetry is documented in draft SPEC-008 and is not yet
-implemented.
+Reservations, Charging Sessions and Telemetry. SPEC-009 documents Domain Events in draft; the
+Event Store and Internal Event Dispatcher are not implemented.
 
 ### Identity and Access
 
@@ -315,6 +315,11 @@ Charging Sessions, including lifecycle management, conflict prevention, cancella
 and No-Show handling. Every Charging Session defined by SPEC-007 originates from exactly one
 Reservation; direct or unreserved Charging Sessions remain out of scope.
 
+### Telemetry
+
+The platform supports immutable TelemetrySamples for active or completed Charging Sessions,
+including single and atomic batch ingestion, idempotency and authorized retrieval.
+
 ---
 
 ## Research Focus
@@ -348,10 +353,11 @@ Completed:
 * ✅ SPEC-005 — Identity and Access
 * ✅ SPEC-006 — Reservations
 * ✅ SPEC-007 — Charging Sessions
+* ✅ SPEC-008 — Telemetry
 
 Current:
 
-* 📝 SPEC-008 — Telemetry (documented, Draft; not implemented)
+* 📝 SPEC-009 — Domain Events (documented, Draft; not implemented)
 
 Next Steps:
 

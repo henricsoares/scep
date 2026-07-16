@@ -250,15 +250,17 @@ Each event shall contain, at minimum:
 Example events:
 
 * ReservationCreated
+* ReservationRescheduled
+* ReservationCancelled
+* ReservationMarkedNoShow
 * ChargingSessionStarted
-* ChargingSessionFinished
-* TelemetryReceived
-* StationFaultDetected
-* PredictionGenerated
+* ChargingSessionCompleted
+* TelemetrySampleReceived
 
 Events are immutable.
 
-They shall never be updated after persistence.
+Their business facts, payloads and contracts shall never be updated after persistence. Dispatch
+tracking metadata may change without changing the recorded fact.
 
 ---
 
@@ -275,15 +277,15 @@ Validate
 
 ↓
 
-Persist
+Persist Business State + Event Atomically
 
 ↓
 
-Publish Event
+Commit
 
 ↓
 
-Consume
+Dispatch Event After Commit
 
 ↓
 

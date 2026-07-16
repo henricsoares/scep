@@ -1055,9 +1055,9 @@ telemetry measurements.
 
 ## SPEC-009 — Domain Events
 
-Future conceptual events may include ReservationCreated, ReservationRescheduled,
-ReservationActivated, ReservationCompleted, ReservationCancelled, ReservationLateCancelled and
-ReservationNoShow. Messaging and event persistence remain deferred to SPEC-009.
+SPEC-009 defines ReservationCreated, ReservationRescheduled, ReservationCancelled and
+ReservationMarkedNoShow. It owns event naming, cancellation-type representation, messaging and
+event persistence without changing the Reservation lifecycle defined here.
 
 ## SPEC-010 — Analytics
 

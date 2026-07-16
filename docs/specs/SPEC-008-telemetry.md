@@ -2,7 +2,7 @@
 
 ## Smart Charging Experimentation Platform (SCEP)
 
-**Status:** Draft
+**Status:** Approved
 
 **Version:** 1.0
 
@@ -35,7 +35,9 @@ This specification defines:
 
 This specification intentionally focuses on data ingestion and preservation.
 
-Telemetry interpretation, anomaly detection, analytics, machine learning, domain events and Digital Twin execution remain outside the scope of this specification.
+Telemetry interpretation, anomaly detection, analytics, machine learning, Domain Event infrastructure
+and Digital Twin execution remain outside the scope of this specification. SPEC-009 defines
+Telemetry as a Domain Event producer without changing the ingestion behavior defined here.
 
 ---
 
@@ -1171,12 +1173,12 @@ A complete smoke test shall validate:
 
 Telemetry establishes the data acquisition layer of the Smart Charging Experimentation Platform.
 
-Future specifications may extend Telemetry with:
+Subsequent specifications may extend Telemetry with:
 
 - OCPP integration;
 - MQTT ingestion;
 - streaming pipelines;
-- Domain Events;
+- Domain Events, as documented by SPEC-009;
 - analytics;
 - KPI generation;
 - dataset export;
