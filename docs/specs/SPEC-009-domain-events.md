@@ -144,13 +144,13 @@ The Aggregate itself never depends on downstream consumers.
 # 4. Domain Model
 
 The Domain Event Aggregate represents one immutable business fact. Its identifiers, contract,
-payload, metadata and business timestamps are immutable after persistence. Delivery tracking is
-mutable operational metadata and does not alter that fact.
+payload, metadata and business timestamps are immutable after persistence. Mutable delivery state
+belongs exclusively to EventDelivery and does not alter that fact.
 
 A Domain Event is created only after a business operation has been successfully validated.
 
-Once persisted, its business data shall never be modified. Only dispatch tracking fields may be
-updated by the Internal Event Dispatcher.
+Once persisted, its business data shall never be modified. Delivery state is maintained only in
+separate EventDelivery records.
 
 ---
 
@@ -177,11 +177,6 @@ causation_id
 
 payload
 metadata
-
-dispatch_status
-dispatch_attempts
-last_dispatch_at
-last_error
 
 created_at
 ```
@@ -371,9 +366,69 @@ Metadata is immutable after persistence.
 
 ---
 
-### dispatch_status
+### created_at
 
-Current dispatch lifecycle state.
+Persistence timestamp of the Domain Event.
+
+Automatically assigned.
+
+Immutable.
+
+---
+
+## EventDelivery
+
+```text
+EventDelivery
+
+id
+event_id
+consumer
+status
+attempts
+last_attempt_at
+delivered_at
+last_error
+created_at
+updated_at
+```
+
+An EventDelivery represents delivery of one persisted Domain Event to one registered consumer.
+Delivery state is not part of the Domain Event and may change without modifying the business fact.
+
+### event_id
+
+Reference to exactly one persisted Domain Event.
+
+Mandatory.
+
+Immutable.
+
+---
+
+### consumer
+
+Stable identifier of exactly one registered consumer.
+
+Mandatory.
+
+Immutable.
+
+Uniqueness is defined by:
+
+```text
+event_id
++
+consumer
+```
+
+Exactly one EventDelivery shall exist for each Domain Event and registered consumer pair.
+
+---
+
+### status
+
+Current delivery lifecycle state.
 
 Supported values:
 
@@ -389,7 +444,7 @@ Managed exclusively by the Internal Event Dispatcher.
 
 ---
 
-### dispatch_attempts
+### attempts
 
 Number of dispatch attempts performed by the Internal Event Dispatcher.
 
@@ -397,11 +452,19 @@ Automatically maintained.
 
 ---
 
-### last_dispatch_at
+### last_attempt_at
 
 Timestamp of the most recent dispatch attempt.
 
 Null until the first dispatch attempt.
+
+---
+
+### delivered_at
+
+Timestamp of successful delivery.
+
+Null until delivery succeeds.
 
 ---
 
@@ -417,13 +480,11 @@ It shall never modify the original business meaning of the Domain Event.
 
 ---
 
-### created_at
+### created_at and updated_at
 
-Persistence timestamp.
+Persistence timestamps for delivery tracking.
 
-Automatically assigned.
-
-Immutable.
+Automatically maintained.
 
 ---
 
@@ -473,7 +534,7 @@ The persistent repository responsible for storing every Domain Event.
 The Event Store provides:
 
 - immutable event history;
-- dispatch tracking;
+- per-consumer delivery tracking;
 - event querying;
 - durable records that a future specification could use to define replay.
 
@@ -489,6 +550,14 @@ The dispatcher operates only after the originating database transaction has been
 
 It provides at-least-once delivery, so a consumer may receive the same persisted event more than
 once and shall be idempotent.
+
+---
+
+## Event Delivery
+
+The durable record of one consumer's delivery state for one Domain Event.
+
+Each consumer progresses independently through its own EventDelivery lifecycle.
 
 ---
 
@@ -520,7 +589,8 @@ Causation is optional in the initial implementation.
 
 # 6. Event Lifecycle
 
-Every Domain Event follows the lifecycle below.
+Each Domain Event is immutable after persistence. Each registered consumer follows an independent
+EventDelivery lifecycle:
 
 ```text
 Business Operation
@@ -529,25 +599,25 @@ Business Operation
 
         ▼
 
-Domain Event Created
+Domain Event + EventDeliveries Created
 
         │
 
         ▼
 
-Persisted
+Persisted Atomically
 
         │
 
         ▼
 
-PENDING
+One PENDING EventDelivery per Consumer
 
         │
 
         ▼
 
-Dispatch Attempt
+Independent Delivery Attempts
 
    ┌───────────────┐
    │               │
@@ -556,7 +626,7 @@ Dispatch Attempt
 DISPATCHED      FAILED
 ```
 
-The lifecycle concerns only delivery.
+The mutable lifecycle belongs to EventDelivery, not DomainEvent.
 
 It never changes the business meaning of the event.
 
@@ -572,19 +642,22 @@ Validation failures shall never produce Domain Events.
 
 ## Persistence
 
-Business state and Domain Event shall be persisted within the same PostgreSQL transaction.
+Business state, Domain Event and one EventDelivery per registered consumer shall be persisted
+within the same PostgreSQL transaction.
 
 If the transaction commits successfully:
 
 - business state exists;
 - Domain Event exists.
+- its initial EventDeliveries exist.
 
 If the transaction is rolled back:
 
 - business state does not exist;
 - Domain Event does not exist.
+- no EventDelivery exists for that event.
 
-The implementation shall never persist one without the other.
+The implementation shall never persist one without the others.
 
 ---
 
@@ -592,7 +665,8 @@ The implementation shall never persist one without the other.
 
 Dispatch begins only after the successful transaction commit.
 
-The dispatcher retrieves pending Domain Events from the Event Store and invokes registered consumers.
+The dispatcher retrieves eligible PENDING and FAILED EventDeliveries, loads their Domain Events
+from the Event Store and invokes the consumer identified by each delivery.
 
 Dispatch occurs outside the original business transaction.
 
@@ -602,14 +676,14 @@ Consumer failures shall never roll back the originating Aggregate.
 
 ## Failure
 
-Consumer failures change only:
+Consumer failures change only the corresponding EventDelivery:
 
 ```text
-dispatch_status
+status
 
-dispatch_attempts
+attempts
 
-last_dispatch_at
+last_attempt_at
 
 last_error
 ```
@@ -620,7 +694,7 @@ The recorded business fact and its event contract remain immutable.
 
 ## Retry
 
-Failed dispatches may be retried.
+Failed deliveries may be retried independently for each consumer.
 
 Retries shall not modify:
 
@@ -629,7 +703,20 @@ Retries shall not modify:
 - identifiers;
 - timestamps describing the business fact.
 
-Only dispatch metadata may change.
+Only the corresponding EventDelivery may change.
+
+---
+
+## Recovery
+
+PENDING and FAILED EventDeliveries remain durable across application restarts.
+
+After restart, the Internal Event Dispatcher shall resume processing eligible PENDING and FAILED
+deliveries. A delivery is eligible when it has one of those statuses and is not already being
+processed. The implementation shall prevent concurrent processing of the same EventDelivery.
+
+These are dispatcher recovery and concurrency requirements. They do not require a particular
+scheduler, polling interval, locking mechanism or background-processing technology.
 
 ---
 
@@ -640,7 +727,7 @@ Only dispatch metadata may change.
 Every Domain Event records an immutable business fact.
 
 Updates to identifiers, event contracts, business timestamps, payload and metadata are prohibited
-after persistence. Only delivery tracking fields may change.
+after persistence. Delivery tracking exists only in separate EventDelivery records.
 
 ---
 
@@ -672,11 +759,14 @@ CompleteChargingSession
 
 ## BR-003 — Transactional Consistency
 
-Business state and Domain Event shall be persisted within the same database transaction.
+Business state, Domain Event and initial EventDeliveries shall be persisted within the same
+database transaction.
 
-The platform shall never expose a committed Aggregate without its corresponding Domain Event.
+The platform shall never expose a committed Aggregate without its corresponding Domain Event and
+initial EventDeliveries.
 
-Likewise, a rolled-back Aggregate shall never leave behind a persisted Domain Event.
+Likewise, a rolled-back Aggregate shall never leave behind a persisted Domain Event or
+EventDelivery.
 
 ---
 
@@ -690,9 +780,10 @@ Consumers shall never participate in the original business transaction.
 
 ## BR-005 — At-Least-Once Delivery
 
-The Internal Event Dispatcher provides at-least-once delivery.
+The Internal Event Dispatcher provides at-least-once delivery independently for each
+EventDelivery.
 
-Consumers may receive the same Domain Event more than once.
+Each consumer may receive the same Domain Event more than once.
 
 Consumers shall therefore be idempotent.
 
@@ -753,6 +844,10 @@ Every published Domain Event shall be persisted in the Event Store before dispat
 
 Consumers shall receive only persisted Domain Events.
 
+The platform shall create exactly one EventDelivery for each Domain Event and registered consumer,
+with a unique `(event, consumer)` pair. PENDING and FAILED deliveries shall remain durable, resume
+after application restart and never be processed concurrently with themselves.
+
 The Event Store is the authoritative source of truth for event history.
 
 ---
@@ -779,11 +874,16 @@ When SPEC-009 is implemented, the initial producers shall publish the following 
 
 Published after a Reservation is successfully created.
 
-Producer:
+Version 1 contract:
 
-```text
-Reservation
-```
+| Field | Value |
+| --- | --- |
+| `event_version` | `1` |
+| `event_type` | `reservation.created` |
+| `aggregate_type` | `Reservation` |
+| `producer_module` | `charging` |
+| Required payload | `owner_id`, `vehicle_id`, `connector_id`, `start_at`, `end_at` |
+| Optional payload | None |
 
 ---
 
@@ -791,11 +891,16 @@ Reservation
 
 Published after a Reservation is successfully rescheduled.
 
-Producer:
+Version 1 contract:
 
-```text
-Reservation
-```
+| Field | Value |
+| --- | --- |
+| `event_version` | `1` |
+| `event_type` | `reservation.rescheduled` |
+| `aggregate_type` | `Reservation` |
+| `producer_module` | `charging` |
+| Required payload | `owner_id`, `vehicle_id`, `connector_id`, `start_at`, `end_at` |
+| Optional payload | None |
 
 ---
 
@@ -803,23 +908,18 @@ Reservation
 
 Published after a Reservation is successfully cancelled.
 
-The payload shall distinguish between:
+Version 1 contract:
 
-```text
-STANDARD
-
-LATE
-```
-
-cancellation types.
+| Field | Value |
+| --- | --- |
+| `event_version` | `1` |
+| `event_type` | `reservation.cancelled` |
+| `aggregate_type` | `Reservation` |
+| `producer_module` | `charging` |
+| Required payload | `cancellation_type` (`STANDARD` or `LATE`) |
+| Optional payload | None |
 
 Separate event types for late cancellation are intentionally not introduced.
-
-Producer:
-
-```text
-Reservation
-```
 
 ---
 
@@ -827,11 +927,16 @@ Reservation
 
 Published when a Reservation transitions to the NO_SHOW state.
 
-Producer:
+Version 1 contract:
 
-```text
-Reservation
-```
+| Field | Value |
+| --- | --- |
+| `event_version` | `1` |
+| `event_type` | `reservation.marked-no-show` |
+| `aggregate_type` | `Reservation` |
+| `producer_module` | `charging` |
+| Required payload | `owner_id`, `vehicle_id`, `connector_id`, `start_at`, `end_at` |
+| Optional payload | None |
 
 ---
 
@@ -841,11 +946,16 @@ Reservation
 
 Published after a Charging Session is successfully created and activated.
 
-Producer:
+Version 1 contract:
 
-```text
-ChargingSession
-```
+| Field | Value |
+| --- | --- |
+| `event_version` | `1` |
+| `event_type` | `charging-session.started` |
+| `aggregate_type` | `ChargingSession` |
+| `producer_module` | `charging` |
+| Required payload | `reservation_id`, `owner_id`, `vehicle_id`, `connector_id`, `started_at` |
+| Optional payload | None |
 
 ---
 
@@ -853,11 +963,16 @@ ChargingSession
 
 Published after a Charging Session completes successfully.
 
-Producer:
+Version 1 contract:
 
-```text
-ChargingSession
-```
+| Field | Value |
+| --- | --- |
+| `event_version` | `1` |
+| `event_type` | `charging-session.completed` |
+| `aggregate_type` | `ChargingSession` |
+| `producer_module` | `charging` |
+| Required payload | `reservation_id`, `ended_at` |
+| Optional payload | None |
 
 ---
 
@@ -869,13 +984,18 @@ Published after a TelemetrySample is successfully persisted.
 
 One TelemetrySample produces exactly one Domain Event.
 
-The event payload may contain one or more measurements depending on the received observation.
+Version 1 contract:
 
-Producer:
+| Field | Value |
+| --- | --- |
+| `event_version` | `1` |
+| `event_type` | `telemetry.sample-received` |
+| `aggregate_type` | `TelemetrySample` |
+| `producer_module` | `telemetry` |
+| Required payload | `session_id`, `sample_id`, `source`, `recorded_at` |
+| Optional payload | `power_kw`, `energy_kwh`, `state_of_charge_percent` |
 
-```text
-TelemetrySample
-```
+At least one optional measurement field shall be present, as required by SPEC-008.
 
 ---
 
@@ -897,6 +1017,8 @@ GET /domain-events
 
 Returns Domain Events visible to the authenticated actor.
 
+Each result shall include its associated EventDelivery records for administrative inspection.
+
 Supported filters include:
 
 - event_type;
@@ -905,7 +1027,11 @@ Supported filters include:
 - producer_module;
 - occurred_from;
 - occurred_to;
-- dispatch_status.
+- consumer;
+- delivery_status.
+
+Consumer and delivery-status filters match associated EventDelivery records without changing the
+Domain Event representation.
 
 Default ordering:
 
@@ -936,6 +1062,8 @@ GET /domain-events/{eventId}
 ```
 
 Returns one persisted Domain Event.
+
+The response shall include its associated EventDelivery records for administrative inspection.
 
 Possible responses:
 
@@ -971,7 +1099,7 @@ Platform Administrators may:
 
 - list Domain Events;
 - retrieve Domain Events;
-- inspect dispatch status;
+- inspect per-consumer delivery status;
 - inspect payloads and metadata.
 
 Platform Administrators have global visibility.
@@ -1016,8 +1144,8 @@ Future analytical specifications may introduce controlled read access.
 
 # 11. Persistence
 
-Domain Events use Event Store records separate from their originating Aggregate records, while
-both records are persisted atomically in the same PostgreSQL transaction.
+Domain Events and their initial EventDeliveries use records separate from their originating
+Aggregate records, while all are persisted atomically in the same PostgreSQL transaction.
 
 The persistence model shall include, at minimum:
 
@@ -1043,12 +1171,24 @@ causation_id
 payload
 metadata
 
-dispatch_status
-dispatch_attempts
-last_dispatch_at
-last_error
-
 created_at
+```
+
+The per-consumer delivery model shall include, at minimum:
+
+```text
+event_deliveries
+
+id
+event_id
+consumer
+status
+attempts
+last_attempt_at
+delivered_at
+last_error
+created_at
+updated_at
 ```
 
 The persistence model shall enforce:
@@ -1056,17 +1196,24 @@ The persistence model shall enforce:
 - primary key;
 - immutable payload;
 - immutable business metadata;
-- valid dispatch status;
 - timezone-aware timestamps;
 - event version;
 - JSON payload validation.
+
+The delivery persistence model shall enforce:
+
+- foreign key to `domain_events`;
+- unique `(event_id, consumer)` pair;
+- valid delivery status;
+- non-negative attempt count;
+- timezone-aware timestamps.
 
 The Event Store shall prevent physical deletion of persisted Domain Events.
 
 Historical records are permanent.
 
-Only the Internal Event Dispatcher may update dispatch metadata, and those updates do not change
-the immutable business fact.
+Only the Internal Event Dispatcher may update EventDelivery records. PENDING and FAILED deliveries
+shall remain durable across application restarts; Domain Event records remain unchanged.
 
 ---
 
@@ -1079,24 +1226,26 @@ Metrics shall avoid high-cardinality labels.
 At minimum, the implementation shall expose:
 
 - Domain Events published;
-- Domain Events dispatched;
-- dispatch failures;
-- dispatch retries;
-- pending Domain Events;
+- successful deliveries;
+- delivery failures;
+- delivery retries;
+- pending and failed deliveries;
 - registered consumers.
 
 Structured logs shall be emitted for:
 
 - event publication;
-- dispatch attempts;
-- successful dispatch;
-- dispatch failures;
+- delivery attempts;
+- successful delivery;
+- delivery failures;
 - consumer execution.
 
 Logs shall include, whenever available:
 
 - event identifier;
 - event type;
+- delivery identifier;
+- consumer identifier;
 - aggregate identifier;
 - correlation identifier;
 - trace identifier.
@@ -1111,7 +1260,8 @@ The generated OpenAPI documentation shall include:
 
 - DomainEvent schema;
 - Event Type enumeration;
-- Dispatch Status enumeration;
+- EventDelivery schema;
+- Delivery Status enumeration;
 - administrative query endpoints;
 - authentication requirements;
 - filtering parameters;
@@ -1123,7 +1273,9 @@ Bearer authentication shall be declared for every protected endpoint.
 Example payloads shall be provided for:
 
 - ReservationCreated;
+- ReservationRescheduled;
 - ReservationCancelled;
+- ReservationMarkedNoShow;
 - ChargingSessionStarted;
 - ChargingSessionCompleted;
 - TelemetrySampleReceived.
@@ -1139,6 +1291,7 @@ The implementation shall satisfy the following acceptance criteria.
 ## Domain Event
 
 - DomainEvent Aggregate implemented.
+- EventDelivery model implemented.
 - Event Store implemented.
 - Internal Event Dispatcher implemented.
 - Immutable persistence implemented.
@@ -1157,7 +1310,7 @@ The implementation shall satisfy the following acceptance criteria.
 
 ## Transactional Consistency
 
-- Business state and Domain Event are persisted in the same transaction.
+- Business state, Domain Event and initial EventDeliveries are persisted in the same transaction.
 - Rolled-back business operations produce no Domain Events.
 - Committed business operations always produce their corresponding Domain Events.
 
@@ -1166,8 +1319,11 @@ The implementation shall satisfy the following acceptance criteria.
 ## Event Dispatch
 
 - Dispatch begins only after transaction commit.
-- Pending events are delivered by the Internal Event Dispatcher.
-- Dispatch metadata is updated correctly.
+- One delivery exists per `(event, consumer)` pair.
+- Pending and failed deliveries are processed independently by the Internal Event Dispatcher.
+- Delivery state is updated correctly.
+- Eligible deliveries resume after application restart.
+- Concurrent processing of the same EventDelivery is prevented.
 - Consumer failures do not roll back business operations.
 
 ---
@@ -1185,7 +1341,7 @@ The implementation shall satisfy the following acceptance criteria.
 
 - Event Store migration implemented.
 - Immutable payload enforced.
-- Dispatch metadata persisted.
+- Per-consumer delivery state persisted.
 - Historical records preserved.
 - Event contracts versioned.
 
@@ -1206,7 +1362,7 @@ The implementation shall satisfy the following acceptance criteria.
 - Metrics exposed.
 - Structured logs emitted.
 - Dispatch failures observable.
-- Pending events measurable.
+- Pending and failed deliveries measurable.
 
 ---
 
@@ -1220,6 +1376,7 @@ The implementation shall include automated tests covering:
 
 - DomainEvent creation.
 - Immutable behavior.
+- EventDelivery creation and uniqueness.
 - Contract versioning.
 - Payload validation.
 - Metadata validation.
@@ -1240,18 +1397,21 @@ The implementation shall include automated tests covering:
 
 ## Transactional Consistency
 
-- Commit persists both Aggregate and Domain Event.
-- Rollback persists neither.
+- Commit persists Aggregate, Domain Event and initial EventDeliveries.
+- Rollback persists none of them.
 - Event Store integrity preserved.
 
 ---
 
 ## Dispatch
 
-- Pending events dispatched.
-- Successful dispatch updates status.
-- Failed dispatch records retry metadata.
-- Multiple dispatch attempts supported.
+- Independent deliveries created for registered consumers.
+- Successful delivery updates only its EventDelivery.
+- Failed delivery records its own retry metadata.
+- Failure for one consumer does not change another consumer's delivery.
+- Multiple delivery attempts supported.
+- PENDING and FAILED deliveries resume after application restart.
+- Concurrent processing of the same EventDelivery is prevented.
 - Consumers execute after commit.
 
 ---
@@ -1284,7 +1444,8 @@ The implementation shall include automated tests covering:
 - Migration.
 - Event Store constraints.
 - Immutable persistence.
-- Dispatch metadata updates.
+- EventDelivery foreign key and `(event_id, consumer)` uniqueness.
+- EventDelivery state updates.
 - Historical preservation.
 
 ---
@@ -1298,7 +1459,7 @@ A complete smoke test shall validate:
 - Reservation publication;
 - Charging Session publication;
 - Telemetry publication;
-- Event Store persistence;
+- Event Store and EventDelivery persistence;
 - administrative API;
 - OpenAPI;
 - Prometheus metrics;
@@ -1375,7 +1536,11 @@ In particular:
 - The Event Store is the single source of truth for persisted Domain Events.
 - The Internal Event Dispatcher operates only after successful transaction commit.
 - Consumers execute independently from the originating business transaction.
-- Consumer failures affect only dispatch metadata.
+- Delivery state is stored only in EventDelivery records.
+- Each EventDelivery identifies exactly one Domain Event and one consumer.
+- Consumer failures affect only that consumer's EventDelivery.
+- PENDING and FAILED deliveries survive application restart and resume when eligible.
+- The same EventDelivery shall not be processed concurrently.
 - Domain Event payloads remain immutable after persistence.
 - Event contracts evolve exclusively through versioning.
 
@@ -1397,6 +1562,8 @@ Domain Events record completed business facts.
 
 The Event Store preserves those facts.
 
+EventDelivery records track each consumer independently.
+
 The Internal Event Dispatcher delivers them to interested consumers.
 
 ```text
@@ -1407,6 +1574,9 @@ ReservationCreated
         │
         ▼
 Event Store
+        │
+        ▼
+EventDelivery per Consumer
         │
         ▼
 Internal Event Dispatcher
