@@ -39,7 +39,9 @@ Business operations shall publish **Domain Events** representing immutable busin
 
 Interested modules may consume these events without introducing direct dependencies between producers and consumers.
 
-The initial implementation will use an **in-process event bus**, remaining compatible with future migration to external messaging infrastructure if required.
+The initial implementation will use a persistent **Event Store** and an in-process **Internal Event
+Dispatcher** with transactional persistence, dispatch after commit and at-least-once delivery. It
+remains compatible with a future Outbox + Kafka transport.
 
 ---
 
@@ -160,61 +162,30 @@ This standardization enables analytics, tracing and dataset generation.
 
 # Initial Domain Events
 
-Examples include:
+The initial catalog is defined by SPEC-009 and includes:
 
 ## Reservation
 
 * ReservationCreated
-* ReservationConfirmed
+* ReservationRescheduled
 * ReservationCancelled
-* ReservationLateCancelled
-* ReservationNoShow
+* ReservationMarkedNoShow
 
 ---
 
 ## Charging
 
 * ChargingSessionStarted
-* ChargingSessionPaused
-* ChargingSessionResumed
-* ChargingSessionFinished
-
----
-
-## Station
-
-* StationOccupied
-* StationReleased
-* StationFaultDetected
-* StationRecovered
-* MaintenanceScheduled
+* ChargingSessionCompleted
 
 ---
 
 ## Telemetry
 
-* TelemetryReceived
-* PowerMeasured
-* EnergyMeasured
-* BatteryStateUpdated
+* TelemetrySampleReceived
 
----
-
-## Simulation
-
-* SimulationStarted
-* SimulationFinished
-* ScenarioExecuted
-
----
-
-## Artificial Intelligence
-
-* PredictionGenerated
-* DatasetExported
-* ModelEvaluationCompleted
-
-Additional events may be introduced as new research capabilities evolve.
+Analytics, Dataset Export, AI and Digital Twin are future consumers. New producers or event types
+require subsequent specifications.
 
 ---
 
@@ -241,19 +212,25 @@ State Change
 
       ▼
 
-Persist Transaction
+Persist Business State + Event
 
       │
 
       ▼
 
-Publish Domain Event
+Commit Transaction
 
       │
 
       ▼
 
-Internal Event Bus
+Dispatch Persisted Domain Event
+
+      │
+
+      ▼
+
+Internal Event Dispatcher
 
       │
 
@@ -276,7 +253,7 @@ Every consumer operates independently from the business transaction that origina
 
 # Event Consumers
 
-The initial consumers are:
+The following are future consumers:
 
 ## Analytics Component
 
@@ -287,12 +264,6 @@ Consumes business events to calculate KPIs and operational indicators.
 ## Dataset Export Component
 
 Consumes historical events to generate reproducible research datasets.
-
----
-
-## Observability Component
-
-Consumes event metadata to enrich logs, traces and metrics.
 
 ---
 
@@ -381,17 +352,16 @@ Mitigation:
 
 # Future Evolution
 
-The initial implementation uses an **in-process event bus**.
+The initial implementation uses a persistent Event Store and an in-process Internal Event
+Dispatcher. Business state and its Domain Events are persisted in one transaction; dispatch starts
+only after commit and uses at-least-once delivery.
 
 Future versions may migrate to an external messaging platform if justified by scalability or distribution requirements.
 
-Potential technologies include:
-
-* Kafka;
-* RabbitMQ;
-* NATS.
-
-Such migration should require minimal changes to business modules because event publication is abstracted behind the Domain Event Component.
+A subsequent specification may add an Outbox publisher and Kafka transport. This evolution shall
+preserve producer responsibilities, Domain Event contracts, transactional persistence and
+at-least-once consumer semantics. Replacing current dispatcher responsibilities requires an
+explicit subsequent architectural decision.
 
 ---
 

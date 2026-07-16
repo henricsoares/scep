@@ -583,56 +583,26 @@ Events are used by:
 - auditing;
 - future integrations.
 
-Initial domain events include:
+The initial Domain Event catalog documented by SPEC-009 includes:
 
 ### Reservation Events
 
 - ReservationCreated
-- ReservationConfirmed
+- ReservationRescheduled
 - ReservationCancelled
-- ReservationLateCancelled
-- ReservationNoShow
+- ReservationMarkedNoShow
 
 ### Charging Events
 
 - ChargingSessionStarted
-- ChargingSessionPaused
-- ChargingSessionResumed
-- ChargingSessionFinished
-
-### Vehicle Events
-
-- VehicleConnected
-- VehicleDisconnected
-
-### Station Events
-
-- StationOccupied
-- StationReleased
-- StationFaultDetected
-- StationRecovered
-- MaintenanceScheduled
+- ChargingSessionCompleted
 
 ### Telemetry Events
 
-- TelemetryReceived
-- PowerUpdated
-- EnergyDelivered
-- BatteryStateUpdated
+- TelemetrySampleReceived
 
-### Simulation Events
-
-- SimulationStarted
-- SimulationFinished
-- ScenarioExecuted
-
-### AI Events
-
-- PredictionGenerated
-- ModelTrained
-- DatasetExported
-
-Additional events may be introduced as new domains evolve.
+Analytics, Dataset Export, AI and Digital Twin capabilities are future consumers of these events.
+Additional producers or event types require subsequent specifications.
 
 ---
 
@@ -1182,8 +1152,8 @@ Deliverables:
 - reservations;
 - charging sessions.
 
-Current progress: charging stations, Reservations and Charging Sessions are implemented. Telemetry
-is documented in draft SPEC-008 and is not yet implemented.
+Current progress: charging stations, Reservations, Charging Sessions and Telemetry are implemented.
+SPEC-008 is approved and implemented.
 
 ---
 
@@ -1194,6 +1164,8 @@ Deliverables:
 - domain events;
 - event publication;
 - event persistence.
+
+Current progress: SPEC-009 is documented in draft and is not implemented.
 
 ---
 
