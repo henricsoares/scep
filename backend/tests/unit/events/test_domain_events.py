@@ -17,7 +17,7 @@ def test_domain_event_is_immutable_and_copies_json_documents() -> None:
         occurred_at=datetime.now(UTC),
         payload=payload,
     )
-    payload["changed"] = True
+    payload["changed"] = "external mutation"
     assert "changed" not in item.payload
     with pytest.raises((FrozenInstanceError, TypeError)):
         item.payload["changed"] = True  # type: ignore[index]
