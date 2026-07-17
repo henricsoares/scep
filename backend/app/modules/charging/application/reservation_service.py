@@ -261,6 +261,12 @@ class ReservationService:
             end_at=item.end_at if end_at is None else end_at,
             now=self.clock.now(),
         )
+        if (
+            updated.vehicle_id == item.vehicle_id
+            and updated.start_at == item.start_at
+            and updated.end_at == item.end_at
+        ):
+            return item, False
         self._check_conflict(
             connector_id=updated.connector_id,
             vehicle_id=updated.vehicle_id,

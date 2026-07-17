@@ -12,6 +12,9 @@ from app.modules.charging.api.facilities import router as facilities_router
 from app.modules.charging.api.reservations import router as reservations_router
 from app.modules.charging.api.stations import router as stations_router
 from app.modules.charging.api.vehicles import router as vehicles_router
+from app.modules.events.api import router as events_router
+from app.modules.events.dispatcher import InternalEventDispatcher
+from app.modules.events.infrastructure import configure_post_commit_dispatch
 from app.modules.identity.api.auth import router as auth_router
 from app.modules.identity.api.users import router as users_router
 from app.modules.identity.application.user_service import UserService, bootstrap_admin
@@ -26,6 +29,8 @@ def create_app(*, export_telemetry: bool | None = None) -> FastAPI:
     endpoint = settings.otel_exporter_otlp_endpoint if export_telemetry else None
     configure_logging(settings.log_level, endpoint)
     app = FastAPI(title=settings.app_name, version=settings.app_version)
+    dispatcher = InternalEventDispatcher(SessionLocal)
+    configure_post_commit_dispatch(dispatcher.recover)
     app.add_middleware(RequestCorrelationMiddleware)
     app.add_middleware(
         CORSMiddleware,
@@ -50,6 +55,12 @@ def create_app(*, export_telemetry: bool | None = None) -> FastAPI:
     app.include_router(reservations_router)
     app.include_router(charging_sessions_router)
     app.include_router(telemetry_router)
+    app.include_router(events_router)
+
+    @app.on_event("startup")
+    def recover_domain_event_deliveries() -> None:
+        dispatcher.recover()
+
     Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
     if endpoint:
         configure_tracing(app, endpoint)

@@ -62,7 +62,7 @@ Implementation becomes the translation of approved specifications into software.
 | SPEC-006 | Reservations                         | ✅ Approved |
 | SPEC-007 | Charging Sessions                    | ✅ Approved |
 | SPEC-008 | Smart Charging Domain Telemetry      | ✅ Approved |
-| SPEC-009 | Domain Events                        | 📝 Draft    |
+| SPEC-009 | Domain Events                        | ✅ Implemented |
 | SPEC-010 | Analytics                            | ⏳ Planned  |
 | SPEC-011 | Dataset Export                       | ⏳ Planned  |
 | SPEC-012 | Predictions                          | ⏳ Planned  |
@@ -284,7 +284,7 @@ Topics include:
 * consumption;
 * event versioning.
 
-SPEC-009 is documented in draft and is not implemented.
+SPEC-009 is implemented with a transactional PostgreSQL Event Store and internal dispatcher.
 
 ---
 
