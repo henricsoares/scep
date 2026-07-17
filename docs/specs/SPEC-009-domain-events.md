@@ -2,7 +2,7 @@
 
 ## Smart Charging Experimentation Platform (SCEP)
 
-**Status:** Draft
+**Status:** Approved
 
 **Version:** 1.0
 
@@ -79,8 +79,7 @@ The following capabilities are intentionally deferred.
 
 Future versions may introduce external brokers without changing the Domain Event contracts defined by this specification.
 
-The documented initial implementation uses a persistent Event Store and an in-process Internal
-Event Dispatcher. This specification is not yet implemented.
+The implementation uses a persistent Event Store and an in-process Internal Event Dispatcher.
 
 This architectural decision allows a future specification to add an Outbox and Kafka transport
 without changing producer responsibilities or existing event contracts.
@@ -864,7 +863,7 @@ Future specifications may define explicit historical import mechanisms.
 
 # 8. Initial Event Catalog
 
-When SPEC-009 is implemented, the initial producers shall publish the following Domain Events.
+The initial producers publish the following Domain Events.
 
 ---
 

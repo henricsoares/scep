@@ -77,7 +77,7 @@ C4Component
         Component(charging, "Smart Charging Component", "Application Module", "Manages charging stations, Vehicles, reservations, sessions and occupancy rules.")
         Component(telemetry, "Telemetry Component", "Application Module", "Ingests and normalizes operational telemetry.")
         Component(events, "Domain Event Component", "Event Store / Internal Event Dispatcher", "Transactionally persists events and dispatches them after commit.")
-        Component(analytics, "Analytics Component (Future)", "Application Module", "Will consume events and produce operational indicators.")
+        Component(analytics, "Analytics Component (Draft)", "Application Module", "Will compute read-only indicators on demand from persisted operational data.")
         Component(datasets, "Dataset Export Component (Future)", "Application Module", "Will generate research datasets from historical data and events.")
         Component(prediction, "Prediction Component (Future)", "Application Module", "Will store prediction results and expose AI-related outputs.")
         Component(notification, "Notification Component", "Application Module", "Sends notification requests to the Notification Mock or future providers.")
@@ -85,7 +85,7 @@ C4Component
         Component(persistence, "Persistence Component", "SQLAlchemy / Repositories", "Provides controlled access to PostgreSQL.")
     }
 
-    ContainerDb(db, "PostgreSQL Database", "Stores transactional data, domain events, telemetry, analytics and dataset metadata.")
+    ContainerDb(db, "PostgreSQL Database", "Stores transactional data, domain events and telemetry; future capabilities may add analytical or dataset metadata.")
     System_Ext(simulator, "Digital Twin Simulation Engine", "Sends synthetic events and telemetry through public APIs.")
     System_Ext(aiEnv, "AI Research Environment", "Consumes datasets and publishes prediction results.")
     System_Ext(obsStack, "Observability Stack", "Prometheus, Grafana, Loki, Tempo, OpenTelemetry Collector.")
@@ -101,7 +101,7 @@ C4Component
 
     Rel(charging, events, "Publishes domain events")
     Rel(telemetry, events, "Publishes telemetry events")
-    Rel(events, analytics, "Dispatches events")
+    Rel(events, analytics, "May provide future projection input")
     Rel(events, datasets, "Provides event history")
     Rel(analytics, prediction, "Provides indicators for AI outputs")
     Rel(notification, notificationMock, "Sends notification requests")
@@ -110,7 +110,7 @@ C4Component
     Rel(charging, persistence, "Reads and writes")
     Rel(telemetry, persistence, "Reads and writes")
     Rel(events, persistence, "Persists events")
-    Rel(analytics, persistence, "Reads and writes aggregations")
+    Rel(analytics, persistence, "Reads operational data")
     Rel(datasets, persistence, "Reads historical data")
     Rel(prediction, persistence, "Reads and writes prediction results")
 
@@ -249,15 +249,15 @@ They must not be used to request business validation from other modules.
 
 ## 5.6 Analytics Component
 
-The Analytics Component transforms events and operational records into indicators.
+The Analytics Component transforms persisted operational records into indicators.
 
 Responsibilities:
 
-* consume domain events;
+* query persisted operational data without modifying it;
 * calculate operational metrics;
 * aggregate historical data;
 * expose analytical queries;
-* support dashboards.
+* expose read-only aggregate and time-series queries.
 
 Examples of calculated indicators:
 
@@ -270,6 +270,9 @@ Examples of calculated indicators:
 * charger availability.
 
 Analytics must be read-oriented and must not change transactional business behavior.
+
+Smart Charging is the initial analytical domain. The component architecture remains independent
+from any one analytical domain, and version 1 does not require Domain Events.
 
 ---
 
@@ -382,7 +385,7 @@ The Backend API must respect the following dependency rules.
 * API Layer may call application services.
 * Application components may call their own repositories.
 * Application components may publish domain events.
-* Analytics may consume event history.
+* Analytics reads persisted operational data in version 1 and may consume event history in a future version.
 * Dataset Export may read historical records.
 * Prediction may store AI outputs.
 * Observability may be used by any component.
@@ -430,7 +433,7 @@ Event Dispatched
 
     ↓
 
-Analytics / Dataset / Notification / Observability
+Future projections / Dataset / Notification / Observability
 ```
 
 Example:
@@ -446,17 +449,11 @@ ReservationCreated Event
 
 Event Store
 
-    ↓
+    └──► Internal consumers
 
-Analytics updates reservation metrics
+Persisted Reservation
 
-    ↓
-
-Dataset Export can include reservation history
-
-    ↓
-
-Notification Component sends confirmation
+    └──► Version 1 Analytics on-demand query
 ```
 
 ---
@@ -499,7 +496,7 @@ Recommended separation:
 * Telemetry tables belong to Telemetry; their immutable observations reference Charging Sessions
   owned by Smart Charging.
 * Event tables belong to Domain Event.
-* Analytics tables belong to Analytics.
+* Version 1 Analytics owns no tables and never modifies operational data.
 * Prediction tables belong to Prediction.
 
 Dataset Export may read from multiple modules, but only for read-only analytical purposes.

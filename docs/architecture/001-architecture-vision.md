@@ -446,7 +446,7 @@ Every simulation execution becomes part of the platform's historical dataset.
 
 ## 11.5 Analytics
 
-The Analytics module transforms operational events into business information.
+The Analytics module transforms persisted operational data into business information.
 
 Responsibilities include:
 
@@ -454,10 +454,11 @@ Responsibilities include:
 - occupancy statistics;
 - utilization analysis;
 - historical reports;
-- operational dashboards;
 - dataset aggregation.
 
-Analytics must consume business events without interfering with operational modules.
+Analytics must remain read-only and must not interfere with operational modules. Version 1
+computes metrics on demand from persisted operational data; Domain Events are not required as its
+data source.
 
 This separation allows new analytical capabilities to be introduced without modifying the business domain.
 
@@ -1184,9 +1185,10 @@ Deliverables:
 
 Deliverables:
 
-- dashboards;
 - KPIs;
 - historical reports.
+
+Current progress: SPEC-010 is documented in draft and is not implemented.
 
 ---
 
