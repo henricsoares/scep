@@ -36,8 +36,8 @@ workspace first so Insomnia does not retain scripts or environment state from th
 
 ## SPEC-009 Domain Events collection
 
-Import `scep-spec009-insomnia.json`, open **SPEC-009 Automated Domain Events**, and run every
-request in numeric order with the Insomnia Collection Runner. The collection creates an isolated
+Import `scep-spec009-insomnia.json`, open **SPEC-009 Automated Domain Events**, and run all 26
+requests in numeric order with the Insomnia Collection Runner. The collection creates an isolated
 Facility, Station, Driver and Vehicle and then validates:
 
 - `ReservationCreated`, `ReservationRescheduled` and `ReservationCancelled`;
