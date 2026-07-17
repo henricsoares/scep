@@ -8,6 +8,23 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: scep
+          POSTGRES_PASSWORD: scep
+          POSTGRES_DB: scep
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U scep -d scep"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+psycopg://scep:scep@localhost:5432/scep
+      OTEL_SDK_DISABLED: 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,6 +46,9 @@ jobs:
       - name: Run type check
         working-directory: backend
         run: uv run mypy app tests
+      - name: Run database migrations
+        working-directory: backend
+        run: uv run alembic upgrade head
       - name: Run tests
         working-directory: backend
         run: uv run pytest

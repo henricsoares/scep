@@ -167,4 +167,9 @@ def _after_commit(session: Session) -> None:
     for event_type in published:
         events_persisted_total.labels(event_type).inc()
     if published and _post_commit_dispatch is not None:
-        _post_commit_dispatch()
+        try:
+            _post_commit_dispatch()
+        except Exception:
+            # The business transaction is already committed. Dispatcher infrastructure
+            # failures must leave its durable deliveries for the next recovery pass.
+            logger.exception("post-commit domain event dispatch failed")
