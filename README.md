@@ -267,8 +267,8 @@ However, migrations are normally executed automatically when the backend contain
 ## Implemented Business Capabilities
 
 The current domain includes Identity, Facilities, Charging Stations, Connectors, Vehicles,
-Reservations, Charging Sessions and Telemetry. SPEC-009 documents Domain Events in draft; the
-Event Store and Internal Event Dispatcher are not implemented.
+Reservations, Charging Sessions, Telemetry and Domain Events. SPEC-010 documents Analytics in
+draft; Analytics has not been implemented.
 
 ### Identity and Access
 
@@ -354,14 +354,15 @@ Completed:
 * ✅ SPEC-006 — Reservations
 * ✅ SPEC-007 — Charging Sessions
 * ✅ SPEC-008 — Telemetry
+* ✅ SPEC-009 — Domain Events
 
 Current:
 
-* 📝 SPEC-009 — Domain Events (documented, Draft; not implemented)
+* 📝 SPEC-010 — Analytics (documented, Draft; not implemented)
 
 Next Steps:
 
-* Analytics
+* Analytics implementation
 * Digital Twin Simulation Engine
 * AI Experiments
 

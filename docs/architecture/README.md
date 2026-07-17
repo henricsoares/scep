@@ -191,4 +191,7 @@ The architecture follows the following principles:
 
 The architecture is considered stable.
 
+SPEC-009 Domain Events are implemented. SPEC-010 documents the read-only Analytics capability in
+draft; Analytics is not implemented.
+
 Future architectural changes should be introduced through new ADRs instead of directly modifying the baseline documents whenever possible.

@@ -62,9 +62,12 @@ The same simulation parameters must produce equivalent datasets.
 
 ## Read Models
 
-Analytics may maintain optimized read models.
+Future Analytics versions may maintain optimized read models.
 
 These models never replace transactional data.
+
+SPEC-010 version 1 instead computes metrics on demand from persisted operational data and does not
+persist analytical results.
 
 ---
 
@@ -121,10 +124,9 @@ Owns:
 
 Owns:
 
-* KPIs
-* Aggregations
-* Dashboards
-* Read Models
+* KPI definitions
+* read-only analytical projections
+* aggregate and time-series response models
 
 ---
 
@@ -155,41 +157,39 @@ Simulation Engine / Users
 
     Transactional Data
 
-            │
+       ┌────┴──────────────┐
+       ▼                   ▼
 
-            ▼
+Domain Events      Analytics Queries
+                           │
+                           ▼
+                          KPIs
 
-      Domain Events
-
-            │
-
-            ▼
-
-     Analytics Pipeline
+Operational Data / KPIs
 
             │
 
             ▼
 
-      Research Dataset
+ Future Dataset Export
 
             │
 
             ▼
 
- Machine Learning Models
+ Future Machine Learning Models
 
             │
 
             ▼
 
-Prediction Results
+Future Prediction Results
 
             │
 
             ▼
 
-     Operational Dashboard
+ Future Operational Dashboard
 ```
 
 The same operational data simultaneously supports:
@@ -215,7 +215,7 @@ The same operational data simultaneously supports:
 | Telemetry Sample | Telemetry      |
 | Domain Event     | Events         |
 | KPI              | Analytics      |
-| Dataset          | Analytics      |
+| Dataset          | Dataset Export |
 | Prediction       | AI             |
 | Experiment       | AI             |
 
