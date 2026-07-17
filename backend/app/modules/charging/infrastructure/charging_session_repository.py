@@ -18,6 +18,8 @@ from app.modules.charging.infrastructure.charging_session_model import ChargingS
 from app.modules.charging.infrastructure.facility_model import FacilityModel
 from app.modules.charging.infrastructure.reservation_model import ReservationModel
 from app.modules.charging.infrastructure.station_model import ChargingStationModel, ConnectorModel
+from app.modules.events.contracts import charging_session_event
+from app.modules.events.infrastructure import EventPublisher
 
 
 class ChargingSessionWriteConflict(Exception):
@@ -153,6 +155,7 @@ class SqlAlchemyChargingSessionRepository:
             reservation_model.updated_at = activated.updated_at
             connector.status = ConnectorStatus.CHARGING.value
             connector.updated_at = now
+            EventPublisher(self.session).publish(charging_session_event("started", item))
             self.session.commit()
             return self.get(item.id) or item
         except ChargingSessionWriteConflict:
@@ -204,6 +207,7 @@ class SqlAlchemyChargingSessionRepository:
             next_status = self._restored_connector_status(item, connector, now)
             connector.status = next_status.value
             connector.updated_at = now
+            EventPublisher(self.session).publish(charging_session_event("completed", completed))
             self.session.commit()
             return self.get(item.id) or completed, next_status
         except Exception:

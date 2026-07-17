@@ -10,6 +10,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from app.infrastructure.database import Base
+from app.modules.events.contracts import telemetry_event
+from app.modules.events.infrastructure import EventPublisher
 from app.modules.telemetry.domain import TelemetrySample, TelemetrySource
 
 
@@ -117,6 +119,7 @@ class SqlAlchemyTelemetryRepository:
                     duplicate_count += 1
                     continue
                 self.session.add(self._model(sample))
+                EventPublisher(self.session).publish(telemetry_event(sample))
                 self.session.flush()
                 canonical.append(sample)
                 new_count += 1

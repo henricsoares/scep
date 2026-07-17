@@ -17,6 +17,8 @@ from app.modules.charging.infrastructure.persistence_errors import (
     classify_reservation_calendar_write,
 )
 from app.modules.charging.infrastructure.reservation_model import ReservationModel, VehicleModel
+from app.modules.events.contracts import reservation_event
+from app.modules.events.infrastructure import EventPublisher
 
 
 class SqlAlchemyVehicleRepository:
@@ -83,6 +85,7 @@ class SqlAlchemyReservationRepository:
 
     def add(self, reservation: Reservation) -> Reservation:
         self.session.add(self._model(reservation))
+        EventPublisher(self.session).publish(reservation_event("created", reservation))
         try:
             self.session.commit()
         except DBAPIError as exc:
@@ -224,6 +227,26 @@ class SqlAlchemyReservationRepository:
         return self.session.scalar(stmt.limit(1)) is not None
 
     def reconcile_overdue(self, now: datetime) -> int:
+        overdue = self.session.scalars(
+            select(ReservationModel)
+            .where(
+                ReservationModel.status == ReservationStatus.CONFIRMED.value,
+                ReservationModel.start_at < now - timedelta(minutes=15),
+            )
+            .with_for_update()
+        ).all()
+        for model in overdue:
+            item = self._domain(model).mark_no_show(now=now)
+            model.status, model.no_show_at, model.updated_at = item.status.value, now, now
+            EventPublisher(self.session).publish(reservation_event("marked-no-show", item))
+        try:
+            self.session.commit()
+        except DBAPIError:
+            self.session.rollback()
+            raise
+        return len(overdue)
+
+    def _legacy_reconcile_overdue(self, now: datetime) -> int:
         stmt = (
             update(ReservationModel)
             .where(
@@ -262,6 +285,13 @@ class SqlAlchemyReservationRepository:
         ):
             setattr(model, name, getattr(reservation, name))
         model.status = reservation.status.value
+        if reservation.status in {ReservationStatus.CANCELLED, ReservationStatus.LATE_CANCELLED}:
+            kind = "LATE" if reservation.status == ReservationStatus.LATE_CANCELLED else "STANDARD"
+            EventPublisher(self.session).publish(
+                reservation_event("cancelled", reservation, cancellation_type=kind)
+            )
+        else:
+            EventPublisher(self.session).publish(reservation_event("rescheduled", reservation))
         try:
             self.session.commit()
         except DBAPIError as exc:

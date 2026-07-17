@@ -1165,7 +1165,7 @@ Deliverables:
 - event publication;
 - event persistence.
 
-Current progress: SPEC-009 is documented in draft and is not implemented.
+Current progress: SPEC-009 is implemented with transactional event persistence and post-commit internal dispatch.
 
 ---
 
