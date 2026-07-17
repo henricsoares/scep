@@ -49,10 +49,7 @@ class DomainEventResponse(BaseModel):
     deliveries: list[EventDeliveryResponse]
     model_config = ConfigDict(
         json_schema_extra={
-            "examples": [
-                {"event_type": item.value, "event_version": 1}
-                for item in EventType
-            ]
+            "examples": [{"event_type": item.value, "event_version": 1} for item in EventType]
         }
     )
 

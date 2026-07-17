@@ -3,6 +3,7 @@
 Revision ID: 202607170001
 Revises: 202607150001
 """
+
 from collections.abc import Sequence
 
 import sqlalchemy as sa
@@ -41,7 +42,9 @@ def upgrade() -> None:
     )
     op.create_index("ix_domain_events_occurred_id", "domain_events", ["occurred_at", "id"])
     op.create_index("ix_domain_events_type", "domain_events", ["event_type"])
-    op.create_index("ix_domain_events_aggregate", "domain_events", ["aggregate_type", "aggregate_id"])
+    op.create_index(
+        "ix_domain_events_aggregate", "domain_events", ["aggregate_type", "aggregate_id"]
+    )
     op.create_index("ix_domain_events_producer", "domain_events", ["producer_module"])
     op.create_table(
         "event_deliveries",
@@ -56,20 +59,29 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.CheckConstraint("attempts >= 0", name="ck_event_delivery_attempts"),
-        sa.CheckConstraint("status IN ('PENDING','DISPATCHED','FAILED')", name="ck_event_delivery_status"),
+        sa.CheckConstraint(
+            "status IN ('PENDING','DISPATCHED','FAILED')", name="ck_event_delivery_status"
+        ),
         sa.ForeignKeyConstraint(["event_id"], ["domain_events.id"], ondelete="RESTRICT"),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("uq_event_delivery_event_consumer", "event_deliveries", ["event_id", "consumer"], unique=True)
+    op.create_index(
+        "uq_event_delivery_event_consumer",
+        "event_deliveries",
+        ["event_id", "consumer"],
+        unique=True,
+    )
     op.create_index("ix_event_delivery_eligible", "event_deliveries", ["status", "updated_at"])
-    op.execute("""
+    op.execute(
+        """
         CREATE FUNCTION reject_domain_event_mutation() RETURNS trigger AS $$
         BEGIN RAISE EXCEPTION 'domain events are immutable'; END; $$ LANGUAGE plpgsql;
         CREATE TRIGGER domain_events_immutable_update BEFORE UPDATE ON domain_events
         FOR EACH ROW EXECUTE FUNCTION reject_domain_event_mutation();
         CREATE TRIGGER domain_events_immutable_delete BEFORE DELETE ON domain_events
         FOR EACH ROW EXECUTE FUNCTION reject_domain_event_mutation();
-    """)
+    """
+    )
 
 
 def downgrade() -> None:
