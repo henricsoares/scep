@@ -44,8 +44,19 @@ ci: export DATABASE_URL := $(CI_DATABASE_URL)
 ci: export POSTGRES_TEST_DATABASE_URL := $(CI_DATABASE_URL)
 ci: export OTEL_SDK_DISABLED := true
 ci: backend-lint backend-typecheck
-	docker compose up -d --wait postgres
-	cd backend && uv run alembic upgrade head
-	cd backend && uv run pytest
-	cd backend && uv run bandit -c pyproject.toml -r app && uv run pip-audit
-	cd backend && uv run coverage run -m pytest && uv run coverage report
+	@postgres_was_running="$$(docker compose ps --status running -q postgres)"; \
+	cleanup() { \
+		status=$$?; \
+		trap - EXIT INT TERM; \
+		if [ -z "$$postgres_was_running" ]; then docker compose stop postgres; fi; \
+		exit $$status; \
+	}; \
+	trap cleanup EXIT INT TERM; \
+	set -eu; \
+	docker compose up -d --wait postgres; \
+	cd backend; \
+	uv run alembic upgrade head; \
+	uv run coverage run -m pytest; \
+	uv run coverage report; \
+	uv run bandit -c pyproject.toml -r app; \
+	uv run pip-audit

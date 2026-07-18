@@ -50,10 +50,7 @@ jobs:
       - name: Run database migrations
         working-directory: backend
         run: uv run alembic upgrade head
-      - name: Run tests
-        working-directory: backend
-        run: uv run pytest
-      - name: Run coverage
+      - name: Run tests with coverage
         working-directory: backend
         run: uv run coverage run -m pytest && uv run coverage report
       - name: Run security scan
