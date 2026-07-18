@@ -7,6 +7,7 @@ from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.core.observability import RequestCorrelationMiddleware, configure_tracing
 from app.infrastructure.database import SessionLocal
+from app.modules.analytics.api.router import router as analytics_router
 from app.modules.charging.api.charging_sessions import router as charging_sessions_router
 from app.modules.charging.api.facilities import router as facilities_router
 from app.modules.charging.api.reservations import router as reservations_router
@@ -56,6 +57,7 @@ def create_app(*, export_telemetry: bool | None = None) -> FastAPI:
     app.include_router(charging_sessions_router)
     app.include_router(telemetry_router)
     app.include_router(events_router)
+    app.include_router(analytics_router)
 
     @app.on_event("startup")
     def recover_domain_event_deliveries() -> None:

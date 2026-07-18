@@ -33,6 +33,7 @@ class ChargingSessionModel(Base):
         ),
         Index("ix_charging_sessions_owner_created", "owner_id", "created_at"),
         Index("ix_charging_sessions_status_started", "status", "started_at"),
+        Index("ix_charging_sessions_connector_started", "connector_id", "started_at"),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
