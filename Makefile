@@ -1,4 +1,7 @@
 .PHONY: up down logs backend-test backend-lint backend-format backend-typecheck backend-security format lint typecheck test migrate ci precommit
+
+CI_DATABASE_URL ?= postgresql+psycopg://scep:scep@localhost:5432/scep
+
 up:
 	docker compose up --build
 
@@ -37,5 +40,12 @@ migrate:
 precommit:
 	uv run --project backend pre-commit run --all-files
 
-ci: backend-lint backend-typecheck backend-test backend-security
+ci: export DATABASE_URL := $(CI_DATABASE_URL)
+ci: export POSTGRES_TEST_DATABASE_URL := $(CI_DATABASE_URL)
+ci: export OTEL_SDK_DISABLED := true
+ci: backend-lint backend-typecheck
+	docker compose up -d --wait postgres
+	cd backend && uv run alembic upgrade head
+	cd backend && uv run pytest
+	cd backend && uv run bandit -c pyproject.toml -r app && uv run pip-audit
 	cd backend && uv run coverage run -m pytest && uv run coverage report
