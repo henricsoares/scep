@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from math import fsum
 from time import monotonic
+from typing import Any
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.modules.analytics.application.models import AnalyticsQuery, Metrics, Response, Scope
-from app.modules.analytics.infrastructure.repository import AnalyticsRepository
+from app.modules.analytics.application.ports import AnalyticsReader
 from app.modules.analytics.metrics import (
     analytics_failed_total,
     analytics_query_duration_seconds,
@@ -30,6 +33,16 @@ from app.modules.identity.domain.user import HumanRole, User
 logger = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class _AnalyticsData:
+    facilities: tuple[Any, ...]
+    stations: tuple[Any, ...]
+    connectors: tuple[Any, ...]
+    reservations: tuple[Any, ...]
+    sessions: tuple[Any, ...]
+    telemetry: tuple[Any, ...]
+
+
 class AnalyticsValidationError(ValueError):
     pass
 
@@ -43,7 +56,7 @@ class AnalyticsAuthorizationError(ValueError):
 
 
 class AnalyticsService:
-    def __init__(self, repository: AnalyticsRepository) -> None:
+    def __init__(self, repository: AnalyticsReader) -> None:
         self.repository = repository
 
     def execute(self, endpoint: str, query: AnalyticsQuery, user: User) -> Response:
@@ -154,7 +167,8 @@ class AnalyticsService:
     def _response(
         self, endpoint: str, query: AnalyticsQuery, scope: Scope, now: datetime
     ) -> Response:
-        metrics = self._calculate(query.from_, query.to, scope, now)
+        data = self._load(query.from_, query.to, scope)
+        metrics = self._calculate(query.from_, query.to, scope, now, data)
         window = {"from": query.from_, "to": query.to, "timezone": scope.timezone}
         scope_body = {
             "facility_id": query.facility_id,
@@ -162,7 +176,9 @@ class AnalyticsService:
             "connector_id": query.connector_id,
         }
         if endpoint == "overview":
-            body: Response = {"window": window, "scope": scope_body, **metrics}
+            overview_metrics = {key: dict(value) for key, value in metrics.items()}
+            overview_metrics["reservations"].pop("average_reservation_duration_minutes", None)
+            body: Response = {"window": window, "scope": scope_body, **overview_metrics}
         else:
             key = {
                 "reservations": "reservations",
@@ -174,23 +190,65 @@ class AnalyticsService:
             if query.granularity:
                 series = []
                 for low, high in buckets(query.from_, query.to, scope.timezone, query.granularity):
-                    item_metrics = self._calculate(low, high, scope, now)[key]
+                    item_metrics = self._calculate(low, high, scope, now, data)[key]
                     series.append({"from": low, "to": high, "metrics": item_metrics})
                 body["series"] = series
         return body
 
+    def _load(self, start: datetime, end: datetime, scope: Scope) -> _AnalyticsData:
+        facilities = tuple(
+            item for item in self.repository.facilities() if item.id in scope.facility_ids
+        )
+        facility_ids = {item.id for item in facilities}
+        stations = tuple(
+            item for item in self.repository.stations() if item.facility_id in facility_ids
+        )
+        connectors = tuple(
+            item for item in self.repository.connectors() if item.id in scope.connector_ids
+        )
+        overlapping_sessions = self.repository.sessions(scope.connector_ids, utc(start), utc(end))
+        reservations = self.repository.reservations(
+            scope.connector_ids,
+            utc(start),
+            utc(end),
+            tuple(item.reservation_id for item in overlapping_sessions),
+        )
+        selected_reservation_ids = tuple(
+            item.id for item in reservations if utc(start) <= utc(item.start_at) < utc(end)
+        )
+        sessions = tuple(
+            self.repository.sessions(
+                scope.connector_ids, utc(start), utc(end), selected_reservation_ids
+            )
+        )
+        selected_sessions = [
+            item for item in sessions if utc(start) <= utc(item.started_at) < utc(end)
+        ]
+        telemetry = tuple(
+            self.repository.telemetry(
+                tuple(item.id for item in selected_sessions), utc(start), utc(end)
+            )
+        )
+        return _AnalyticsData(
+            facilities,
+            stations,
+            connectors,
+            tuple(reservations),
+            sessions,
+            telemetry,
+        )
+
     def _calculate(
-        self, start: datetime, end: datetime, scope: Scope, now: datetime
+        self,
+        start: datetime,
+        end: datetime,
+        scope: Scope,
+        now: datetime,
+        data: _AnalyticsData,
     ) -> dict[str, Metrics]:
-        facilities = {
-            item.id: item for item in self.repository.facilities() if item.id in scope.facility_ids
-        }
-        stations = {
-            item.id: item for item in self.repository.stations() if item.facility_id in facilities
-        }
-        connectors = {
-            item.id: item for item in self.repository.connectors() if item.id in scope.connector_ids
-        }
+        facilities = {item.id: item for item in data.facilities}
+        stations = {item.id: item for item in data.stations}
+        connectors = {item.id: item for item in data.connectors}
         connector_facility = {
             connector.id: facilities[stations[connector.charging_station_id].facility_id]
             for connector in connectors.values()
@@ -201,19 +259,27 @@ class AnalyticsService:
             )
             for facility in facilities.values()
         }
-        available = sum(
+        available = fsum(
             clipped_minutes(start, end, operating[connector_facility[item].id])
             for item in connectors
         )
-        reservations = self.repository.reservations(scope.connector_ids, utc(start), utc(end))
-        selected_reservation_ids = tuple(
-            item.id for item in reservations if utc(start) <= utc(item.start_at) < utc(end)
-        )
-        sessions = self.repository.sessions(
-            scope.connector_ids, utc(start), utc(end), selected_reservation_ids
-        )
-        reservations_by_id = {item.id: item for item in reservations}
-        sessions_by_reservation = {item.reservation_id: item for item in sessions}
+        reservations = [
+            item
+            for item in data.reservations
+            if (utc(item.start_at) < utc(end) and utc(item.end_at) > utc(start))
+            or utc(start) <= utc(item.start_at) < utc(end)
+        ]
+        sessions = [
+            item
+            for item in data.sessions
+            if (
+                utc(item.started_at) < utc(end)
+                and (item.ended_at is None or utc(item.ended_at) > utc(start))
+            )
+            or utc(start) <= utc(item.started_at) < utc(end)
+        ]
+        reservations_by_id = {item.id: item for item in data.reservations}
+        sessions_by_reservation = {item.reservation_id: item for item in data.sessions}
         selected_reservations = [
             item for item in reservations if utc(start) <= utc(item.start_at) < utc(end)
         ]
@@ -231,19 +297,25 @@ class AnalyticsService:
             for item in reservations
         ]
         selected_reserved_values = [
-            clipped_minutes(
-                item.start_at, item.end_at, operating[connector_facility[item.connector_id].id]
+            (
+                clipped_minutes(
+                    item.start_at,
+                    item.end_at,
+                    operating[connector_facility[item.connector_id].id],
+                )
+                if item.status in FINAL_RESERVED_STATUSES
+                else 0.0
             )
             for item in selected_reservations
         ]
-        session_values = []
+        session_values: dict[UUID, float] = {}
         effective_reserved = 0.0
         for item in sessions:
             effective_end = min(utc(item.ended_at) if item.ended_at else now, utc(end))
             duration = clipped_minutes(
                 item.started_at, effective_end, operating[connector_facility[item.connector_id].id]
             )
-            session_values.append(duration)
+            session_values[item.id] = duration
             reservation = reservations_by_id.get(item.reservation_id)
             if reservation:
                 low, high = max(utc(item.started_at), utc(reservation.start_at)), min(
@@ -253,11 +325,9 @@ class AnalyticsService:
                     effective_reserved += clipped_minutes(
                         low, high, operating[connector_facility[item.connector_id].id]
                     )
-        selected_session_values = [
-            session_values[sessions.index(item)] for item in selected_sessions
-        ]
-        reserved = sum(reserved_values)
-        charging = sum(session_values)
+        selected_session_values = [session_values[item.id] for item in selected_sessions]
+        reserved = fsum(reserved_values)
+        charging = fsum(session_values.values())
         capacity: Metrics = {
             "available_duration_minutes": round(available, 6),
             "reserved_duration_minutes": round(reserved, 6),
@@ -268,16 +338,20 @@ class AnalyticsService:
             "effective_occupancy_rate": ratio(charging, available),
             "reserved_time_utilization_rate": ratio(effective_reserved, reserved),
         }
-        telemetry = self.repository.telemetry(
-            tuple(item.id for item in selected_sessions), utc(start), utc(end)
-        )
+        selected_session_ids = {item.id for item in selected_sessions}
+        telemetry = [
+            item
+            for item in data.telemetry
+            if item.session_id in selected_session_ids
+            and utc(start) <= utc(item.recorded_at) < utc(end)
+        ]
         maxima: dict[UUID, float] = {}
         for sample in telemetry:
             if sample.energy_kwh is not None:
                 maxima[sample.session_id] = max(
                     maxima.get(sample.session_id, sample.energy_kwh), sample.energy_kwh
                 )
-        energy_total = sum(maxima.values())
+        energy_total = fsum(maxima.values())
         energy: Metrics = {
             "total_delivered_energy_kwh": round(energy_total, 6),
             "sessions_with_energy_data": len(maxima),

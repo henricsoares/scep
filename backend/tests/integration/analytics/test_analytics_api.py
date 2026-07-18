@@ -1,8 +1,7 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from app.infrastructure.database import Base
-from app.main import app as main_app
+from app.infrastructure.database import Base, get_db
 from app.modules.analytics.api.router import router as analytics_router
 from app.modules.analytics.application.models import AnalyticsQuery, Granularity
 from app.modules.analytics.application.service import (
@@ -15,10 +14,13 @@ from app.modules.charging.infrastructure.charging_session_model import ChargingS
 from app.modules.charging.infrastructure.facility_model import FacilityModel
 from app.modules.charging.infrastructure.reservation_model import ReservationModel
 from app.modules.charging.infrastructure.station_model import ChargingStationModel, ConnectorModel
+from app.modules.identity.api.dependencies import current_user
 from app.modules.identity.domain.user import AccountStatus, AccountType, HumanRole, User
 from app.modules.telemetry.infrastructure import TelemetrySampleModel
 from fastapi import FastAPI
-from sqlalchemy import create_engine
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, event
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
@@ -143,7 +145,88 @@ def test_aggregate_series_and_openapi_contracts() -> None:
     schema = app.openapi()
     assert "AnalyticsWindow" in schema["components"]["schemas"]
     assert schema["paths"]["/analytics/overview"]["get"]["security"] == [{"HTTPBearer": []}]
-    assert "/analytics/overview" in main_app.openapi()["paths"]
+    schemas = schema["components"]["schemas"]
+    assert any(name.startswith("SeriesItem_ReservationMetrics") for name in schemas)
+    assert any(name.startswith("SeriesItem_EnergyMetrics") for name in schemas)
+
+
+def test_time_series_uses_a_constant_number_of_database_queries() -> None:
+    with database() as db:
+        facility, _ = seed(db)
+        engine = db.get_bind()
+        assert isinstance(engine, Engine)
+        selects = 0
+
+        def count_selects(
+            _connection: object,
+            _cursor: object,
+            statement: str,
+            _parameters: object,
+            _context: object,
+            _executemany: bool,
+        ) -> None:
+            nonlocal selects
+            if statement.lstrip().upper().startswith("SELECT"):
+                selects += 1
+
+        event.listen(engine, "before_cursor_execute", count_selects)
+        service = AnalyticsService(AnalyticsRepository(db))
+        daily = service.execute(
+            "occupancy",
+            query(facility, Granularity.DAY),
+            user(HumanRole.PLATFORM_ADMINISTRATOR),
+        )
+        daily_selects = selects
+        selects = 0
+        hourly = service.execute(
+            "occupancy",
+            query(facility, Granularity.HOUR),
+            user(HumanRole.PLATFORM_ADMINISTRATOR),
+        )
+        event.remove(engine, "before_cursor_execute", count_selects)
+
+        assert len(daily["series"]) == 1
+        assert len(hourly["series"]) == 24
+        assert selects == daily_selects
+
+
+def test_rest_endpoints_return_stable_aggregate_and_series_contracts() -> None:
+    with database() as db:
+        facility, _ = seed(db)
+        app = FastAPI()
+        app.include_router(analytics_router)
+        app.dependency_overrides[get_db] = lambda: db
+        app.dependency_overrides[current_user] = lambda: user(HumanRole.PLATFORM_ADMINISTRATOR)
+        client = TestClient(app)
+        request_params = {
+            "from": "2026-07-01T00:00:00Z",
+            "to": "2026-07-02T00:00:00Z",
+            "facility_id": str(facility.id),
+        }
+        try:
+            overview = client.get("/analytics/overview", params=request_params)
+            assert overview.status_code == 200
+            assert "average_reservation_duration_minutes" not in overview.json()["reservations"]
+
+            for endpoint in ("reservations", "charging-sessions", "occupancy", "energy"):
+                aggregate = client.get(f"/analytics/{endpoint}", params=request_params)
+                assert aggregate.status_code == 200
+                assert "series" not in aggregate.json()
+
+                series = client.get(
+                    f"/analytics/{endpoint}",
+                    params=request_params | {"granularity": "hour"},
+                )
+                assert series.status_code == 200
+                assert len(series.json()["series"]) == 24
+
+            invalid = client.get(
+                "/analytics/overview",
+                params=request_params | {"to": "2026-07-01T00:00:00Z"},
+            )
+            assert invalid.status_code == 400
+        finally:
+            client.close()
 
 
 def test_empty_validation_and_authorization() -> None:

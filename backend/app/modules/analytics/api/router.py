@@ -36,7 +36,7 @@ class AnalyticsScope(BaseModel):
     connector_id: UUID | None = None
 
 
-class ReservationMetrics(BaseModel):
+class ReservationSummaryMetrics(BaseModel):
     total_reservations: int
     fulfilled_reservations: int
     cancelled_reservations: int
@@ -47,7 +47,12 @@ class ReservationMetrics(BaseModel):
     cancellation_rate: float | None = Field(default=None, ge=0, le=1)
     late_cancellation_rate: float | None = Field(default=None, ge=0, le=1)
     no_show_rate: float | None = Field(default=None, ge=0, le=1)
-    average_reservation_duration_minutes: float | None = None
+
+
+class ReservationMetrics(ReservationSummaryMetrics):
+    average_reservation_duration_minutes: float | None = Field(
+        default=None, description="Average clipped reserved duration in minutes"
+    )
 
 
 class ChargingSessionMetrics(BaseModel):
@@ -77,24 +82,24 @@ class EnergyMetrics(BaseModel):
     average_energy_per_session_kwh: float | None = None
 
 
-class SeriesItem(BaseModel):
+class SeriesItem[MetricModel: BaseModel](BaseModel):
     from_: datetime = Field(alias="from")
     to: datetime
-    metrics: dict[str, int | float | None]
+    metrics: MetricModel
     model_config = ConfigDict(populate_by_name=True)
 
 
-class SpecializedResponse(BaseModel):
+class SpecializedResponse[MetricModel: BaseModel](BaseModel):
     window: AnalyticsWindow
     scope: AnalyticsScope
-    metrics: dict[str, int | float | None]
-    series: list[SeriesItem] | None = None
+    metrics: MetricModel
+    series: list[SeriesItem[MetricModel]] | None = None
 
 
 class OverviewResponse(BaseModel):
     window: AnalyticsWindow
     scope: AnalyticsScope
-    reservations: ReservationMetrics
+    reservations: ReservationSummaryMetrics
     capacity: OccupancyMetrics
     charging_sessions: ChargingSessionMetrics
     energy: EnergyMetrics
@@ -172,7 +177,8 @@ def specialized(
 
 @router.get(
     "/reservations",
-    response_model=SpecializedResponse,
+    response_model=SpecializedResponse[ReservationMetrics],
+    response_model_exclude_unset=True,
     responses=ERRORS,
     summary="Get reservation analytics",
 )
@@ -186,7 +192,8 @@ def reservations(
 
 @router.get(
     "/charging-sessions",
-    response_model=SpecializedResponse,
+    response_model=SpecializedResponse[ChargingSessionMetrics],
+    response_model_exclude_unset=True,
     responses=ERRORS,
     summary="Get charging-session analytics",
 )
@@ -200,7 +207,8 @@ def charging_sessions(
 
 @router.get(
     "/occupancy",
-    response_model=SpecializedResponse,
+    response_model=SpecializedResponse[OccupancyMetrics],
+    response_model_exclude_unset=True,
     responses=ERRORS,
     summary="Get occupancy analytics",
 )
@@ -213,7 +221,11 @@ def occupancy(
 
 
 @router.get(
-    "/energy", response_model=SpecializedResponse, responses=ERRORS, summary="Get energy analytics"
+    "/energy",
+    response_model=SpecializedResponse[EnergyMetrics],
+    response_model_exclude_unset=True,
+    responses=ERRORS,
+    summary="Get energy analytics",
 )
 def energy(
     query: Annotated[AnalyticsQuery, Depends(common_query)],

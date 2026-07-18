@@ -30,16 +30,23 @@ class AnalyticsRepository:
         return list(self.session.scalars(select(ConnectorModel).order_by(ConnectorModel.id)))
 
     def reservations(
-        self, connector_ids: tuple[UUID, ...], start: datetime, end: datetime
+        self,
+        connector_ids: tuple[UUID, ...],
+        start: datetime,
+        end: datetime,
+        reservation_ids: tuple[UUID, ...] = (),
     ) -> list[ReservationModel]:
         if not connector_ids:
             return []
+        selected: ColumnElement[bool] = or_(
+            (ReservationModel.start_at >= start) & (ReservationModel.start_at < end),
+            (ReservationModel.start_at < end) & (ReservationModel.end_at > start),
+        )
+        if reservation_ids:
+            selected = or_(selected, ReservationModel.id.in_(reservation_ids))
         stmt = select(ReservationModel).where(
             ReservationModel.connector_id.in_(connector_ids),
-            or_(
-                ReservationModel.start_at.between(start, end),
-                (ReservationModel.start_at < end) & (ReservationModel.end_at > start),
-            ),
+            selected,
         )
         return list(self.session.scalars(stmt))
 
