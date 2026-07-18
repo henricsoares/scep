@@ -58,6 +58,23 @@ persisted but their `deliveries` arrays are empty. Consumer-specific delivery, r
 behavior is covered by the PostgreSQL integration suite; those metric series become populated when
 a consumer is registered.
 
+## SPEC-010 Analytics collection
+
+Import `scep-spec010-insomnia.json`, open **SPEC-010 Analytics Demonstration**, and run all 16
+requests in numeric order with the Insomnia Collection Runner. The compact flow creates one
+Facility and Connector with a fulfilled Reservation, active Charging Session and energy telemetry,
+then demonstrates:
+
+- the Analytics overview;
+- Reservation daily series;
+- Charging Session, occupancy and energy hourly series;
+- a documented invalid-window response for failure observability;
+- SPEC-010 Prometheus metric exposition.
+
+Every observable request carries an `X-Request-ID` beginning with `spec010-`. Scripts generate a
+unique dataset, calculate the Analysis Window, capture all resource identifiers and assert the
+expected non-empty analytical results. No environment value needs to be edited between requests.
+
 ## SPEC-006 visual acceptance
 
 Start the complete local stack before running the collection:
