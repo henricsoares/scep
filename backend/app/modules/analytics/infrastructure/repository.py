@@ -5,6 +5,7 @@ from uuid import UUID
 
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.modules.charging.infrastructure.charging_session_model import ChargingSessionModel
 from app.modules.charging.infrastructure.facility_model import FacilityModel
@@ -54,7 +55,7 @@ class AnalyticsRepository:
         overlaps = (ChargingSessionModel.started_at < end) & or_(
             ChargingSessionModel.ended_at.is_(None), ChargingSessionModel.ended_at > start
         )
-        selected = overlaps
+        selected: ColumnElement[bool] = overlaps
         if reservation_ids:
             selected = or_(overlaps, ChargingSessionModel.reservation_id.in_(reservation_ids))
         stmt = select(ChargingSessionModel).where(
