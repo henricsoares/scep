@@ -77,7 +77,7 @@ C4Component
         Component(charging, "Smart Charging Component", "Application Module", "Manages charging stations, Vehicles, reservations, sessions and occupancy rules.")
         Component(telemetry, "Telemetry Component", "Application Module", "Ingests and normalizes operational telemetry.")
         Component(events, "Domain Event Component", "Event Store / Internal Event Dispatcher", "Transactionally persists events and dispatches them after commit.")
-        Component(analytics, "Analytics Component (Draft)", "Application Module", "Will compute read-only indicators on demand from persisted operational data.")
+        Component(analytics, "Analytics Component", "Application Module", "Computes read-only indicators on demand from persisted operational data.")
         Component(datasets, "Dataset Export Component (Future)", "Application Module", "Will generate research datasets from historical data and events.")
         Component(prediction, "Prediction Component (Future)", "Application Module", "Will store prediction results and expose AI-related outputs.")
         Component(notification, "Notification Component", "Application Module", "Sends notification requests to the Notification Mock or future providers.")

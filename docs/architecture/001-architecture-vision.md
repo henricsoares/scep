@@ -1188,7 +1188,7 @@ Deliverables:
 - KPIs;
 - historical reports.
 
-Current progress: SPEC-010 is documented in draft and is not implemented.
+Current progress: SPEC-010 is approved and implemented with read-only, on-demand Analytics.
 
 ---
 
