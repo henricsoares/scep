@@ -73,7 +73,16 @@ then demonstrates:
 
 Every observable request carries an `X-Request-ID` beginning with `spec010-`. Scripts generate a
 unique dataset, calculate the Analysis Window, capture all resource identifiers and assert the
-expected non-empty analytical results. No environment value needs to be edited between requests.
+expected non-empty analytical results.
+
+Before using the Collection Runner, execute request 01 by itself and confirm the login succeeds.
+The bootstrap credentials from `.env.example` are applied only when no Platform Administrator
+exists. A persisted PostgreSQL volume retains the original administrator password even if `.env`
+is later changed. If request 01 returns `401`, set `admin_email` and `admin_password` in the
+collection Base Environment to the credentials of the existing local administrator. Alternatively,
+recreate the local database volume only if its data may be discarded; this is destructive.
+When importing an updated collection, remove the previous SPEC-010 workspace first so Insomnia does
+not retain its old scripts or Base Environment values.
 
 ## SPEC-006 visual acceptance
 
