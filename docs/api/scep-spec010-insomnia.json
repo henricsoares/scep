@@ -81,7 +81,10 @@
       "name": "02 - Create Analytics Facility",
       "method": "POST",
       "url": "{{ _.base_url }}/facilities",
-      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "X-Request-ID", "value": "spec010-{{ _.run_id }}-facility" }
+      ],
       "parameters": [],
       "body": {
         "mimeType": "application/json",
@@ -98,7 +101,10 @@
       "name": "03 - Create Station and Connector",
       "method": "POST",
       "url": "{{ _.base_url }}/facilities/{{ _.facility_id }}/stations",
-      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "X-Request-ID", "value": "spec010-{{ _.run_id }}-station" }
+      ],
       "parameters": [],
       "body": {
         "mimeType": "application/json",
@@ -115,7 +121,10 @@
       "name": "04 - Create EV Driver",
       "method": "POST",
       "url": "{{ _.base_url }}/users",
-      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "X-Request-ID", "value": "spec010-{{ _.run_id }}-driver" }
+      ],
       "parameters": [],
       "body": {
         "mimeType": "application/json",
@@ -132,7 +141,10 @@
       "name": "05 - Login EV Driver",
       "method": "POST",
       "url": "{{ _.base_url }}/auth/login",
-      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "X-Request-ID", "value": "spec010-{{ _.run_id }}-driver-login" }
+      ],
       "parameters": [],
       "body": {
         "mimeType": "application/json",
@@ -149,7 +161,10 @@
       "name": "06 - Create Vehicle",
       "method": "POST",
       "url": "{{ _.base_url }}/vehicles",
-      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "X-Request-ID", "value": "spec010-{{ _.run_id }}-vehicle" }
+      ],
       "parameters": [],
       "body": {
         "mimeType": "application/json",
@@ -166,7 +181,10 @@
       "name": "07 - Create Near-Term Reservation",
       "method": "POST",
       "url": "{{ _.base_url }}/reservations",
-      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "X-Request-ID", "value": "spec010-{{ _.run_id }}-reservation" }
+      ],
       "parameters": [],
       "body": {
         "mimeType": "application/json",
