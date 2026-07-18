@@ -48,7 +48,7 @@ ci: backend-lint backend-typecheck
 	cleanup() { \
 		status=$$?; \
 		trap - EXIT INT TERM; \
-		if [ -z "$$postgres_was_running" ]; then docker compose stop postgres; fi; \
+		if [ -z "$$postgres_was_running" ]; then docker compose rm --stop --force postgres; fi; \
 		exit $$status; \
 	}; \
 	trap cleanup EXIT INT TERM; \
