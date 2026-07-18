@@ -63,7 +63,7 @@ Implementation becomes the translation of approved specifications into software.
 | SPEC-007 | Charging Sessions                    | ✅ Approved |
 | SPEC-008 | Smart Charging Domain Telemetry      | ✅ Approved |
 | SPEC-009 | Domain Events                        | ✅ Implemented |
-| SPEC-010 | Analytics                            | 📝 Draft    |
+| SPEC-010 | Analytics                            | ✅ Implemented |
 | SPEC-011 | Dataset Export                       | ⏳ Planned  |
 | SPEC-012 | Predictions                          | ⏳ Planned  |
 | SPEC-013 | Digital Twin Simulation Engine       | ⏳ Planned  |
@@ -300,7 +300,7 @@ Topics include:
 * Reservation, Charging Session and energy metrics;
 * time-series aggregation.
 
-SPEC-010 is documented in draft and is not implemented.
+SPEC-010 is approved and implemented with read-only, on-demand analytical projections.
 
 ---
 
@@ -387,10 +387,10 @@ Completed:
 * ✅ Charging Sessions implementation
 * ✅ Telemetry implementation
 * ✅ Domain Events implementation
+* ✅ Analytics implementation
 
-Current milestone:
+Next planned specification:
 
-**SPEC-010 — Analytics documentation**
+**SPEC-011 — Dataset Export**
 
-SPEC-008 and SPEC-009 are approved and implemented. SPEC-010 is currently documented in draft and
-is not implemented.
+SPEC-008 through SPEC-010 are approved and implemented. SPEC-011 remains planned.
