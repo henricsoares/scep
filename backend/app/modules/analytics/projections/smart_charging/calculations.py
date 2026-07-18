@@ -75,10 +75,10 @@ def reservation_metrics(
     cancelled = sum(item.status == "CANCELLED" for item in reservations)
     late = sum(item.status == "LATE_CANCELLED" for item in reservations)
     no_show = sum(item.status == "NO_SHOW" for item in reservations)
-    active_ids = {
-        item.reservation_id for item in sessions_by_reservation.values() if item.status == "ACTIVE"
-    }
-    pending = sum(item.status == "CONFIRMED" and item.id not in active_ids for item in reservations)
+    pending = sum(
+        item.status == "CONFIRMED" and item.id not in sessions_by_reservation
+        for item in reservations
+    )
     eligible = fulfilled + no_show
     positive = [value for value in durations if value > 0]
     return {
@@ -130,7 +130,8 @@ def buckets(
     start: datetime, end: datetime, timezone: str, granularity: Granularity
 ) -> list[tuple[datetime, datetime]]:
     zone = ZoneInfo(timezone)
-    local_start, local_end = utc(start).astimezone(zone), utc(end).astimezone(zone)
+    start_utc, end_utc = utc(start), utc(end)
+    local_start = start_utc.astimezone(zone)
     if granularity == Granularity.HOUR:
         boundary = local_start.replace(minute=0, second=0, microsecond=0)
     elif granularity == Granularity.DAY:
@@ -142,7 +143,7 @@ def buckets(
     else:
         boundary = local_start.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     result: list[tuple[datetime, datetime]] = []
-    while boundary < local_end:
+    while utc(boundary) < end_utc:
         if granularity == Granularity.HOUR:
             following = (boundary.astimezone(UTC) + timedelta(hours=1)).astimezone(zone)
         elif granularity == Granularity.DAY:
@@ -156,8 +157,9 @@ def buckets(
                 else (boundary.year, boundary.month + 1)
             )
             following = datetime(year, month, 1, tzinfo=zone)
-        left, right = max(local_start, boundary), min(local_end, following)
+        left = max(start_utc, utc(boundary))
+        right = min(end_utc, utc(following))
         if left < right:
-            result.append((left, right))
+            result.append((left.astimezone(zone), right.astimezone(zone)))
         boundary = following
     return result
