@@ -998,6 +998,35 @@ At least one optional measurement field shall be present, as required by SPEC-00
 
 ---
 
+## Dataset Export Extension
+
+### DatasetExportCompleted
+
+SPEC-011 extends the event catalog with `DatasetExportCompleted`.
+
+It is published only after the data file and manifest are generated, the artifact is stored
+successfully and the Dataset Export resource transitions to `COMPLETED`.
+
+After artifact storage succeeds, the `COMPLETED` metadata transition and event persistence occur in
+the same database transaction. Dispatch occurs after commit.
+
+Version 1 contract:
+
+| Field | Value |
+| --- | --- |
+| `event_version` | `1` |
+| `event_type` | `dataset-export.completed` |
+| `aggregate_type` | `DatasetExport` |
+| `producer_module` | `datasets` |
+| Required payload | `dataset_export_id`, `dataset_type`, `export_profile`, `format`, `schema_version`, `data_cutoff_at`, `completed_at`, `row_count`, `artifact_size_bytes` |
+| Optional payload | None |
+
+Dataset Export Version 1 does not use Domain Events as its dataset row source. Future versions may
+consume event history for event-oriented datasets or historical reconstruction without changing
+the event envelope defined here.
+
+---
+
 # 9. REST API
 
 The Event Store provides a read-only administrative API.
@@ -1485,8 +1514,9 @@ Future specifications may consume or extend this infrastructure with:
 - Digital Twin execution;
 - Notification services.
 
-Analytics, Dataset Export, AI and Digital Twin capabilities shall be future consumers of the
-existing Domain Event contracts. They are not part of the initial implementation.
+Analytics, AI and Digital Twin capabilities may become consumers of existing Domain Event
+contracts. Dataset Export Version 1 publishes `DatasetExportCompleted` but does not require event
+history as its row source. Future Dataset Export versions may consume Domain Events.
 
 The future Outbox + Kafka evolution may add an Outbox publisher and Kafka transport without
 changing the responsibilities defined here for producers, transactional event persistence or

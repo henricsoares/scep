@@ -356,9 +356,14 @@ Persistent Docker volumes shall be created for:
 * PostgreSQL;
 * Grafana configuration;
 * Loki storage;
-* Tempo traces.
+* Tempo traces;
+* Dataset Export artifacts when local artifact storage is enabled.
 
-Application containers should remain stateless.
+Version 1 Dataset Export may use a mounted persistent volume through its artifact-storage
+abstraction. Artifact bytes remain outside the application image and PostgreSQL. Future deployments
+may replace the mounted volume with object storage without changing the REST contract.
+
+Application processes should otherwise remain stateless.
 
 This enables future horizontal scaling.
 
@@ -630,7 +635,8 @@ This document reinforces the following architectural decisions:
 * centralized observability;
 * infrastructure as code.
 
-These decisions directly support the quality attributes defined in **SPEC-006**.
+These decisions directly support the quality attributes defined in **Architecture View 006 —
+Quality Attributes**.
 
 ---
 

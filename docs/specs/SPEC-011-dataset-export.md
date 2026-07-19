@@ -2,7 +2,9 @@
 
 ## Smart Charging Experimentation Platform (SCEP)
 
-**Status:** Draft
+**Document Status:** Draft / Under Review
+
+**Implementation Status:** Not Implemented
 
 **Version:** 1.0
 
@@ -18,8 +20,10 @@
 - SPEC-006 — Reservations
 - SPEC-007 — Charging Sessions
 - SPEC-008 — Telemetry
+- SPEC-009 — Domain Events
 - SPEC-010 — Analytics
 - ADR-008 — Separate AI Experimentation from the Transactional Platform
+- ADR-009 — Dataset Export Snapshot, Source and Provenance Strategy
 
 **Enables:**
 
@@ -43,7 +47,7 @@ This specification defines:
 - supported dataset types and schemas;
 - Administrative and Research export profiles;
 - persistent export lifecycle;
-- snapshot and reproducibility rules;
+- snapshot, integrity, provenance and deterministic-generation rules;
 - artifact and manifest contracts;
 - CSV and Parquet serialization;
 - storage and retention;
@@ -70,7 +74,7 @@ This specification shall:
 - preserve referential integrity inside each exported artifact;
 - distinguish Administrative exports from Research exports;
 - provide deterministic row selection and ordering;
-- record sufficient provenance for reproducibility and auditing;
+- record sufficient provenance for interpretation and validation;
 - decouple dataset generation from the originating HTTP request;
 - reuse existing domain and Analytics semantics;
 - reuse the Identity and Access model defined by SPEC-005;
@@ -124,6 +128,13 @@ The following capabilities are intentionally outside Version 1:
 - incremental or append-only exports;
 - multi-file partitioned datasets;
 - direct Domain Event exports;
+- cancellation of Dataset Export resources;
+- HTTP idempotency keys;
+- a durable access-audit subsystem;
+- historical snapshot reconstruction;
+- historical reproducibility after source state changes;
+- simulation lineage;
+- multi-dataset pseudonym sharing;
 - external Data Lake integration;
 - cloud object storage requirements;
 - dataset encryption or digital signing;
@@ -217,7 +228,19 @@ Dataset Export shall not independently redefine:
 - Facility operating-hour semantics;
 - timezone aggregation rules.
 
-## 5.3 Reproducibility by Default
+## 5.3 Source Contracts
+
+Operational datasets shall read persisted operational entities through module-owned read ports.
+
+Analytical datasets shall use the Analytics read-only projection port.
+
+Dataset Export shall not query another module's repositories directly or depend on another
+module's persistence implementation.
+
+Domain Events are not the Version 1 row source. Exporting Domain Events and reconstructing
+historical operational state from event history remain outside Version 1.
+
+## 5.4 Provenance by Default
 
 Every artifact shall identify:
 
@@ -228,13 +251,13 @@ Every artifact shall identify:
 - how many records were produced;
 - how the data file can be integrity-checked.
 
-## 5.4 Explicit Privacy Profile
+## 5.5 Explicit Privacy Profile
 
 The requester shall select an Export Profile.
 
 Privacy behavior shall not depend on an undocumented deployment default.
 
-## 5.5 Operational Configuration without Domain Drift
+## 5.6 Operational Configuration without Domain Drift
 
 Deployment configuration may control limits, retention, enabled formats and storage locations.
 
@@ -251,6 +274,9 @@ A persistent resource representing one request to materialize a dataset.
 ## Dataset
 
 The logical collection of records produced by a completed Dataset Export.
+
+One Dataset Export produces exactly one Dataset. In Version 1, `dataset_export_id` also identifies
+the produced Dataset.
 
 ## Dataset Type
 
@@ -302,7 +328,8 @@ The version of the data-file contract for one Dataset Type and Export Profile.
 
 ## Data Cutoff
 
-The UTC timestamp that bounds the source state considered by generation.
+The UTC timestamp assigned when generation begins and the consistent source snapshot is
+established.
 
 ## Export Window
 
@@ -389,7 +416,8 @@ Administrative exports shall not include:
 
 ## 8.2 RESEARCH
 
-The `RESEARCH` profile is intended for Researchers and Data Scientists.
+The `RESEARCH` profile is intended for controlled transfer to Researchers and Data Scientists. It
+does not by itself grant those Roles Dataset Export API access.
 
 Research exports shall:
 
@@ -412,22 +440,29 @@ For example:
 owner:123  != vehicle:123
 ```
 
-The implementation shall derive pseudonymous identifiers from at least:
+`HMAC_SHA256_V1` shall derive pseudonymous identifiers from:
 
 - Dataset Export identifier or export-specific secret context;
 - identifier namespace;
 - original identifier;
 - a server-controlled secret.
 
-A suitable conceptual construction is:
+The Version 1 message shall be the UTF-8 encoding of the following values separated by one null
+byte:
 
 ```text
-pseudonym = HMAC(secret, export_id + namespace + original_identifier)
+export_id + 0x00 + namespace + 0x00 + canonical_original_identifier
 ```
 
-This formula is illustrative and does not mandate a cryptographic library or encoding.
+The pseudonym shall be the complete HMAC-SHA-256 result encoded as 64 lowercase hexadecimal
+characters. The manifest shall identify the non-secret pseudonymization key version used for the
+export.
 
-Because the export identifier participates in the context, two separate exports may assign different pseudonyms to the same original entity.
+UUID source identifiers shall use their lowercase hyphenated representation. String identifiers
+shall use their validated persisted value without locale-dependent transformation.
+
+Because the export identifier participates in the context, separate exports shall not intentionally
+assign linkable pseudonyms to the same original entity.
 
 ## 8.4 Referential Integrity across Dataset Types
 
@@ -578,7 +613,7 @@ The export shall additionally apply:
 - optional Connector filter;
 - `data_cutoff_at`.
 
-Records created or updated after `data_cutoff_at` shall not alter the exported snapshot.
+Only state visible in the consistent generation snapshot shall be exported.
 
 ### 11.1.2 Administrative Schema
 
@@ -586,7 +621,7 @@ Records created or updated after `data_cutoff_at` shall not alter the exported s
 |---|---|---:|---|
 | `session_id` | UUID/string | No | Original Charging Session identifier. |
 | `reservation_id` | UUID/string | No | Original Reservation identifier. |
-| `owner_id` | UUID/string | No | Original owning Human User identifier. |
+| `owner_id` | UUID/string | No | Original owning Authenticated Identity identifier. |
 | `vehicle_id` | UUID/string | No | Original Vehicle identifier. |
 | `facility_id` | UUID/string | No | Facility containing the Connector. |
 | `station_id` | UUID/string | No | Charging Station containing the Connector. |
@@ -656,7 +691,7 @@ Telemetry shall remain linked to its associated Charging Session.
 | `source` | enum | No | `SIMULATOR` or `API_CLIENT`. |
 | `session_id` | UUID/string | No | Original Charging Session identifier. |
 | `reservation_id` | UUID/string | No | Reservation associated with the session. |
-| `owner_id` | UUID/string | No | Owning Human User identifier. |
+| `owner_id` | UUID/string | No | Owning Authenticated Identity identifier. |
 | `vehicle_id` | UUID/string | No | Vehicle associated with the session. |
 | `facility_id` | UUID/string | No | Facility containing the Connector. |
 | `station_id` | UUID/string | No | Charging Station containing the Connector. |
@@ -723,6 +758,9 @@ telemetry_sample_id ASC
 This dataset shall reuse the Occupancy projection defined by SPEC-010.
 
 It shall not independently implement occupancy formulas.
+
+SPEC-010 shall expose an internal, read-only projection contract that accepts an explicit
+processing timestamp. This requirement does not change the Analytics public REST API.
 
 ### 11.3.2 Required Parameters
 
@@ -847,37 +885,67 @@ The artifact shall contain:
 
 # 13. Snapshot and Data Cutoff
 
-## 13.1 Cutoff Assignment
+## 13.1 Request Acceptance
 
-The platform shall assign `data_cutoff_at` when the export request is accepted.
+`POST /dataset-exports` shall validate and persist the Dataset Export request.
+
+Request acceptance shall not establish or preserve source state. `data_cutoff_at` shall remain null
+while the export is `PENDING`.
+
+Time spent in `PENDING` does not preserve source state. Changes committed before processing begins
+may appear in the export.
+
+## 13.2 Cutoff Assignment
+
+The platform shall assign `data_cutoff_at` when generation begins and the consistent source
+snapshot is established.
 
 The client shall not provide `data_cutoff_at`.
 
 `data_cutoff_at` shall be persisted in UTC.
 
-## 13.2 Snapshot Rule
+## 13.3 Snapshot Rule
 
-Generation shall evaluate source data as of the assigned `data_cutoff_at`.
+All operational records and analytical inputs for one Dataset Export shall be read from one
+logically consistent, read-only source snapshot.
 
-At minimum:
+For PostgreSQL, generation shall use one read-only transaction with `REPEATABLE READ` isolation or
+an equivalent mechanism with the same observable consistency guarantee. `READ COMMITTED` across
+multiple statements is not sufficient.
 
-- source records created after the cutoff shall be excluded;
-- source state changes after the cutoff shall not produce a mixed or partially newer artifact;
-- all files and manifest metadata shall represent one logically consistent generation snapshot.
+Changes committed after the snapshot is established shall not appear. All files and manifest
+metadata shall represent the same logical source snapshot.
 
-The implementation may use a database transaction snapshot, temporal predicates or an equivalent consistency mechanism.
+Artifact construction may occur outside the database, but all selected rows and values required to
+construct the artifact shall originate from the same snapshot.
 
-## 13.3 Late-Arriving Telemetry
+## 13.4 Late-Arriving Telemetry
 
-A Telemetry Sample with `recorded_at` inside the Export Window but `received_at` after `data_cutoff_at` shall not be included.
+A Telemetry Sample shall be eligible only when it is visible in the generation snapshot, its
+`recorded_at` belongs to the Export Window and its `received_at` is not later than
+`data_cutoff_at`.
 
-This rule ensures that the artifact can be reproduced from the source state available at the cutoff.
+A sample committed after the generation snapshot is established shall not be included even when
+its `recorded_at` belongs to the Export Window.
 
-## 13.4 Analytical Snapshot
+## 13.5 Analytical Snapshot
 
-`ANALYTICAL_OCCUPANCY` shall be computed using the same source boundary.
+`ANALYTICAL_OCCUPANCY` shall pass `data_cutoff_at` to the Analytics projection as its processing
+timestamp.
 
-The exporter shall ensure that all buckets use one consistent cutoff.
+For a Charging Session visible as `ACTIVE` in the source snapshot, the effective end shall be:
+
+```text
+min(data_cutoff_at, bucket_to)
+```
+
+For a Charging Session visible as `COMPLETED`, the effective end shall be:
+
+```text
+min(ended_at, bucket_to)
+```
+
+Every bucket shall use the same `data_cutoff_at`.
 
 ---
 
@@ -946,20 +1014,68 @@ A retry shall create a new Dataset Export resource.
 
 ## 14.4 Process Restart Recovery
 
-The implementation shall prevent Dataset Export resources from remaining indefinitely in `PROCESSING`.
+The implementation shall prevent Dataset Export resources from remaining indefinitely in
+`PENDING` or `PROCESSING`.
 
-On startup or through an equivalent recovery mechanism, abandoned work shall be:
+A retry may reuse `data_cutoff_at` only while it continues within the original consistent source
+snapshot.
 
-- safely resumed; or
-- transitioned to `FAILED` with an operational failure code.
+After a process restart, when the original snapshot cannot be preserved, an abandoned
+`PROCESSING` export shall transition to `FAILED` with an operational failure code. A new client
+request shall create a new Dataset Export with a new snapshot and cutoff.
 
-This requirement does not mandate a worker technology.
+Abandoned `PENDING` work shall be made eligible for processing again or transitioned to `FAILED`
+when it cannot be processed safely.
 
-## 14.5 Artifact Expiration
+## 14.5 Worker Claiming and Cleanup
+
+No more than one worker shall actively process the same Dataset Export.
+
+`PENDING` represents queued work. Processing concurrency limits apply to actively processing
+exports, not to queued exports.
+
+Reaching the active-processing limit shall not by itself reject an otherwise valid creation
+request. A request may be rejected only when a separately configured queue limit is exceeded.
+
+Recovery and failure handling shall remove temporary or partial artifacts. A partial artifact
+shall never be downloadable.
+
+These requirements do not mandate a locking mechanism, worker framework or queue technology.
+
+## 14.6 Artifact Expiration
 
 Artifact expiration shall not change `COMPLETED` to a new lifecycle state.
 
 Artifact availability shall be represented separately.
+
+## 14.7 `DatasetExportCompleted`
+
+Dataset Export shall publish `DatasetExportCompleted` only after:
+
+1. the data file and manifest have been generated;
+2. the artifact has been stored successfully;
+3. Dataset Export metadata has transitioned to `COMPLETED`.
+
+The event shall use the event-envelope, persistence and dispatch conventions defined by SPEC-009.
+After artifact storage succeeds, the `COMPLETED` metadata transition and Domain Event persistence
+shall occur in the same database transaction. Dispatch shall occur after commit.
+
+Its payload shall contain:
+
+```text
+dataset_export_id
+dataset_type
+export_profile
+format
+schema_version
+data_cutoff_at
+completed_at
+row_count
+artifact_size_bytes
+```
+
+Version 1 shall not publish Dataset Export lifecycle events for `PENDING`, `PROCESSING` or
+`FAILED`. The Domain Event mechanism shall not be used as a mandatory worker queue.
 
 ---
 
@@ -976,7 +1092,7 @@ A Dataset Export shall persist at least:
 | `format` | Requested data format. |
 | `filters` | Canonical validated filter object. |
 | `status` | Lifecycle state. |
-| `data_cutoff_at` | Snapshot boundary. |
+| `data_cutoff_at` | Snapshot boundary; null while `PENDING`. |
 | `schema_version` | Resolved schema version. |
 | `created_at` | Request acceptance timestamp. |
 | `started_at` | Processing start timestamp. |
@@ -1042,6 +1158,7 @@ The archive shall not contain:
 
 | Field | Description |
 |---|---|
+| `manifest_version` | Version of the manifest contract. Version 1 uses `1.0.0`. |
 | `dataset_export_id` | Dataset Export identifier. |
 | `dataset_type` | Dataset Type. |
 | `dataset_category` | `OPERATIONAL` or `ANALYTICAL`. |
@@ -1051,20 +1168,28 @@ The archive shall not contain:
 | `generated_at` | Artifact generation timestamp in UTC. |
 | `data_cutoff_at` | Snapshot boundary in UTC. |
 | `application_version` | Backend application version. |
-| `source_revision` | Source control revision, when available. |
-| `filters` | Canonical validated filters. |
+| `source_revision` | Source control revision, or null when the deployment cannot provide it. |
+| `export_configuration` | Canonical validated Dataset Type, Profile, Format, schema version and filters. |
 | `columns` | Ordered logical column descriptions. |
 | `row_count` | Number of data rows. |
 | `data_file` | Data entry name. |
 | `data_file_size_bytes` | Uncompressed data-file size. |
 | `data_file_sha256` | SHA-256 of the uncompressed data file. |
 | `pseudonymization` | Profile and scope metadata without secret material. |
-| `simulation_seed` | Simulation seed when the selected data source provides one; otherwise null. |
+
+`manifest_version` versions the `manifest.json` contract.
+
+`schema_version` versions the data-file contract for the selected Dataset Type and Export Profile.
+
+Experiment identifiers, feature descriptions, simulation seeds and simulation parameters are not
+universal Version 1 metadata. A future contract may introduce an optional structured
+`source_lineage` object when another implemented specification can populate it truthfully.
 
 ## 17.2 Example
 
 ```json
 {
+  "manifest_version": "1.0.0",
   "dataset_export_id": "0d80cb12-a738-4c4d-a315-2e72c7d3b5e1",
   "dataset_type": "OPERATIONAL_TELEMETRY",
   "dataset_category": "OPERATIONAL",
@@ -1075,46 +1200,62 @@ The archive shall not contain:
   "data_cutoff_at": "2026-08-15T18:23:00Z",
   "application_version": "1.7.0",
   "source_revision": "a82d0a5",
-  "filters": {
-    "facility_id": "9cc7dd93-c072-4860-86ca-23c224b767d3",
-    "station_id": null,
-    "connector_id": null,
-    "session_id": null,
-    "from": "2026-08-01T00:00:00Z",
-    "to": "2026-08-15T00:00:00Z",
-    "timezone": null,
-    "granularity": null
+  "export_configuration": {
+    "dataset_type": "OPERATIONAL_TELEMETRY",
+    "export_profile": "RESEARCH",
+    "format": "PARQUET",
+    "schema_version": "1.0.0",
+    "filters": {
+      "facility_id": "9cc7dd93-c072-4860-86ca-23c224b767d3",
+      "station_id": null,
+      "connector_id": null,
+      "session_id": null,
+      "from": "2026-08-01T00:00:00Z",
+      "to": "2026-08-15T00:00:00Z",
+      "timezone": null,
+      "granularity": null
+    }
   },
   "columns": [
-    {
-      "name": "telemetry_sample_id",
-      "type": "string",
-      "nullable": false,
-      "unit": null
-    },
-    {
-      "name": "power_kw",
-      "type": "decimal",
-      "nullable": true,
-      "unit": "kW"
-    }
+    {"name": "telemetry_sample_id", "type": "string", "nullable": false, "unit": null},
+    {"name": "sample_id", "type": "string", "nullable": false, "unit": null},
+    {"name": "source", "type": "enum", "nullable": false, "unit": null},
+    {"name": "session_id", "type": "string", "nullable": false, "unit": null},
+    {"name": "reservation_id", "type": "string", "nullable": false, "unit": null},
+    {"name": "owner_id", "type": "string", "nullable": false, "unit": null},
+    {"name": "vehicle_id", "type": "string", "nullable": false, "unit": null},
+    {"name": "facility_id", "type": "string", "nullable": false, "unit": null},
+    {"name": "station_id", "type": "string", "nullable": false, "unit": null},
+    {"name": "connector_id", "type": "string", "nullable": false, "unit": null},
+    {"name": "session_status", "type": "enum", "nullable": false, "unit": null},
+    {"name": "session_started_at", "type": "timestamp", "nullable": false, "unit": null},
+    {"name": "session_ended_at", "type": "timestamp", "nullable": true, "unit": null},
+    {"name": "recorded_at", "type": "timestamp", "nullable": false, "unit": null},
+    {"name": "received_at", "type": "timestamp", "nullable": false, "unit": null},
+    {"name": "power_kw", "type": "decimal", "nullable": true, "unit": "kW"},
+    {"name": "energy_kwh", "type": "decimal", "nullable": true, "unit": "kWh"},
+    {"name": "state_of_charge_percent", "type": "decimal", "nullable": true, "unit": "percent"},
+    {"name": "created_at", "type": "timestamp", "nullable": false, "unit": null}
   ],
   "row_count": 18425,
   "data_file": "data.parquet",
   "data_file_size_bytes": 482150,
-  "data_file_sha256": "sha256:26d9...",
+  "data_file_sha256": "26d9e8d05b8d7f1893e1b8f0c53809c3706691267f0f4f03e369490e1d8f0f6a",
   "pseudonymization": {
     "applied": true,
     "scope": "DATASET_EXPORT",
-    "algorithm_identifier": "HMAC_SHA256_V1"
-  },
-  "simulation_seed": null
+    "algorithm_identifier": "HMAC_SHA256_V1",
+    "key_version": "v1"
+  }
 }
 ```
 
 ## 17.3 Checksum Rules
 
 `data_file_sha256` shall be calculated over the exact uncompressed bytes of `data.csv` or `data.parquet`.
+
+SHA-256 values shall be represented as exactly 64 lowercase hexadecimal characters without a
+`sha256:` prefix.
 
 The final ZIP artifact checksum shall be stored in Dataset Export metadata and exposed by the resource API.
 
@@ -1137,13 +1278,28 @@ The manifest shall not expose:
 - stack traces;
 - secrets.
 
+Pseudonymization metadata shall identify the algorithm contract and a non-secret key version. It
+shall not identify or expose the key itself.
+
 ---
 
 # 18. Reproducibility
 
-A completed export shall record enough information to understand and validate its generation.
+Dataset Export distinguishes the following properties.
 
-Equivalent Dataset Export requests evaluated against equivalent source state shall produce logically equivalent data.
+## 18.1 Artifact Integrity
+
+Artifact Integrity means that stored bytes can be validated against their recorded checksums.
+
+## 18.2 Provenance
+
+Provenance means that the manifest identifies the canonical export configuration, schema, source
+cutoff, application version and source revision when available.
+
+## 18.3 Deterministic Generation
+
+Deterministic Generation means that equivalent schema, parameters, implementation revision and
+source snapshot produce logically equivalent data.
 
 Logical equivalence requires:
 
@@ -1156,20 +1312,21 @@ Logical equivalence requires:
 
 Byte-for-byte ZIP equality is not required because ZIP metadata and compression output may vary.
 
-The following values shall support provenance:
+## 18.4 Historical Reproducibility
 
-- Dataset Type;
-- Export Profile;
-- schema version;
-- canonical filters;
-- data cutoff;
-- application version;
-- source revision;
-- row count;
-- data-file checksum;
-- simulation seed when available.
+Historical Reproducibility means that a past dataset can be regenerated after operational source
+state changes. Version 1 does not guarantee Historical Reproducibility and does not reconstruct
+historical state.
 
-Dataset Export does not guarantee that a historical artifact can be regenerated after source records or application versions are permanently removed. It guarantees that the original artifact is self-describing and integrity-checkable.
+## 18.5 Simulation Reproducibility
+
+Simulation Reproducibility means that a simulation can be rerun from its scenario, version,
+parameters and seed. It belongs to the future Digital Twin Simulation Engine specification and is
+not guaranteed by Dataset Export.
+
+Version 1 guarantees Artifact Integrity, Provenance and Deterministic Generation under the
+conditions above. It does not guarantee that a historical artifact can be regenerated after source
+records, snapshots or application revisions become unavailable.
 
 ---
 
@@ -1191,12 +1348,8 @@ Dataset ZIP bytes
 DatasetArtifactStorage
 ```
 
-The storage abstraction shall support at least:
-
-- store artifact;
-- open or stream artifact;
-- check artifact existence;
-- delete artifact.
+The storage abstraction shall allow artifacts to be stored, downloaded, checked for availability
+and deleted without exposing provider-specific details through the REST contract.
 
 The initial implementation may use:
 
@@ -1214,6 +1367,16 @@ A partially written artifact shall never be downloadable.
 # 20. Artifact Retention
 
 Generated artifacts shall remain available until `artifact_expires_at`.
+
+For each completed export:
+
+```text
+artifact_expires_at =
+completed_at + retention_period_resolved_for_that_export
+```
+
+Later deployment-configuration changes shall not alter `artifact_expires_at` for an existing
+Dataset Export.
 
 After expiration:
 
@@ -1238,6 +1401,7 @@ The implementation shall support deployment configuration for:
 - maximum row count;
 - maximum artifact size;
 - maximum concurrent processing exports;
+- maximum queued exports, when queue admission is limited;
 - artifact retention period;
 - enabled formats;
 - artifact storage location;
@@ -1248,25 +1412,7 @@ These values may be provided through the platform's existing configuration mecha
 
 The specification does not require a particular environment-variable library or configuration provider.
 
-## 21.1 Suggested Configuration Keys
-
-The implementation may use names equivalent to:
-
-```text
-DATASET_EXPORT_MAX_WINDOW_DAYS
-DATASET_EXPORT_MAX_ROWS
-DATASET_EXPORT_MAX_ARTIFACT_SIZE_BYTES
-DATASET_EXPORT_MAX_CONCURRENT_JOBS
-DATASET_EXPORT_RETENTION_DAYS
-DATASET_EXPORT_ENABLED_FORMATS
-DATASET_EXPORT_STORAGE_PATH
-DATASET_EXPORT_PROCESSING_TIMEOUT_SECONDS
-DATASET_EXPORT_PSEUDONYMIZATION_SECRET
-```
-
-These names are implementation guidance rather than public API contracts.
-
-## 21.2 Domain Semantics Excluded from Configuration
+## 21.1 Domain Semantics Excluded from Configuration
 
 Deployment configuration shall not change:
 
@@ -1292,7 +1438,7 @@ Possible pre-generation violations include:
 - disabled format;
 - unsupported filter;
 - unauthorized scope;
-- configured concurrency limit;
+- configured queue limit;
 - configured time-window limit.
 
 Limits discovered during generation include:
@@ -1362,7 +1508,7 @@ Location: /dataset-exports/0d80cb12-a738-4c4d-a315-2e72c7d3b5e1
   "format": "PARQUET",
   "status": "PENDING",
   "schema_version": "1.0.0",
-  "data_cutoff_at": "2026-08-15T18:23:00Z",
+  "data_cutoff_at": null,
   "created_at": "2026-08-15T18:23:00Z"
 }
 ```
@@ -1452,8 +1598,8 @@ Example completed response:
   "failure_code": null,
   "failure_message": null,
   "row_count": 18425,
-  "data_file_sha256": "sha256:26d9...",
-  "artifact_sha256": "sha256:98a1...",
+  "data_file_sha256": "26d9e8d05b8d7f1893e1b8f0c53809c3706691267f0f4f03e369490e1d8f0f6a",
+  "artifact_sha256": "98a1b83480c3f7eef2dc458ba72678d420b8ca7cf9c8cc24056a7b7fdb568f7a",
   "artifact_size_bytes": 271932,
   "artifact_available": true,
   "artifact_expires_at": "2026-09-14T18:23:41Z"
@@ -1474,10 +1620,8 @@ Successful response:
 200 OK
 Content-Type: application/zip
 Content-Disposition: attachment; filename="dataset-export-0d80cb12-a738-4c4d-a315-2e72c7d3b5e1.zip"
-ETag: "sha256:98a1..."
+ETag: "98a1b83480c3f7eef2dc458ba72678d420b8ca7cf9c8cc24056a7b7fdb568f7a"
 ```
-
-The implementation should stream the artifact rather than load the complete ZIP into application memory.
 
 Download is permitted only when:
 
@@ -1488,16 +1632,17 @@ Download is permitted only when:
 
 ## 23.5 Idempotency
 
-`POST /dataset-exports` may accept the existing platform `Idempotency-Key` convention when available.
+`POST /dataset-exports` is non-idempotent in Version 1.
 
-Idempotency shall protect client retries from accidentally creating duplicate resources.
-
-Two identical requests without the same idempotency key may create two independent Dataset Export resources with different:
+Each successfully accepted request shall create a new Dataset Export resource. Two identical
+requests may create independent resources with different:
 
 - identifiers;
 - data cutoffs;
 - pseudonyms;
 - artifacts.
+
+HTTP `Idempotency-Key` support is outside Version 1.
 
 ---
 
@@ -1511,11 +1656,16 @@ Two identical requests without the same idempotency key may create two independe
 | `401 Unauthorized` | Authentication is missing or invalid. |
 | `403 Forbidden` | Actor or Facility scope is not authorized. |
 | `404 Not Found` | Dataset Export or requested scoped resource does not exist. |
-| `409 Conflict` | Artifact is not downloadable in the current lifecycle state or concurrency prevents acceptance. |
+| `409 Conflict` | Artifact is not downloadable in the current lifecycle state. |
 | `410 Gone` | Completed artifact expired or was removed according to retention. |
 | `422 Unprocessable Entity` | Request schema, Dataset Type, format, profile or filter combination is unsupported. |
+| `503 Service Unavailable` | An unexpired artifact is unexpectedly missing or artifact storage is unavailable. |
 
 A `FAILED` Dataset Export remains retrievable through `GET /dataset-exports/{id}`.
+
+`410 Gone` shall be used only when an artifact was removed through normal expiration or retention.
+An unexpectedly missing, unexpired artifact is an internal storage failure and shall not be
+represented as expiration.
 
 ---
 
@@ -1524,6 +1674,17 @@ A `FAILED` Dataset Export remains retrievable through `GET /dataset-exports/{id}
 Dataset Export shall reuse the roles and account model defined by SPEC-005.
 
 This specification introduces no new Role and no new account type.
+
+Version 1 permissions are:
+
+| Capability | `PlatformAdministrator` | `FacilityOperator` | `Researcher` | `DataScientist` |
+|---|---|---|---|---|
+| Create `ADMINISTRATIVE` export | Any scope | Assigned Facility only | No | No |
+| Create `RESEARCH` export | Any scope | Assigned Facility only | No | No |
+| Cross-Facility export | Yes | No | No | No |
+| List exports | All | Own only | No | No |
+| Retrieve exports | All | Own only | No | No |
+| Download artifacts | All | Own only | No | No |
 
 ## 25.1 Platform Administrator
 
@@ -1553,32 +1714,30 @@ A Facility Operator shall not:
 
 The server shall enforce Facility scope independently from request filters.
 
+A Facility Operator export shall resolve to exactly one assigned Facility. A Facility Operator
+without Facility Assignments shall not create a Dataset Export.
+
 ## 25.3 Researcher
 
-A `Researcher` may:
+The `Researcher` Role shall not grant Dataset Export access in Version 1.
 
-- create only `RESEARCH` exports;
-- use only explicitly authorized Facility scope;
-- list and retrieve exports created by that user;
-- download artifacts created by that user.
-
-A Researcher shall not create `ADMINISTRATIVE` exports.
-
-Because SPEC-005 does not define Facility Assignments for Researchers, Version 1 grants a Researcher platform-wide Research export scope unless a future specification introduces a narrower assignment model.
-
-This access decision shall be explicit in implementation authorization policy and documented in OpenAPI.
+Researcher Facility scope, export sharing and export approval are deferred until a future
+specification defines an explicit authorization model.
 
 ## 25.4 Data Scientist
 
-A `DataScientist` has the same Dataset Export permissions as a Researcher in Version 1.
+The `DataScientist` Role shall not grant Dataset Export access in Version 1.
 
-A future Predictions specification may grant additional prediction-related permissions without changing this Dataset Export profile rule.
+A future specification may define explicit Dataset Export scope or sharing without changing the
+meaning of the `RESEARCH` Export Profile.
 
 ## 25.5 Other Actors
 
 The following actors shall not access Dataset Export in Version 1:
 
 - `EVDriver`;
+- `Researcher`;
+- `DataScientist`;
 - `TechnicalClient`;
 - inactive accounts;
 - Human Users without one of the roles explicitly permitted above.
@@ -1587,7 +1746,11 @@ The following actors shall not access Dataset Export in Version 1:
 
 Platform Administrators may view all Dataset Export resources.
 
-Other authorized roles may view only Dataset Export resources they requested.
+Facility Operators may view only Dataset Export resources they requested and for which they retain
+the required Facility Assignment.
+
+For a Human User with multiple Roles, `PlatformAdministrator` permissions shall take precedence.
+`Researcher` and `DataScientist` Roles shall not expand `FacilityOperator` permissions.
 
 Authorization shall be checked:
 
@@ -1596,7 +1759,15 @@ Authorization shall be checked:
 - when listing resources;
 - when downloading the artifact.
 
-A previously generated artifact shall not bypass current account-status checks.
+A previously generated artifact shall not bypass current account-status, Role or Facility
+Assignment checks. Losing the required Facility Assignment shall remove access from the original
+Facility Operator. Platform Administrators shall retain access.
+
+Inaccessible Dataset Export resources shall use the repository's concealed `404 Not Found`
+convention.
+
+The `RESEARCH` Export Profile remains available to Platform Administrators and Facility Operators
+for controlled offline research transfer.
 
 ---
 
@@ -1686,9 +1857,10 @@ Logs shall not include:
 
 ## 27.3 Tracing
 
-Long-running generation shall preserve trace correlation when supported by the selected execution mechanism.
+Long-running generation shall be traceable independently of the selected execution mechanism.
 
-The implementation may create a new internal trace for background execution linked to the originating request trace.
+Background execution shall create an internal trace linked to the originating request trace when
+the originating context is available.
 
 ---
 
@@ -1734,15 +1906,6 @@ Database migrations shall:
 - create indexes required for lifecycle and ownership queries;
 - remain reversible according to the repository migration conventions.
 
-Recommended indexes include:
-
-- `status`;
-- `requested_by`;
-- `created_at`;
-- `(requested_by, created_at)`;
-- `(status, created_at)`;
-- `artifact_expires_at`.
-
 The implementation shall enforce valid lifecycle status values.
 
 A unique constraint on request content is not required.
@@ -1774,7 +1937,8 @@ Unit tests shall cover:
 - namespace separation;
 - different pseudonyms across separate exports;
 - Research field transformations;
-- failure-code mapping.
+- failure-code mapping;
+- manifest-version resolution;
 
 ## 30.2 Integration Tests
 
@@ -1791,6 +1955,8 @@ Integration tests shall cover:
 - artifact retrieval;
 - artifact deletion;
 - abandoned-processing recovery;
+- abandoned-pending recovery;
+- single-active-worker claiming;
 - configured row limit;
 - configured artifact-size limit.
 
@@ -1817,7 +1983,9 @@ API tests shall cover:
 - unauthorized Facility;
 - role/profile restrictions;
 - inactive-account rejection;
-- resource visibility between users.
+- resource visibility between users;
+- multi-Role authorization precedence;
+- Facility Assignment removal after creation;
 
 ## 30.4 Format Compatibility Tests
 
@@ -1839,6 +2007,7 @@ Contract tests shall validate:
 - manifest mandatory fields;
 - manifest column order;
 - schema version;
+- manifest version;
 - row count;
 - data-file checksum;
 - deterministic ordering.
@@ -1882,7 +2051,7 @@ Contract tests shall validate:
 
 ## Snapshot and Reproducibility
 
-- `data_cutoff_at` is assigned by the server.
+- `data_cutoff_at` is assigned when the generation snapshot is established.
 - One logical snapshot is used per export.
 - Late-arriving Telemetry after the cutoff is excluded.
 - Row ordering is deterministic.
@@ -1902,8 +2071,8 @@ Contract tests shall validate:
 
 - Platform Administrator permissions are implemented.
 - Facility Operator scope is enforced.
-- Researcher permissions are implemented.
-- Data Scientist permissions are implemented.
+- Researcher access is denied in Version 1.
+- Data Scientist access is denied in Version 1.
 - EV Drivers and Technical Clients are denied.
 - Non-administrators see only their own Dataset Export resources.
 
@@ -1917,7 +2086,53 @@ Contract tests shall validate:
 
 ---
 
-# 32. Future Extensions
+# 32. Implementation Guidance
+
+This section is non-contractual. Implementations may choose different mechanisms while preserving
+the externally observable requirements in this specification.
+
+Suggested configuration keys include:
+
+```text
+DATASET_EXPORT_MAX_WINDOW_DAYS
+DATASET_EXPORT_MAX_ROWS
+DATASET_EXPORT_MAX_ARTIFACT_SIZE_BYTES
+DATASET_EXPORT_MAX_CONCURRENT_JOBS
+DATASET_EXPORT_MAX_QUEUED_JOBS
+DATASET_EXPORT_RETENTION_DAYS
+DATASET_EXPORT_ENABLED_FORMATS
+DATASET_EXPORT_STORAGE_PATH
+DATASET_EXPORT_PROCESSING_TIMEOUT_SECONDS
+DATASET_EXPORT_PSEUDONYMIZATION_SECRET
+```
+
+Potential implementation mechanisms include background tasks, coroutines, threads, queues or a
+dedicated worker. No mechanism is preferred by the public contract.
+
+A storage adapter may expose operations equivalent to storing, opening or streaming, checking and
+deleting an artifact.
+
+Recommended Dataset Export metadata indexes include:
+
+- `status`;
+- `requested_by`;
+- `created_at`;
+- `(requested_by, created_at)`;
+- `(status, created_at)`;
+- `artifact_expires_at`.
+
+Temporary-file and rename strategies may be used to provide atomic artifact publication. Temporary
+or partial files should be created with restrictive access and removed after completion or failure.
+
+The download implementation should stream large ZIP artifacts rather than load the complete
+archive into application memory.
+
+Library selection for CSV, Parquet, ZIP and pseudonymization is implementation-defined. It shall
+not change the serialization, integrity, privacy or compatibility contracts.
+
+---
+
+# 33. Future Extensions
 
 Potential future extensions include:
 
@@ -1936,28 +2151,25 @@ Potential future extensions include:
 - dataset catalog APIs;
 - feature-ready datasets;
 - explicit research-scope assignments;
-- simulation-run and experiment identifiers;
+- structured source lineage when implemented source specifications can populate it truthfully;
 - tighter integration with Predictions.
 
 These extensions shall preserve the architectural separation established by ADR-008.
 
 ---
 
-# 33. Architectural Alignment
+# 34. Architectural Alignment
 
 This specification operationalizes ADR-008 by defining the controlled dataset boundary between the transactional Backend API and the independent AI Research Environment.
+
+ADR-009 defines the processing-time snapshot, Version 1 source and provenance strategy used here.
 
 It also aligns with:
 
 - SPEC-005, by reusing existing Roles and authentication;
 - SPEC-007, by preserving Charging Session semantics;
 - SPEC-008, by preserving immutable Telemetry observations and missing measurements;
+- SPEC-009, by publishing `DatasetExportCompleted` through the existing event contract;
 - SPEC-010, by reusing occupancy metrics, timezone behavior and analytical scope rules.
-
-No additional ADR is required for Version 1 because:
-
-- separation of AI experimentation is already decided by ADR-008;
-- this specification leaves worker and storage technologies replaceable;
-- operational configuration does not establish a new irreversible architectural constraint.
 
 A future ADR may be justified if the platform adopts a specific distributed job system, external object storage provider or centralized dynamic configuration service.

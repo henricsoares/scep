@@ -258,13 +258,13 @@ The platform behaves as a single deployable application while internally preserv
 
 Every important business action produces a domain event.
 
-These events become the foundation for:
+These events support:
 
 - analytics;
 - observability;
 - dashboards;
 - simulation;
-- dataset generation;
+- future event-oriented dataset generation;
 - AI model training.
 
 Instead of treating analytics and machine learning as external concerns, SCEP considers them first-class architectural citizens.
@@ -515,7 +515,8 @@ Every module is expected to expose sufficient telemetry to allow complete unders
 
 The platform continuously transforms operational activity into research assets.
 
-The simplified execution flow is described below.
+The simplified execution flow is described below. Arrows represent information evolution rather
+than a mandatory source dependency for every capability.
 
 ```text
 User / Simulator
@@ -563,6 +564,10 @@ Machine Learning
 Predictions & Dashboards
 ```
 
+Dataset Export Version 1 reads persisted operational entities through module-owned read contracts
+and reuses Analytics projections. It does not reconstruct dataset rows from Domain Events. Future
+event-oriented datasets may consume event history as defined by ADR-009.
+
 Unlike conventional enterprise systems, data generation is not considered a secondary effect of business execution.
 
 It is one of the primary architectural objectives.
@@ -602,7 +607,8 @@ The initial Domain Event catalog documented by SPEC-009 includes:
 
 - TelemetrySampleReceived
 
-Analytics, Dataset Export, AI and Digital Twin capabilities are future consumers of these events.
+Analytics, AI and Digital Twin capabilities may become consumers of these events. Dataset Export
+publishes `DatasetExportCompleted` in Version 1 and may consume event history in a future version.
 Additional producers or event types require subsequent specifications.
 
 ---
@@ -1035,7 +1041,9 @@ Every reservation, charging session, telemetry update and simulated event contri
 
 Generated datasets should satisfy the following characteristics:
 
-- reproducible;
+- deterministic under equivalent schema, parameters, implementation revision and source snapshot;
+- integrity-checkable;
+- traceable through provenance metadata;
 - configurable;
 - versioned;
 - documented;
@@ -1189,6 +1197,9 @@ Deliverables:
 - historical reports.
 
 Current progress: SPEC-010 is approved and implemented with read-only, on-demand Analytics.
+
+SPEC-011 is Draft / Under Review and is not implemented. SPEC-012 and SPEC-013 are Planned and not
+implemented.
 
 ---
 

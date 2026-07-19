@@ -446,10 +446,11 @@ The dataset contains complete metadata and validated records.
 
 Supported by:
 
-* immutable events;
+* consistent source snapshots;
 * validation rules;
 * schema validation;
-* experiment metadata.
+* export provenance;
+* artifact checksums.
 
 ---
 
@@ -457,11 +458,16 @@ Supported by:
 
 Exported datasets contain:
 
-* metadata;
+* canonical export configuration;
 * generation timestamp;
-* experiment identifier;
-* simulation parameters;
-* platform version.
+* source cutoff;
+* schema version;
+* platform version;
+* integrity metadata.
+
+Experiment identifiers, simulation parameters and simulation reproducibility belong to their
+owning experiment or Simulation specifications and are required only when explicit source lineage
+applies.
 
 ---
 

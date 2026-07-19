@@ -10,6 +10,7 @@
 * `005-data-view.md`
 * `006-quality-attributes.md`
 * `008-deployment-runtime-view.md`
+* `ADR-009-dataset-export-snapshot-source-and-provenance-strategy.md`
 
 ---
 
@@ -278,23 +279,32 @@ The AI Research Environment consumes data but does not modify transactional stat
 
 Datasets are considered first-class research artifacts.
 
-Each exported dataset shall contain:
+Every exported dataset shall contain universal provenance sufficient to identify:
 
-* experiment identifier;
 * dataset identifier;
 * export timestamp;
 * platform version;
-* simulation seed (when applicable);
-* feature description;
-* generation metadata.
+* source boundary;
+* schema version;
+* canonical export configuration;
+* generation and integrity metadata.
 
-Supported formats include:
+Experiment identifiers, feature descriptions, simulation seeds and simulation parameters are
+conditional lineage. They shall be included only when an implemented source specification can
+associate them truthfully with the exported records. Feature descriptions normally belong to the
+AI Research Environment because feature engineering executes outside the Backend API.
+
+Concrete supported formats are selected by the corresponding functional specification. Portable
+formats may include:
 
 * CSV;
 * JSON;
 * Parquet.
 
-Future formats may be added without changing the architectural principles.
+SPEC-011 Version 1 selects CSV and Parquet. Future formats may be added without changing the
+architectural principles.
+
+ADR-009 defines the Version 1 snapshot, source and provenance strategy.
 
 ---
 
@@ -317,7 +327,7 @@ This lifecycle remains independent from transactional software releases.
 
 # Relationship with Smart Charging
 
-The first AI capability implemented by SCEP is:
+The first AI capability planned for SCEP is:
 
 **Charging Station Occupancy Prediction**
 

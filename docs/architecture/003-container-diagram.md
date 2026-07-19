@@ -74,7 +74,7 @@ C4Container
     Rel(api, notificationMock, "Sends notification requests", "Internal HTTP or function call")
 
     Rel(simulator, api, "Sends synthetic events and telemetry", "JSON/HTTPS")
-    Rel(api, aiEnv, "Exports datasets", "CSV/Parquet/JSON")
+    Rel(api, aiEnv, "Exports datasets", "Portable dataset formats")
     Rel(aiEnv, api, "Publishes predictions and experiment outputs", "JSON/HTTPS")
     Rel(api, observability, "Emits logs, metrics and traces", "OTLP / Prometheus")
     Rel(webApp, observability, "May emit frontend telemetry", "OTLP / logs")
@@ -257,6 +257,9 @@ Communication:
 * optionally calls Backend API to publish prediction results.
 
 The AI Research Environment is intentionally decoupled from the transactional application. This prevents experimental machine learning code from contaminating business-critical application logic.
+
+Portable export formats are controlled by the Dataset Export functional specification. SPEC-011
+Version 1 selects CSV and Parquet; JSON is not required as a Version 1 data-file format.
 
 ---
 
@@ -446,7 +449,7 @@ Application and infrastructure telemetry is continuously collected and made avai
 | Web Application         | Backend API             | HTTPS / JSON           | Business operations            |
 | Backend API             | PostgreSQL              | SQL                    | Persistence                    |
 | Simulation Engine       | Backend API             | HTTPS / JSON           | Synthetic events and telemetry |
-| Backend API             | AI Research Environment | CSV, JSON or Parquet   | Dataset export                 |
+| Backend API             | AI Research Environment | Specification-controlled portable formats | Dataset export |
 | AI Research Environment | Backend API             | HTTPS / JSON           | Prediction publishing          |
 | Backend API             | Observability Stack     | OTLP, Prometheus, logs | Metrics, logs and traces       |
 | Web Application         | Observability Stack     | OTLP or logs           | Frontend telemetry             |
@@ -535,10 +538,11 @@ This document depends on:
 
 Future documents:
 
-* `004-component-diagram.md`;
-* `005-deployment-view.md`;
+* `004-component-diagram-backend.md`;
+* `005-data-view.md`;
+* `008-deployment-runtime-view.md`;
 * `006-quality-attributes.md`;
-* architectural decision records under `docs/architecture/adr/`.
+* architectural decision records under `docs/architecture/decisions/`.
 
 ---
 

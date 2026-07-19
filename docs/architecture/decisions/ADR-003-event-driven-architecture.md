@@ -9,6 +9,7 @@
 * `004-component-diagram-backend.md`
 * `005-data-view.md`
 * `006-quality-attributes.md`
+* `ADR-009-dataset-export-snapshot-source-and-provenance-strategy.md`
 
 ---
 
@@ -184,8 +185,9 @@ The initial catalog is defined by SPEC-009 and includes:
 
 * TelemetrySampleReceived
 
-Analytics, Dataset Export, AI and Digital Twin are future consumers. New producers or event types
-require subsequent specifications.
+Analytics, AI and Digital Twin may become consumers. Dataset Export publishes
+`DatasetExportCompleted` in Version 1 and may consume events in a future version. New producers or
+event types require subsequent specifications.
 
 ---
 
@@ -263,7 +265,11 @@ Consumes business events to calculate KPIs and operational indicators.
 
 ## Dataset Export Component
 
-Consumes historical events to generate reproducible research datasets.
+Version 1 reads operational state through module-owned read contracts and reuses Analytics
+projections. It does not require event history as its dataset source.
+
+Future versions may consume historical events for event-oriented datasets or historical
+reconstruction. ADR-009 defines the Version 1 source and snapshot strategy.
 
 ---
 

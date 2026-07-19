@@ -269,9 +269,11 @@ Examples include:
 
 * ReservationCreated;
 * ChargingSessionStarted;
-* ChargingSessionFinished.
+* ChargingSessionCompleted.
 
-Domain Events provide the historical record required for analytics, observability and dataset generation.
+Domain Events provide an immutable historical record for event-oriented consumers. Dataset Export
+Version 1 reads operational entities through module-owned read contracts; future versions may use
+event history for event-oriented datasets or historical reconstruction.
 
 ---
 
@@ -868,8 +870,9 @@ The domain relationships are summarized below.
 | Charging Session       | uses            | Connector        |
 | Charging Session       | generates       | Telemetry        |
 | Charging Session       | publishes       | Domain Events    |
-| Analytics              | consumes        | Domain Events    |
-| Dataset Export         | consumes        | Domain Events    |
+| Analytics              | may consume     | Domain Events    |
+| Dataset Export         | reads           | Operational Data |
+| Dataset Export         | publishes       | Domain Events    |
 | Prediction             | consumes        | Datasets         |
 
 ---
@@ -1194,7 +1197,7 @@ Reservation
 Charging
 
 * ChargingSessionStarted
-* ChargingSessionFinished
+* ChargingSessionCompleted
 
 Infrastructure
 
@@ -1205,11 +1208,11 @@ Infrastructure
 
 Telemetry
 
-* TelemetryRecorded
+* TelemetrySampleReceived
 
 Analytics
 
-* DatasetExported
+* DatasetExportCompleted
 * PredictionGenerated
 
 These events establish the historical record required for research and observability.

@@ -359,9 +359,9 @@ Completed:
 
 Next Steps:
 
-* Dataset Export
-* Digital Twin Simulation Engine
-* AI Experiments
+* SPEC-011 — Dataset Export: Draft / Under Review, not implemented
+* SPEC-012 — Predictions: Planned, not implemented
+* SPEC-013 — Digital Twin Simulation Engine: Planned, not implemented
 
 ---
 

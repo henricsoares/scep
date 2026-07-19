@@ -263,7 +263,7 @@ C4Context
     Rel(platformAdmin, scep, "Manages platform configuration")
 
     Rel(simulator, scep, "Sends synthetic events and telemetry through APIs")
-    Rel(scep, aiEnv, "Exports datasets and historical events")
+    Rel(scep, aiEnv, "Exports portable datasets")
     Rel(aiEnv, scep, "Publishes model outputs and predictions")
     Rel(scep, notificationProvider, "Sends notification requests")
     Rel(scep, observability, "Emits logs, metrics and traces")
@@ -460,8 +460,9 @@ This document depends on:
 Future documents:
 
 * `003-container-diagram.md`
-* `004-component-diagram.md`
-* `005-deployment-view.md`
+* `004-component-diagram-backend.md`
+* `005-data-view.md`
+* `008-deployment-runtime-view.md`
 * `006-quality-attributes.md`
 
 ---
