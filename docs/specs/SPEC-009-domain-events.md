@@ -1004,6 +1004,10 @@ At least one optional measurement field shall be present, as required by SPEC-00
 
 SPEC-011 extends the event catalog with `DatasetExportCompleted`.
 
+This contract becomes active only when SPEC-011 is implemented. While SPEC-011 remains Draft and
+Not Implemented, `DatasetExportCompleted` is a reserved future contract and is not emitted by the
+current runtime.
+
 It is published only after the data file and manifest are generated, the artifact is stored
 successfully and the Dataset Export resource transitions to `COMPLETED`.
 
@@ -1515,8 +1519,9 @@ Future specifications may consume or extend this infrastructure with:
 - Notification services.
 
 Analytics, AI and Digital Twin capabilities may become consumers of existing Domain Event
-contracts. Dataset Export Version 1 publishes `DatasetExportCompleted` but does not require event
-history as its row source. Future Dataset Export versions may consume Domain Events.
+contracts. When SPEC-011 is implemented, Dataset Export Version 1 publishes
+`DatasetExportCompleted` but does not require event history as its row source. Future Dataset
+Export versions may consume Domain Events.
 
 The future Outbox + Kafka evolution may add an Outbox publisher and Kafka transport without
 changing the responsibilities defined here for producers, transactional event persistence or

@@ -843,6 +843,11 @@ bucket_to ASC
 | `granularity` | Required | `ANALYTICAL_OCCUPANCY` | `hour`, `day`, `week` or `month`. |
 | `session_id` | No | `OPERATIONAL_TELEMETRY` | Restricts telemetry to one Charging Session. |
 
+For a Facility Operator, the server shall resolve every export to exactly one assigned Facility.
+When the operator has exactly one assigned Facility, an omitted `facility_id` may be inferred from
+that assignment. When the operator has multiple assigned Facilities, `facility_id` is required. An
+omitted `facility_id` that is therefore ambiguous shall return `400 Bad Request`.
+
 ## 12.2 Time Window
 
 The Export Window shall use:
@@ -1021,8 +1026,12 @@ A retry may reuse `data_cutoff_at` only while it continues within the original c
 snapshot.
 
 After a process restart, when the original snapshot cannot be preserved, an abandoned
-`PROCESSING` export shall transition to `FAILED` with an operational failure code. A new client
-request shall create a new Dataset Export with a new snapshot and cutoff.
+`PROCESSING` export shall transition to `FAILED` with `SNAPSHOT_LOST`. A new client request shall
+create a new Dataset Export with a new snapshot and cutoff.
+
+When recovery detects that a `PROCESSING` export exceeded the configured abandoned-processing
+threshold and cannot be resumed safely for a reason other than confirmed loss of its original
+snapshot, it shall transition to `FAILED` with `ABANDONED_PROCESSING`.
 
 Abandoned `PENDING` work shall be made eligible for processing again or transitioned to `FAILED`
 when it cannot be processed safely.
@@ -1090,7 +1099,7 @@ A Dataset Export shall persist at least:
 | `dataset_type` | Requested Dataset Type. |
 | `export_profile` | Requested Export Profile. |
 | `format` | Requested data format. |
-| `filters` | Canonical validated filter object. |
+| `filters` | Canonical validated filter object, including the resolved `facility_id` when Facility scope applies. |
 | `status` | Lifecycle state. |
 | `data_cutoff_at` | Snapshot boundary; null while `PENDING`. |
 | `schema_version` | Resolved schema version. |
@@ -1449,15 +1458,20 @@ Limits discovered during generation include:
 
 When a runtime limit is exceeded, the export shall transition to `FAILED`.
 
-The failure shall use a stable `failure_code`, such as:
+`failure_code` is a closed Version 1 enum:
 
-```text
-ROW_LIMIT_EXCEEDED
-ARTIFACT_SIZE_LIMIT_EXCEEDED
-PROCESSING_TIMEOUT
-STORAGE_FAILURE
-GENERATION_FAILURE
-```
+| Failure code | Applies when |
+|---|---|
+| `ROW_LIMIT_EXCEEDED` | Generated rows exceed the configured maximum row count. |
+| `ARTIFACT_SIZE_LIMIT_EXCEEDED` | The generated artifact exceeds the configured maximum artifact size. |
+| `PROCESSING_TIMEOUT` | Processing exceeds the configured processing timeout. |
+| `STORAGE_FAILURE` | The completed data and manifest cannot be stored as an artifact. |
+| `GENERATION_FAILURE` | Generation fails for a reason not represented by another Version 1 failure code. |
+| `SNAPSHOT_LOST` | The original consistent source snapshot cannot be preserved or re-established after `data_cutoff_at` has been assigned, including during recovery. |
+| `ABANDONED_PROCESSING` | Recovery finds `PROCESSING` work beyond the abandoned-processing threshold that cannot be resumed safely for a reason other than confirmed snapshot loss. |
+
+Implementations shall not emit another `failure_code` in Version 1. When both abandonment and
+confirmed snapshot loss apply, `SNAPSHOT_LOST` shall take precedence.
 
 Failure messages shall be sanitized and shall not expose stack traces, SQL or filesystem paths.
 
@@ -1516,6 +1530,11 @@ Location: /dataset-exports/0d80cb12-a738-4c4d-a315-2e72c7d3b5e1
 The endpoint shall return after the request and metadata are persisted.
 
 Dataset generation shall not block the HTTP response until completion.
+
+Before persisting the request, the server shall resolve Facility Operator scope according to
+Section 25.2. An omitted but ambiguous `facility_id` shall return `400 Bad Request`. The canonical
+`filters` persisted for the Dataset Export shall contain the resolved `facility_id`, whether it was
+provided by the client or inferred from the operator's sole Facility Assignment.
 
 ## 23.2 List Dataset Exports
 
@@ -1717,6 +1736,13 @@ The server shall enforce Facility scope independently from request filters.
 A Facility Operator export shall resolve to exactly one assigned Facility. A Facility Operator
 without Facility Assignments shall not create a Dataset Export.
 
+When the Facility Operator has exactly one assigned Facility, the server may infer an omitted
+`facility_id` from that assignment. When the Facility Operator has multiple assigned Facilities,
+`facility_id` is required. Omitting it in that case is ambiguous and shall return
+`400 Bad Request`. A supplied `facility_id` shall identify one of the operator's assigned
+Facilities. In every case, the resolved Facility shall be stored as `facility_id` in the canonical
+export configuration.
+
 ## 25.3 Researcher
 
 The `Researcher` Role shall not grant Dataset Export access in Version 1.
@@ -1873,6 +1899,7 @@ Generated OpenAPI documentation shall include:
 - Export Profile enum;
 - Export Format enum;
 - lifecycle status enum;
+- failure-code enum;
 - common filter schema;
 - dataset-specific filter validation;
 - create request and response schemas;
@@ -1891,6 +1918,7 @@ OpenAPI shall document:
 - required timezone offsets;
 - analytical timezone behavior;
 - role/profile restrictions;
+- conditional `facility_id` requirements for Facility Operators;
 - artifact expiration behavior;
 - asynchronous lifecycle behavior.
 
@@ -1937,7 +1965,8 @@ Unit tests shall cover:
 - namespace separation;
 - different pseudonyms across separate exports;
 - Research field transformations;
-- failure-code mapping;
+- closed Version 1 failure-code enum and failure-code mapping;
+- `SNAPSHOT_LOST` precedence over `ABANDONED_PROCESSING`;
 - manifest-version resolution;
 
 ## 30.2 Integration Tests
@@ -1954,7 +1983,8 @@ Integration tests shall cover:
 - artifact atomic storage;
 - artifact retrieval;
 - artifact deletion;
-- abandoned-processing recovery;
+- abandoned-processing recovery with `ABANDONED_PROCESSING`;
+- snapshot-loss recovery with `SNAPSHOT_LOST`;
 - abandoned-pending recovery;
 - single-active-worker claiming;
 - configured row limit;
@@ -1986,6 +2016,9 @@ API tests shall cover:
 - resource visibility between users;
 - multi-Role authorization precedence;
 - Facility Assignment removal after creation;
+- sole-Facility inference when `facility_id` is omitted;
+- ambiguous omitted `facility_id` rejection for a multi-Facility Operator;
+- persistence of the resolved Facility in canonical export filters;
 
 ## 30.4 Format Compatibility Tests
 
@@ -2047,6 +2080,7 @@ Contract tests shall validate:
 - Valid lifecycle transitions are enforced.
 - Terminal states are immutable.
 - Abandoned processing is recoverable or failed deterministically.
+- Snapshot loss and abandoned processing use their defined failure codes.
 - Failure information is sanitized.
 
 ## Snapshot and Reproducibility
@@ -2071,6 +2105,7 @@ Contract tests shall validate:
 
 - Platform Administrator permissions are implemented.
 - Facility Operator scope is enforced.
+- Every Facility Operator export persists exactly one resolved assigned Facility.
 - Researcher access is denied in Version 1.
 - Data Scientist access is denied in Version 1.
 - EV Drivers and Technical Clients are denied.
