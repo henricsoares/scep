@@ -1198,7 +1198,7 @@ Deliverables:
 
 Current progress: SPEC-010 is approved and implemented with read-only, on-demand Analytics.
 
-SPEC-011 is Draft / Under Review and is not implemented. SPEC-012 and SPEC-013 are Planned and not
+SPEC-011 is approved and is not implemented. SPEC-012 and SPEC-013 are Planned and not
 implemented.
 
 ---

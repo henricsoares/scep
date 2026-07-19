@@ -1004,9 +1004,9 @@ At least one optional measurement field shall be present, as required by SPEC-00
 
 SPEC-011 extends the event catalog with `DatasetExportCompleted`.
 
-This contract becomes active only when SPEC-011 is implemented. While SPEC-011 remains Draft and
-Not Implemented, `DatasetExportCompleted` is a reserved future contract and is not emitted by the
-current runtime.
+This contract becomes active only when SPEC-011 is implemented. Although SPEC-011 is Approved,
+`DatasetExportCompleted` remains a reserved future contract and is not emitted by the current
+runtime.
 
 It is published only after the data file and manifest are generated, the artifact is stored
 successfully and the Dataset Export resource transitions to `COMPLETED`.

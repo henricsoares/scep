@@ -64,7 +64,7 @@ Implementation becomes the translation of approved specifications into software.
 | SPEC-008 | Smart Charging Domain Telemetry | Approved | Implemented |
 | SPEC-009 | Domain Events | Approved | Implemented |
 | SPEC-010 | Analytics | Approved | Implemented |
-| SPEC-011 | Dataset Export | Draft / Under Review | Not Implemented |
+| SPEC-011 | Dataset Export | Approved | Not Implemented |
 | SPEC-012 | Predictions | Planned | Not Implemented |
 | SPEC-013 | Digital Twin Simulation Engine | Planned | Not Implemented |
 
@@ -389,9 +389,9 @@ Completed:
 * ✅ Domain Events implementation
 * ✅ Analytics implementation
 
-Specification under review:
+Approved specification awaiting implementation:
 
 **SPEC-011 — Dataset Export**
 
-SPEC-001 through SPEC-010 are approved and implemented. SPEC-011 is Draft / Under Review and is not
+SPEC-001 through SPEC-010 are approved and implemented. SPEC-011 is approved and is not
 implemented. SPEC-012 and SPEC-013 are Planned and not implemented.
