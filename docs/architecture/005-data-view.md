@@ -54,9 +54,15 @@ Although both are initially stored in PostgreSQL, they represent different logic
 
 ## Dataset Reproducibility
 
-Every dataset exported by the platform must be reproducible.
+Every Version 1 dataset exported by the platform shall provide artifact integrity, provenance and
+deterministic generation under equivalent schema, parameters, implementation revision and source
+snapshot.
 
-The same simulation parameters must produce equivalent datasets.
+Dataset Export does not guarantee reconstruction of historical source state after it changes.
+
+Simulation reproducibility means rerunning a simulation from its scenario, version, parameters and
+seed. It belongs to the external Simulation Engine and is distinct from deterministic Dataset
+Export generation.
 
 ---
 
@@ -302,6 +308,10 @@ Archive
 
 No analytical process may modify transactional records.
 
+This lifecycle is conceptual rather than a mandatory event-to-export dependency. Dataset Export
+Version 1 reads operational entities through module-owned read contracts and reuses Analytics
+projections as defined by ADR-009.
+
 ---
 
 # 8. Dataset Generation
@@ -319,19 +329,25 @@ Datasets may include:
 * simulation metadata;
 * operational KPIs.
 
-Supported export formats:
+Portable export formats are selected by the Dataset Export functional specification. Version 1
+supports:
 
 * CSV;
-* JSON;
 * Parquet.
 
 Every dataset shall contain metadata describing:
 
 * generation date;
-* simulation seed;
 * software version;
-* experiment identifier;
-* export configuration.
+* source cutoff;
+* schema version;
+* canonical export configuration;
+* integrity information.
+
+Experiment identifiers, feature descriptions, simulation seeds and simulation parameters are
+conditional source lineage rather than universal export metadata. A future specification may
+introduce a structured `source_lineage` object when the source association can be represented
+truthfully.
 
 ---
 
@@ -409,7 +425,7 @@ Data produced by SCEP is itself a research artifact.
 
 The platform is expected to generate:
 
-* reproducible datasets;
+* deterministic, provenance-rich datasets;
 * historical event streams;
 * operational indicators;
 * AI-ready datasets;
@@ -438,7 +454,8 @@ Supports:
 
 # 14. Final Considerations
 
-The data architecture of SCEP is intentionally designed around domain ownership, immutable events and reproducible datasets.
+The data architecture of SCEP is intentionally designed around domain ownership, immutable events
+and deterministic datasets with explicit provenance.
 
 Rather than treating data as a secondary concern, the platform considers operational information a strategic asset that simultaneously enables system execution, architectural evaluation and scientific experimentation.
 

@@ -166,6 +166,7 @@ Current ADRs:
 | ADR-006 | Observability-First |
 | ADR-007 | DevSecOps + Continuous Integration |
 | ADR-008 | AI Research Environment |
+| ADR-009 | Dataset Export Snapshot, Source and Provenance Strategy |
 
 ---
 

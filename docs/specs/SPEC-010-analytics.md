@@ -401,6 +401,11 @@ For an ACTIVE Charging Session, the effective end shall be the earlier value bet
 
 The query processing timestamp shall be captured once at the start of the request and reused for all calculations.
 
+Public Analytics REST endpoints shall continue to use their request processing timestamp. An
+internal read-only projection consumer may supply an explicit processing timestamp while preserving
+the same metric formulas. Dataset Export shall supply its `data_cutoff_at` so every exported bucket
+uses one processing boundary. This internal contract does not change the public Analytics REST API.
+
 ## Telemetry Selection
 
 Telemetry shall be associated with Analytics through Charging Session ownership.
@@ -1222,6 +1227,7 @@ Analytics projection code shall:
 - centralize Facility operating-hours calculations;
 - reuse metric definitions across overview and specialized endpoints;
 - capture the request processing timestamp once;
+- accept an explicit processing timestamp from authorized internal projection consumers;
 - avoid N+1 queries;
 - keep SQL and application calculations behaviorally equivalent;
 - preserve deterministic ordering of time-series buckets.

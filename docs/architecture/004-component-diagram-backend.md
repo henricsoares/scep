@@ -78,7 +78,7 @@ C4Component
         Component(telemetry, "Telemetry Component", "Application Module", "Ingests and normalizes operational telemetry.")
         Component(events, "Domain Event Component", "Event Store / Internal Event Dispatcher", "Transactionally persists events and dispatches them after commit.")
         Component(analytics, "Analytics Component", "Application Module", "Computes read-only indicators on demand from persisted operational data.")
-        Component(datasets, "Dataset Export Component (Future)", "Application Module", "Will generate research datasets from historical data and events.")
+        Component(datasets, "Dataset Export Component (Future)", "Application Module", "Will generate research datasets from operational read contracts and Analytics projections.")
         Component(prediction, "Prediction Component (Future)", "Application Module", "Will store prediction results and expose AI-related outputs.")
         Component(notification, "Notification Component", "Application Module", "Sends notification requests to the Notification Mock or future providers.")
         Component(observability, "Observability Component", "Cross-Cutting", "Emits logs, metrics, traces and health information.")
@@ -102,7 +102,10 @@ C4Component
     Rel(charging, events, "Publishes domain events")
     Rel(telemetry, events, "Publishes telemetry events")
     Rel(events, analytics, "May provide future projection input")
-    Rel(events, datasets, "Provides event history")
+    Rel(datasets, events, "Publishes DatasetExportCompleted")
+    Rel(datasets, charging, "Reads operational projections through module-owned ports")
+    Rel(datasets, telemetry, "Reads telemetry projections through module-owned ports")
+    Rel(datasets, analytics, "Uses read-only projections")
     Rel(analytics, prediction, "Provides indicators for AI outputs")
     Rel(notification, notificationMock, "Sends notification requests")
 
@@ -111,7 +114,7 @@ C4Component
     Rel(telemetry, persistence, "Reads and writes")
     Rel(events, persistence, "Persists events")
     Rel(analytics, persistence, "Reads operational data")
-    Rel(datasets, persistence, "Reads historical data")
+    Rel(datasets, persistence, "Persists export metadata")
     Rel(prediction, persistence, "Reads and writes prediction results")
 
     Rel(persistence, db, "SQL")
@@ -233,7 +236,7 @@ Responsibilities:
 * define the domain event envelope;
 * persist emitted events in the same transaction as the originating business state;
 * dispatch persisted events to internal consumers after commit with at-least-once delivery;
-* provide event history for analytics and datasets;
+* provide event history for future event-oriented Analytics or Dataset Export consumers;
 * support future integration with external brokers.
 
 The initial design uses an in-process Internal Event Dispatcher backed by a persistent Event Store.
@@ -278,21 +281,25 @@ from any one analytical domain, and version 1 does not require Domain Events.
 
 ## 5.7 Dataset Export Component
 
-The Dataset Export Component produces research datasets from operational and simulated data.
+The Dataset Export Component produces research datasets from operational data and Analytics
+projections.
 
 Responsibilities:
 
-* export historical data;
-* export domain events;
-* export telemetry records;
-* export simulation metadata;
+* read persisted operational entities through module-owned read ports;
+* reuse the Analytics read-only projection port;
+* generate portable dataset artifacts;
 * generate dataset metadata;
-* provide reproducible dataset extraction.
+* persist Dataset Export metadata;
+* publish `DatasetExportCompleted` after successful artifact storage and completion.
 
-Supported output formats may include:
+Version 1 does not require Domain Events as its dataset row source, and direct Domain Event datasets
+remain out of scope. Future versions may use event history for event-oriented datasets or
+historical reconstruction.
+
+Portable output formats are controlled by SPEC-011. Version 1 supports:
 
 * CSV;
-* JSON;
 * Parquet.
 
 The component supports AI experimentation but does not train models itself.
@@ -386,7 +393,8 @@ The Backend API must respect the following dependency rules.
 * Application components may call their own repositories.
 * Application components may publish domain events.
 * Analytics reads persisted operational data in version 1 and may consume event history in a future version.
-* Dataset Export may read historical records.
+* Dataset Export reads operational data through module-owned read contracts and may call the
+  Analytics read-only projection port.
 * Prediction may store AI outputs.
 * Observability may be used by any component.
 
@@ -631,11 +639,13 @@ This document depends on:
 Future documents:
 
 * `005-data-view.md`;
-* `006-observability-view.md`;
-* `007-quality-attributes.md`;
+* `006-quality-attributes.md`;
+* `007-observability-view.md`;
+* `008-deployment-runtime-view.md`;
 * `ADR-001-modular-monolith.md`;
 * `ADR-002-python-fastapi.md`;
-* `ADR-003-event-driven.md`.
+* `ADR-003-event-driven-architecture.md`;
+* `ADR-009-dataset-export-snapshot-source-and-provenance-strategy.md`.
 
 ---
 
