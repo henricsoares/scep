@@ -84,6 +84,49 @@ recreate the local database volume only if its data may be discarded; this is de
 When importing an updated collection, remove the previous SPEC-010 workspace first so Insomnia does
 not retain its old scripts or Base Environment values.
 
+## SPEC-011 Dataset Export collection
+
+Import `scep-spec011-insomnia.json`, open **SPEC-011 Automated Dataset Export**, and run all 29
+requests in numeric order with the Insomnia Collection Runner. The flow is self-contained: it
+creates a unique Facility, Station, Driver, Vehicle, fulfilled Reservation, active Charging Session
+and two telemetry samples before creating the exports.
+
+The four asynchronous exports cover:
+
+- `OPERATIONAL_TELEMETRY` in `RESEARCH`/CSV twice, using identical filters so export-scoped
+  pseudonymization can be compared;
+- `OPERATIONAL_CHARGING_SESSIONS` in `ADMINISTRATIVE`/Parquet;
+- `ANALYTICAL_OCCUPANCY` in `RESEARCH`/CSV with hourly granularity;
+- `PENDING` creation responses, completion polling, detail, filtered listing and ZIP download;
+- retained-artifact availability, cutoff, row count, integrity hashes and expiry metadata;
+- `dataset-export.completed`, EV Driver denial, invalid-window validation, OpenAPI and Prometheus
+  exposition.
+
+Each poll waits two seconds before asserting `COMPLETED`. That is enough for the small generated
+dataset in the normal local stack. If a constrained machine still returns `PENDING` or
+`PROCESSING`, rerun only that poll request and its following download, then continue the runner
+from the next request.
+
+The download responses are ZIP binaries. Use Insomnia's **Save Response** action on requests 13,
+16, 19 and 22 when you want to inspect them outside the client. Every ZIP must contain
+`manifest.json` and exactly one `data.csv` or `data.parquet` file. In telemetry ZIPs A and B:
+
+- the two rows inside one ZIP must reuse the same 64-character pseudonymous `session_id`,
+  `reservation_id`, `owner_id` and `vehicle_id`;
+- those pseudonyms must differ between A and B, proving the pseudonym scope is one Dataset Export;
+- `manifest.json` must report `HMAC_SHA256_V1`, scope `DATASET_EXPORT`, the non-secret key version,
+  canonical filters, schema/manifest versions, cutoff, row count and data-file SHA-256 without a
+  secret or lookup map.
+
+All observable requests use an `X-Request-ID` beginning with `spec011-<run_id>-`, which can be used
+to correlate API responses with Loki and Tempo. Prometheus counters are cumulative and do not carry
+that run identifier.
+
+Before using the Collection Runner, execute request 01 by itself and confirm the login succeeds.
+If it returns `401`, set `admin_email` and `admin_password` in the Base Environment to the existing
+local Platform Administrator credentials. Import updated versions into a fresh workspace so
+Insomnia does not retain old scripts or environment state.
+
 ## SPEC-006 visual acceptance
 
 Start the complete local stack before running the collection:
