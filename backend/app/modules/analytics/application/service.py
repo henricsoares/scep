@@ -90,6 +90,31 @@ class AnalyticsService:
         finally:
             analytics_query_duration_seconds.labels(endpoint).observe(monotonic() - started)
 
+    def project_occupancy(
+        self, query: AnalyticsQuery, user: User, processing_time: datetime
+    ) -> list[dict[str, Any]]:
+        """Internal projection contract used by processing-time Dataset Exports."""
+        if query.granularity is None:
+            raise AnalyticsValidationError("granularity is required for occupancy export")
+        scope = self._scope(query, user)
+        response = self._response("occupancy", query, scope, utc(processing_time))
+        projected: list[dict[str, Any]] = []
+        for item in response.get("series", []):
+            projected.append(
+                {
+                    "bucket_from": item["from"],
+                    "bucket_to": item["to"],
+                    "timezone": scope.timezone,
+                    "facility_id": (
+                        scope.facility_ids[0] if len(scope.facility_ids) == 1 else None
+                    ),
+                    "station_id": query.station_id,
+                    "connector_id": query.connector_id,
+                    **item["metrics"],
+                }
+            )
+        return projected
+
     def _scope(self, query: AnalyticsQuery, user: User) -> Scope:
         start, end = query.from_, query.to
         if start.tzinfo is None or end.tzinfo is None:

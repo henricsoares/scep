@@ -29,3 +29,9 @@ class AnalyticsReader(Protocol):
     def telemetry(
         self, session_ids: tuple[UUID, ...], start: datetime, end: datetime
     ) -> list[Any]: ...
+
+
+class OccupancyProjectionPort(Protocol):
+    def project_occupancy(
+        self, query: Any, user: Any, processing_time: datetime
+    ) -> list[dict[str, Any]]: ...
