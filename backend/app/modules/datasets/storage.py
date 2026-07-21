@@ -62,7 +62,10 @@ class LocalDatasetArtifactStorage:
             raise ArtifactStorageError("artifact storage operation failed") from exc
 
     def exists(self, key: str) -> bool:
-        return self._path(key).is_file()
+        try:
+            return self._path(key).is_file()
+        except OSError as exc:
+            raise ArtifactStorageError("artifact storage operation failed") from exc
 
     def delete(self, key: str) -> None:
         try:

@@ -6,6 +6,7 @@ import io
 import json
 import zipfile
 from datetime import UTC, datetime
+from pathlib import Path
 from uuid import uuid4
 
 import pyarrow.parquet as pq  # type: ignore[import-untyped]
@@ -30,6 +31,7 @@ from app.modules.datasets.schemas import (
 )
 from app.modules.datasets.storage import ArtifactStorageError, LocalDatasetArtifactStorage
 from prometheus_client import generate_latest
+from pytest import MonkeyPatch
 
 
 def now() -> datetime:
@@ -184,6 +186,20 @@ def test_local_storage_is_atomic_and_rejects_traversal(tmp_path: object) -> None
         storage.exists("../artifact.zip")
     storage.delete(key)
     assert not storage.exists(key)
+
+
+def test_local_storage_normalizes_existence_check_failures(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    storage = LocalDatasetArtifactStorage(tmp_path)
+    key = storage.store(uuid4(), b"artifact")
+
+    def fail_exists(_path: Path) -> bool:
+        raise OSError("provider unavailable")
+
+    monkeypatch.setattr(Path, "is_file", fail_exists)
+    with pytest.raises(ArtifactStorageError, match="storage operation failed"):
+        storage.exists(key)
 
 
 def test_observability_metrics_are_exposed_without_identifier_labels() -> None:

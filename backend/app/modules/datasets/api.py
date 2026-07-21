@@ -31,9 +31,13 @@ from app.modules.datasets.domain import (
     category,
 )
 from app.modules.datasets.infrastructure import DatasetExportModel, DatasetExportRepository
-from app.modules.datasets.metrics import downloads_total
+from app.modules.datasets.metrics import downloads_total, storage_failures_total
 from app.modules.datasets.service import DatasetExportService, DatasetExportWorker
-from app.modules.datasets.storage import ArtifactStorageError, LocalDatasetArtifactStorage
+from app.modules.datasets.storage import (
+    ArtifactStorageError,
+    DatasetArtifactStorage,
+    LocalDatasetArtifactStorage,
+)
 from app.modules.identity.api.dependencies import current_user
 from app.modules.identity.application.metrics import authorization_denied_total
 from app.modules.identity.domain.user import AccountStatus, AccountType, HumanRole, User
@@ -176,18 +180,33 @@ def _require_role(user: User) -> None:
         raise HTTPException(status_code=403, detail="insufficient permission")
 
 
-def _available(item: DatasetExportModel, now: datetime | None = None) -> bool:
+def _available(
+    item: DatasetExportModel,
+    storage: DatasetArtifactStorage,
+    now: datetime | None = None,
+) -> bool:
     now = now or datetime.now(UTC)
     expires_at = item.artifact_expires_at
     if expires_at is not None and expires_at.tzinfo is None:
         expires_at = expires_at.replace(tzinfo=UTC)
-    return bool(
+    retained = bool(
         item.status == ExportStatus.COMPLETED.value
         and item.artifact_storage_key
         and item.artifact_deleted_at is None
         and expires_at
         and expires_at > now
     )
+    if not retained or item.artifact_storage_key is None:
+        return False
+    try:
+        return storage.exists(item.artifact_storage_key)
+    except ArtifactStorageError:
+        storage_failures_total.labels("exists").inc()
+        logger.warning(
+            "dataset_export_artifact_availability_check_failed",
+            extra={"dataset_export_id": str(item.id)},
+        )
+        return False
 
 
 def _create_response(item: DatasetExportModel) -> CreateDatasetExportResponse:
@@ -205,7 +224,9 @@ def _create_response(item: DatasetExportModel) -> CreateDatasetExportResponse:
     )
 
 
-def _detail(item: DatasetExportModel) -> DatasetExportDetailResponse:
+def _detail(
+    item: DatasetExportModel, storage: DatasetArtifactStorage
+) -> DatasetExportDetailResponse:
     return DatasetExportDetailResponse.model_validate(
         {
             **{
@@ -214,7 +235,7 @@ def _detail(item: DatasetExportModel) -> DatasetExportDetailResponse:
                 if hasattr(item, name)
             },
             "dataset_category": category(DatasetType(item.dataset_type)).value,
-            "artifact_available": _available(item),
+            "artifact_available": _available(item, storage),
         }
     )
 
@@ -277,6 +298,7 @@ def create_dataset_export(
 def list_dataset_exports(
     db: Annotated[Session, Depends(get_db)],
     user: Annotated[User, Depends(current_user)],
+    settings: Annotated[Settings, Depends(get_settings)],
     export_status: Annotated[ExportStatus | None, Query(alias="status")] = None,
     dataset_type: DatasetType | None = None,
     export_profile: ExportProfile | None = None,
@@ -286,6 +308,7 @@ def list_dataset_exports(
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> DatasetExportListResponse:
     _require_role(user)
+    storage = LocalDatasetArtifactStorage(settings.dataset_export_storage_path)
     admin = HumanRole.PLATFORM_ADMINISTRATOR in user.roles
     repo = DatasetExportRepository(db)
 
@@ -318,7 +341,7 @@ def list_dataset_exports(
                     "format": item.format,
                     "status": item.status,
                     "row_count": item.row_count,
-                    "artifact_available": _available(item),
+                    "artifact_available": _available(item, storage),
                     "created_at": item.created_at,
                     "completed_at": item.completed_at,
                 }
@@ -348,8 +371,10 @@ def retrieve_dataset_export(
     dataset_export_id: UUID,
     db: Annotated[Session, Depends(get_db)],
     user: Annotated[User, Depends(current_user)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> DatasetExportDetailResponse:
-    return _detail(_visible_item(db, dataset_export_id, user))
+    storage = LocalDatasetArtifactStorage(settings.dataset_export_storage_path)
+    return _detail(_visible_item(db, dataset_export_id, user), storage)
 
 
 @router.get(
@@ -372,7 +397,7 @@ def download_dataset_export(
     expires_at = item.artifact_expires_at
     if expires_at is not None and expires_at.tzinfo is None:
         expires_at = expires_at.replace(tzinfo=UTC)
-    if expires_at is not None and expires_at <= now:
+    if item.artifact_deleted_at is not None or (expires_at is not None and expires_at <= now):
         downloads_total.labels("expired").inc()
         raise HTTPException(status_code=410, detail="artifact expired")
     if item.artifact_storage_key is None:

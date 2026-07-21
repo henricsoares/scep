@@ -87,6 +87,7 @@ class DatasetExportService:
         export_requests_total.labels(dataset_type.value, profile.value, format.value).inc()
         try:
             resolved = self._validate(dataset_type, format, filters, user)
+            self.cleanup_expired()
             if self.repository.count_pending() >= self.settings.dataset_export_max_queued_jobs:
                 raise DatasetQueueFullError("dataset export queue is full")
             item = CreateExport.new(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import io
 import json
 import os
@@ -10,7 +11,7 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import Event
-from typing import Any
+from typing import Any, BinaryIO
 from uuid import UUID, uuid4
 
 import pytest
@@ -36,7 +37,11 @@ from app.modules.datasets.domain import (
 )
 from app.modules.datasets.infrastructure import DatasetExportModel, DatasetExportRepository
 from app.modules.datasets.service import DatasetExportService, DatasetExportWorker
-from app.modules.datasets.storage import LocalDatasetArtifactStorage
+from app.modules.datasets.storage import (
+    ArtifactStorageError,
+    DatasetArtifactStorage,
+    LocalDatasetArtifactStorage,
+)
 from app.modules.events.infrastructure import DomainEventModel
 from app.modules.identity.api.dependencies import current_user
 from app.modules.identity.domain.user import AccountStatus, AccountType, HumanRole, User
@@ -185,7 +190,7 @@ def settings(storage: Path, **overrides: object) -> Settings:
 
 
 def make_worker(
-    sessions: sessionmaker[Session], configured: Settings, storage: LocalDatasetArtifactStorage
+    sessions: sessionmaker[Session], configured: Settings, storage: DatasetArtifactStorage
 ) -> DatasetExportWorker:
     return DatasetExportWorker(
         sessions,
@@ -196,6 +201,28 @@ def make_worker(
         lambda session: AnalyticsService(AnalyticsRepository(session)),
         IdentityDatasetReader,
     )
+
+
+class RetryDeleteStorage:
+    def __init__(self, delegate: LocalDatasetArtifactStorage) -> None:
+        self.delegate = delegate
+        self.fail_deletes = True
+        self.delete_attempts = 0
+
+    def store(self, export_id: UUID, content: bytes) -> str:
+        return self.delegate.store(export_id, content)
+
+    def open(self, key: str) -> BinaryIO:
+        return self.delegate.open(key)
+
+    def exists(self, key: str) -> bool:
+        return self.delegate.exists(key)
+
+    def delete(self, key: str) -> None:
+        self.delete_attempts += 1
+        if self.fail_deletes:
+            raise ArtifactStorageError("temporary deletion failure")
+        self.delegate.delete(key)
 
 
 def test_worker_generates_artifact_and_completed_event(tmp_path: Path) -> None:
@@ -298,7 +325,8 @@ def test_claiming_runtime_limit_recovery_and_expiration(tmp_path: Path) -> None:
         storage_key = pending_item.artifact_storage_key
         verify.commit()
     assert storage_key is not None
-    storage = LocalDatasetArtifactStorage(tmp_path / "artifacts")
+    local_storage = LocalDatasetArtifactStorage(tmp_path / "artifacts")
+    storage = RetryDeleteStorage(local_storage)
     with sessions() as cleanup_session:
         service = DatasetExportService(
             cleanup_session,
@@ -306,8 +334,75 @@ def test_claiming_runtime_limit_recovery_and_expiration(tmp_path: Path) -> None:
             storage,
             ChargingDatasetReader(cleanup_session),
         )
-        assert service.cleanup_expired() == 1
-    assert not storage.exists(storage_key)
+        assert service.cleanup_expired() == 0
+        assert storage.delete_attempts == 1
+        failed_cleanup = cleanup_session.get(DatasetExportModel, pending.id)
+        assert failed_cleanup is not None
+        assert failed_cleanup.status == ExportStatus.COMPLETED.value
+        assert failed_cleanup.artifact_deleted_at is None
+        assert local_storage.exists(storage_key)
+
+        storage.fail_deletes = False
+        accepted = service.create(
+            dataset_type=DatasetType.OPERATIONAL_CHARGING_SESSIONS,
+            profile=ExportProfile.ADMINISTRATIVE,
+            format=ExportFormat.CSV,
+            filters=request.filters,
+            user=user,
+        )
+        assert accepted.status == ExportStatus.PENDING.value
+        assert storage.delete_attempts == 2
+    assert not local_storage.exists(storage_key)
+    with sessions() as verify:
+        cleaned = verify.get(DatasetExportModel, pending.id)
+        assert cleaned is not None
+        assert cleaned.status == ExportStatus.COMPLETED.value
+        assert cleaned.artifact_deleted_at is not None
+        assert cleaned.artifact_storage_key == storage_key
+
+
+def test_startup_retention_cleanup_preserves_completed_metadata(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    sessions, db = database(tmp_path / "startup-cleanup.db")
+    user, facility_id = seed(db)
+    request = CreateExport.new(
+        dataset_type=DatasetType.OPERATIONAL_CHARGING_SESSIONS,
+        export_profile=ExportProfile.ADMINISTRATIVE,
+        format=ExportFormat.CSV,
+        filters=ExportFilters(
+            dt("2026-07-20T00:00Z"),
+            dt("2026-07-21T00:00Z"),
+            facility_id=facility_id,
+        ),
+        requested_by=user.id,
+    )
+    DatasetExportRepository(db).create(request)
+    storage_path = tmp_path / "startup-artifacts"
+    storage = LocalDatasetArtifactStorage(storage_path)
+    assert make_worker(sessions, settings(storage_path), storage).process(request.id)
+    with sessions() as mutate:
+        item = mutate.get(DatasetExportModel, request.id)
+        assert item is not None and item.artifact_storage_key is not None
+        key = item.artifact_storage_key
+        item.artifact_expires_at = datetime.now(UTC) - timedelta(seconds=1)
+        mutate.commit()
+
+    main_module = importlib.import_module("app.main")
+    monkeypatch.setattr(main_module, "SessionLocal", sessions)
+    monkeypatch.setattr(main_module, "get_settings", lambda: settings(storage_path))
+    monkeypatch.setattr(main_module, "bootstrap_admin", lambda *_args: None)
+    application = main_module.create_app(export_telemetry=False)
+    with TestClient(application) as client:
+        assert client.get("/health").status_code == 200
+
+    assert not storage.exists(key)
+    with sessions() as verify:
+        cleaned = verify.get(DatasetExportModel, request.id)
+        assert cleaned is not None
+        assert cleaned.status == ExportStatus.COMPLETED.value
+        assert cleaned.artifact_deleted_at is not None
+        assert cleaned.artifact_storage_key == key
 
 
 def test_runtime_row_and_artifact_limits_fail_with_closed_codes(
@@ -399,6 +494,11 @@ def test_api_authorization_inference_visibility_and_download(tmp_path: Path) -> 
         assert detail.status_code == 200
         assert detail.json()["filters"]["facility_id"] == str(facility_id)
         assert detail.json()["status"] == "COMPLETED"
+        assert detail.json()["artifact_available"] is True
+        listed = client.get("/dataset-exports")
+        assert listed.status_code == 200
+        listed_item = next(item for item in listed.json()["items"] if item["id"] == export_id)
+        assert listed_item["artifact_available"] is True
         downloaded = client.get(f"/dataset-exports/{export_id}/download")
         assert downloaded.status_code == 200
         assert downloaded.headers["content-type"] == "application/zip"
@@ -446,6 +546,7 @@ def test_api_authorization_inference_visibility_and_download(tmp_path: Path) -> 
             assert item is not None
             item.artifact_expires_at = datetime.now(UTC) - timedelta(seconds=1)
             mutate.commit()
+        assert client.get(f"/dataset-exports/{export_id}").json()["artifact_available"] is False
         assert client.get(f"/dataset-exports/{export_id}/download").status_code == 410
 
         with sessions() as mutate:
@@ -455,7 +556,20 @@ def test_api_authorization_inference_visibility_and_download(tmp_path: Path) -> 
             storage_key = item.artifact_storage_key
             mutate.commit()
         LocalDatasetArtifactStorage(tmp_path / "api-artifacts").delete(storage_key)
+        assert client.get(f"/dataset-exports/{export_id}").json()["artifact_available"] is False
+        missing_list = client.get("/dataset-exports")
+        missing_item = next(
+            item for item in missing_list.json()["items"] if item["id"] == export_id
+        )
+        assert missing_item["artifact_available"] is False
         assert client.get(f"/dataset-exports/{export_id}/download").status_code == 503
+
+        with sessions() as mutate:
+            item = mutate.get(DatasetExportModel, UUID(export_id))
+            assert item is not None
+            item.artifact_deleted_at = datetime.now(UTC)
+            mutate.commit()
+        assert client.get(f"/dataset-exports/{export_id}/download").status_code == 410
 
         ambiguous = User(
             **{

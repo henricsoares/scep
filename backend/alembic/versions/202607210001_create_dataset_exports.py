@@ -41,7 +41,8 @@ def upgrade() -> None:
         sa.Column("artifact_expires_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("artifact_deleted_at", sa.DateTime(timezone=True), nullable=True),
         sa.CheckConstraint(
-            "dataset_type IN ('OPERATIONAL_CHARGING_SESSIONS','OPERATIONAL_TELEMETRY','ANALYTICAL_OCCUPANCY')",
+            "dataset_type IN ('OPERATIONAL_CHARGING_SESSIONS',"
+            "'OPERATIONAL_TELEMETRY','ANALYTICAL_OCCUPANCY')",
             name="ck_dataset_exports_type",
         ),
         sa.CheckConstraint(
@@ -62,7 +63,8 @@ def upgrade() -> None:
         sa.CheckConstraint(
             "(status = 'PENDING' AND started_at IS NULL AND data_cutoff_at IS NULL) OR "
             "(status = 'PROCESSING' AND started_at IS NOT NULL) OR "
-            "(status = 'COMPLETED' AND completed_at IS NOT NULL AND artifact_storage_key IS NOT NULL) OR "
+            "(status = 'COMPLETED' AND completed_at IS NOT NULL "
+            "AND artifact_storage_key IS NOT NULL) OR "
             "(status = 'FAILED' AND failed_at IS NOT NULL AND failure_code IS NOT NULL)",
             name="ck_dataset_exports_lifecycle",
         ),

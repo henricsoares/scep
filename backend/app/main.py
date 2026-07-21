@@ -17,7 +17,7 @@ from app.modules.charging.api.stations import router as stations_router
 from app.modules.charging.api.vehicles import router as vehicles_router
 from app.modules.charging.infrastructure.dataset_export_reader import ChargingDatasetReader
 from app.modules.datasets.api import router as datasets_router
-from app.modules.datasets.service import DatasetExportWorker
+from app.modules.datasets.service import DatasetExportService, DatasetExportWorker
 from app.modules.datasets.storage import LocalDatasetArtifactStorage
 from app.modules.events.api import router as events_router
 from app.modules.events.dispatcher import InternalEventDispatcher
@@ -76,10 +76,18 @@ def create_app(*, export_telemetry: bool | None = None) -> FastAPI:
     def recover_dataset_exports() -> None:
         if get_db in app.dependency_overrides:
             return
+        storage = LocalDatasetArtifactStorage(settings.dataset_export_storage_path)
+        with SessionLocal() as session:
+            DatasetExportService(
+                session,
+                settings,
+                storage,
+                ChargingDatasetReader(session),
+            ).cleanup_expired()
         worker = DatasetExportWorker(
             SessionLocal,
             settings,
-            LocalDatasetArtifactStorage(settings.dataset_export_storage_path),
+            storage,
             ChargingDatasetReader,
             TelemetryDatasetReader,
             lambda session: AnalyticsService(AnalyticsRepository(session)),
