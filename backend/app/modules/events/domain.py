@@ -23,6 +23,7 @@ class EventType(StrEnum):
     CHARGING_SESSION_STARTED = "charging-session.started"
     CHARGING_SESSION_COMPLETED = "charging-session.completed"
     TELEMETRY_SAMPLE_RECEIVED = "telemetry.sample-received"
+    DATASET_EXPORT_COMPLETED = "dataset-export.completed"
 
 
 @dataclass(frozen=True, slots=True)

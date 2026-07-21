@@ -83,3 +83,24 @@ def telemetry_event(item: Any) -> DomainEvent:
         item.recorded_at,
         payload,
     )
+
+
+def dataset_export_completed_event(item: Any) -> DomainEvent:
+    return event(
+        "dataset-export.completed",
+        item.id,
+        "DatasetExport",
+        "datasets",
+        item.completed_at,
+        {
+            "dataset_export_id": str(item.id),
+            "dataset_type": item.dataset_type,
+            "export_profile": item.export_profile,
+            "format": item.format,
+            "schema_version": item.schema_version,
+            "data_cutoff_at": item.data_cutoff_at.isoformat(),
+            "completed_at": item.completed_at.isoformat(),
+            "row_count": item.row_count,
+            "artifact_size_bytes": item.artifact_size_bytes,
+        },
+    )
