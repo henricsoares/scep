@@ -568,6 +568,13 @@ Dataset Export Version 1 reads persisted operational entities through module-own
 and reuses Analytics projections. It does not reconstruct dataset rows from Domain Events. Future
 event-oriented datasets may consume event history as defined by ADR-009.
 
+SPEC-012 Version 1 defines immutable publications containing one complete recurring weekly
+occupancy profile for one Facility, Station or Connector scope. The external AI Research
+Environment generates the 168 hourly buckets; the Backend API validates, stores and exposes them.
+It neither trains models nor executes model inference. The predicted target is SPEC-010
+`effective_occupancy_rate`, and low predicted occupancy never overrides current infrastructure
+eligibility or operational state.
+
 Unlike conventional enterprise systems, data generation is not considered a secondary effect of business execution.
 
 It is one of the primary architectural objectives.
@@ -1198,8 +1205,10 @@ Deliverables:
 
 Current progress: SPEC-010 is approved and implemented with read-only, on-demand Analytics.
 
-SPEC-011 is approved and is not implemented. SPEC-012 and SPEC-013 are Planned and not
-implemented.
+SPEC-011 is approved and implemented. SPEC-012 is Draft / Under Review and Planned, with
+implementation recommended after SPEC-013. SPEC-013 remains Planned and not implemented.
+SPEC-012 has no mandatory runtime dependency on SPEC-013; the order allows reference validation
+with representative synthetic data and the first external occupancy experiment.
 
 ---
 
