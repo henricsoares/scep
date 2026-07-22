@@ -65,7 +65,7 @@ Implementation becomes the translation of approved specifications into software.
 | SPEC-009 | Domain Events | Approved | Implemented |
 | SPEC-010 | Analytics | Approved | Implemented |
 | SPEC-011 | Dataset Export | Approved | Implemented |
-| SPEC-012 | Predictions | Planned | Not Implemented |
+| SPEC-012 | Weekly Occupancy Predictions | Draft / Under Review | Planned |
 | SPEC-013 | Digital Twin Simulation Engine | Planned | Not Implemented |
 
 ---
@@ -130,18 +130,22 @@ Dataset Export
 
 ↓
 
-SPEC-012
-Predictions
+SPEC-013
+Digital Twin Simulation Engine
 
 ↓
 
-SPEC-013
-Digital Twin Simulation Engine
+SPEC-012
+Weekly Occupancy Predictions
 ```
 
 The sequence follows the natural evolution of the domain.
 
 Infrastructure is established first, followed by the domain model, operational entities and finally analytical and AI capabilities.
+
+SPEC-013 precedes SPEC-012 in the recommended implementation sequence so representative synthetic
+data can support the first occupancy experiment. This ordering does not create a mandatory runtime
+dependency from Predictions to the Simulation Engine.
 
 ---
 
@@ -317,16 +321,22 @@ Topics include:
 
 ---
 
-## SPEC-012 — Predictions
+## SPEC-012 — Weekly Occupancy Predictions
 
-Defines Artificial Intelligence integration.
+Defines controlled publication and consumption of externally generated recurring weekly occupancy
+profiles.
 
 Topics include:
 
-* prediction requests;
-* prediction storage;
-* occupancy prediction;
-* AI integration.
+* immutable 168-bucket publications;
+* Facility, Station and Connector scopes;
+* SPEC-010 `effective_occupancy_rate` prediction;
+* Dataset Export provenance;
+* point lookup and EVDriver Connector recommendations;
+* authorized external AI publication.
+
+SPEC-012 is Draft / Under Review and Planned. Its recommended implementation sequence is after
+SPEC-013, although it has no mandatory runtime dependency on the Simulation Engine.
 
 ---
 
@@ -390,5 +400,5 @@ Completed:
 * ✅ Analytics implementation
 * ✅ Dataset Export implementation
 
-SPEC-001 through SPEC-011 are approved and implemented. SPEC-012 and SPEC-013 are Planned
-and not implemented.
+SPEC-001 through SPEC-011 are approved and implemented. SPEC-012 is Draft / Under Review and
+Planned. SPEC-013 remains Planned and not implemented. Neither SPEC-012 nor SPEC-013 is implemented.

@@ -78,14 +78,14 @@ C4Component
         Component(telemetry, "Telemetry Component", "Application Module", "Ingests and normalizes operational telemetry.")
         Component(events, "Domain Event Component", "Event Store / Internal Event Dispatcher", "Transactionally persists events and dispatches them after commit.")
         Component(analytics, "Analytics Component", "Application Module", "Computes read-only indicators on demand from persisted operational data.")
-        Component(datasets, "Dataset Export Component (Future)", "Application Module", "Will generate research datasets from operational read contracts and Analytics projections.")
-        Component(prediction, "Prediction Component (Future)", "Application Module", "Will store prediction results and expose AI-related outputs.")
+        Component(datasets, "Dataset Export Component", "Application Module", "Generates research datasets from operational read contracts and Analytics projections.")
+        Component(prediction, "Prediction Component (Planned)", "Application Module", "Will validate, store and expose immutable Weekly Occupancy Prediction publications.")
         Component(notification, "Notification Component", "Application Module", "Sends notification requests to the Notification Mock or future providers.")
         Component(observability, "Observability Component", "Cross-Cutting", "Emits logs, metrics, traces and health information.")
         Component(persistence, "Persistence Component", "SQLAlchemy / Repositories", "Provides controlled access to PostgreSQL.")
     }
 
-    ContainerDb(db, "PostgreSQL Database", "Stores transactional data, domain events and telemetry; future capabilities may add analytical or dataset metadata.")
+    ContainerDb(db, "PostgreSQL Database", "Stores transactional data, domain events, telemetry and Dataset Export metadata; planned capabilities may add prediction publications.")
     System_Ext(simulator, "Digital Twin Simulation Engine", "Sends synthetic events and telemetry through public APIs.")
     System_Ext(aiEnv, "AI Research Environment", "Consumes datasets and publishes prediction results.")
     System_Ext(obsStack, "Observability Stack", "Prometheus, Grafana, Loki, Tempo, OpenTelemetry Collector.")
@@ -106,7 +106,7 @@ C4Component
     Rel(datasets, charging, "Reads operational projections through module-owned ports")
     Rel(datasets, telemetry, "Reads telemetry projections through module-owned ports")
     Rel(datasets, analytics, "Uses read-only projections")
-    Rel(analytics, prediction, "Provides indicators for AI outputs")
+    Rel(analytics, prediction, "Defines effective-occupancy target semantics")
     Rel(notification, notificationMock, "Sends notification requests")
 
     Rel(auth, persistence, "Reads and writes")
@@ -308,19 +308,24 @@ The component supports AI experimentation but does not train models itself.
 
 ## 5.8 Prediction Component
 
-The Prediction Component stores and exposes AI-related outputs.
+The planned Prediction Component validates, stores and exposes externally generated Weekly
+Occupancy Prediction publications.
 
 Responsibilities:
 
-* receive prediction results from the AI Research Environment;
-* persist prediction outputs;
-* expose prediction results to the Web Application;
-* associate predictions with time windows, stations or experiments;
-* provide prediction metrics when available.
+* authorize publication from the AI Research Environment;
+* validate one Facility, Station or Connector scope and exactly 168 hourly buckets;
+* atomically persist immutable publication metadata, buckets, history and current selection;
+* expose administrative profile and point lookups;
+* expose eligibility-aware EVDriver Connector recommendations;
+* preserve optional Dataset Export provenance and limited model/run references;
+* emit publication and query observability.
 
-The component does not own model training.
+The component uses SPEC-010 `effective_occupancy_rate` semantics and does not own Analytics formulas,
+infrastructure eligibility or operational status.
 
-Training remains external in the AI Research Environment.
+Training, evaluation, feature engineering and inference remain external in the AI Research
+Environment.
 
 ---
 
@@ -568,9 +573,12 @@ Must emit:
 
 Must emit:
 
-* prediction import count;
-* prediction query latency;
-* prediction error metrics when available.
+* accepted and rejected publication counts;
+* idempotent retry and content-conflict counts;
+* bucket-validation failures;
+* publication and query latency;
+* missing-current and recommendation outcomes;
+* authorization and persistence failures.
 
 ---
 
@@ -607,7 +615,10 @@ Must emit:
 
 ## Prediction
 
-* restrict prediction publishing to authorized AI clients or Data Scientists.
+* restrict publishing to an authorized prediction publisher under the final SPEC-005-aligned
+  permission mapping;
+* restrict Facility Operators and EVDrivers to their owning-domain scopes;
+* avoid exposing technical model, run or Dataset Export metadata to EVDrivers.
 
 ---
 
