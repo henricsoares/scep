@@ -201,13 +201,15 @@ Station and Connector identifiers.
 
 ## 6.5 Current Publication
 
-The most recently accepted publication made current by the atomic acceptance transaction for one
-canonical Prediction Scope.
+The accepted publication referenced for one canonical Prediction Scope because no prior current
+publication existed or because its `generated_at` was strictly later than that of the prior current
+publication. Acceptance time alone does not make a publication current.
 
-## 6.6 Superseded Publication
+## 6.6 Historical or Superseded Publication
 
-An immutable historical publication that is no longer current because a later publication for the
-same Prediction Scope was accepted.
+An immutable accepted publication that is not current. It may have been replaced by a publication
+with a later `generated_at`, or it may have remained historical at acceptance because its
+`generated_at` was earlier than or equal to that of the existing current publication.
 
 ## 6.7 Authorized Prediction Publisher
 
@@ -513,12 +515,16 @@ Publication acceptance shall execute in this order:
 5. validate all 168 bucket values and complete key coverage;
 6. canonicalize content and evaluate idempotency;
 7. persist metadata and all buckets;
-8. atomically update the current-publication reference for the scope;
-9. commit once.
+8. serialize current-reference evaluation for the canonical scope and compare normalized
+   `generated_at` instants;
+9. create or update the current-publication reference only when no current publication exists or
+   the accepted publication has a strictly later `generated_at`;
+10. commit once.
 
 No publication identifier, metadata row, bucket row or current reference shall remain after any
-rejection or persistence failure. Metadata, all 168 buckets and the current reference shall commit
-atomically.
+rejection or persistence failure. Metadata, all 168 buckets and the evaluated current-reference
+result shall commit atomically. A valid publication that does not become current shall still commit
+as immutable history in that transaction.
 
 Validation shall not invoke model inference or reconstruct external feature engineering.
 
@@ -532,13 +538,23 @@ publication.
 Version 1 defines no `PUT` or `PATCH` operation for accepted publications and no bucket-level write
 endpoint.
 
-Each canonical Prediction Scope has at most one mutable current-publication reference. Every newly
-accepted non-idempotent publication automatically becomes current for its scope in the same
-transaction that stores it. Concurrent publications for the same scope shall serialize their
-current-reference updates; the last successfully committed update is current.
+Each canonical Prediction Scope has at most one mutable current-publication reference. The first
+accepted publication for a scope becomes current. A subsequent accepted publication becomes
+current only when its normalized `generated_at` instant is strictly later than the `generated_at`
+of the existing current publication for that exact scope.
 
-Selection shall not use `generated_at`, model version lexical order or client clock order. An older
-model run intentionally published later therefore becomes current.
+An accepted publication with an earlier `generated_at` remains historical and shall not replace the
+current publication. When `generated_at` is equal, the existing current publication remains
+current, and the later accepted equal-time publication remains historical. This equal-time rule is
+deterministic and does not use model-version lexical order, client-provided sequence numbers,
+publication identifiers or `accepted_at` as a tie-break.
+
+Concurrent acceptance for the same canonical scope shall serialize current-reference evaluation
+and update. Each transaction shall compare against the current publication visible after acquiring
+the scope-specific serialization control. Consequently, final current selection is independent of
+commit arrival order for different `generated_at` values. For concurrent equal-time publications
+when no current publication exists, the first successfully serialized acceptance becomes current;
+the other accepted publications remain historical.
 
 An identical idempotent retry returns the existing publication and shall not reorder history or
 change the current reference.
@@ -764,6 +780,11 @@ The response shall return publication metadata, canonical scope, `bucket_count =
 `content_sha256`, `is_current` and links. It need not repeat all buckets; the profile resource is the
 canonical full-content read.
 
+For a new `201 Created` response, `is_current` is `true` only when the atomic selection rule in
+Section 15 created or updated the scope's current reference. A valid stale or equal-time publication
+returns `is_current = false` while remaining accepted and queryable. An idempotent retry reports the
+existing publication's current status at retry time and never changes that status.
+
 ---
 
 # 21. Retrieve One Publication
@@ -919,6 +940,12 @@ GET /predictions/weekly-occupancy/recommendations/stations/{station_id}/connecto
 
 The request requires either canonical weekday/hour input or one explicit-offset `timestamp`.
 
+All candidates necessarily belong to the Station's single owning Facility. The endpoint shall
+resolve the input using that Facility's IANA timezone. It may therefore expose one shared top-level
+resolved weekday, hour and timezone, but only because the complete candidate set belongs to that
+same Facility. Ranking and result items shall not imply that this shared-time response shape applies
+to the cross-Facility endpoint.
+
 ## 26.2 Eligible Connectors Across Infrastructure
 
 ```http
@@ -927,6 +954,24 @@ GET /predictions/weekly-occupancy/recommendations/connectors
 
 Optional `facility_id` and `station_id` filters narrow the actor's eligible infrastructure. The
 complete Facility and Station hierarchy shall be validated when both are supplied.
+
+The broad endpoint shall retain cross-Facility comparison. It shall not require all candidate
+Facilities to share one timezone and shall not restrict the request to one Facility.
+
+The two supported time-input forms have these semantics:
+
+- for one `timestamp` with an explicit offset, the value is one absolute instant. The endpoint shall
+  resolve that instant independently in every candidate Facility's IANA timezone and select each
+  candidate's recurring local weekday/hour bucket independently;
+- for `day_of_week` plus `hour_of_day`, the pair is local civil time interpreted independently in
+  every candidate Facility's IANA timezone. Candidates in different timezones may therefore refer
+  to different absolute instants when the recurring pattern is applied to a concrete week.
+
+In both forms, each returned item shall include its Facility timezone and resolved local
+`day_of_week` and `hour_of_day`. A response that may contain multiple Facilities shall not expose a
+single top-level resolved timezone, weekday or hour. Top-level request information shall contain
+only values valid for the complete result set, such as the original input form, recurring-pattern
+basis, pagination and no-guarantee indicators.
 
 Both endpoints accept `limit` and `offset` and return Connector candidates. Charging occurs at a
 Connector, so broad Facility and Station recommendations are represented by eligible Connectors
@@ -938,10 +983,12 @@ Candidate processing shall:
 1. resolve infrastructure visible and eligible for the authenticated EVDriver using owning-domain
    contracts;
 2. exclude closed or operationally unavailable Facilities, Stations and Connectors;
-3. require a current Connector-scope publication for the resolved local weekday/hour;
-4. derive expected availability from persisted expected occupancy;
-5. order expected availability descending;
-6. break ties by `facility_id`, then `station_id`, then `connector_id`, each ascending by canonical
+3. resolve the request independently in each candidate Facility timezone and select that
+   candidate's local recurring weekday/hour bucket;
+4. require a current Connector-scope publication for the candidate's resolved local bucket;
+5. derive expected availability from persisted expected occupancy;
+6. order expected availability descending;
+7. break ties by `facility_id`, then `station_id`, then `connector_id`, each ascending by canonical
    UUID string.
 
 The ranking response shall include operational status needed to explain current eligibility, the
@@ -955,10 +1002,9 @@ Example response:
 
 ```json
 {
-  "resolved_time": {
-    "day_of_week": "TUESDAY",
-    "hour_of_day": 18,
-    "timezone": "America/Sao_Paulo"
+  "request_time": {
+    "input_type": "TIMESTAMP",
+    "timestamp": "2026-08-04T21:00:00Z"
   },
   "basis": "RECURRING_WEEKLY_PATTERN",
   "availability_guaranteed": false,
@@ -969,18 +1015,44 @@ Example response:
       "facility_id": "9cc7dd93-c072-4860-86ca-23c224b767d3",
       "station_id": "f801c6b8-2117-41f5-94bf-5a7fa314fc57",
       "connector_id": "7803c357-4637-41ea-a03a-e28192535731",
+      "resolved_time": {
+        "day_of_week": "TUESDAY",
+        "hour_of_day": 18,
+        "timezone": "America/Sao_Paulo"
+      },
       "facility_status": "Active",
       "station_status": "Active",
       "connector_status": "Available",
       "expected_occupancy_rate": 0.18,
       "expected_availability_rate": 0.82
+    },
+    {
+      "rank": 2,
+      "facility_id": "429f68cc-4ccd-4e0e-a167-3c49f143e56e",
+      "station_id": "eab7b49d-83b9-42a8-9165-608bb07798da",
+      "connector_id": "d624af58-5fcf-4db0-9651-579ff013d36d",
+      "resolved_time": {
+        "day_of_week": "TUESDAY",
+        "hour_of_day": 14,
+        "timezone": "America/Los_Angeles"
+      },
+      "facility_status": "Active",
+      "station_status": "Active",
+      "connector_status": "Available",
+      "expected_occupancy_rate": 0.25,
+      "expected_availability_rate": 0.75
     }
   ],
   "limit": 50,
   "offset": 0,
-  "total": 1
+  "total": 2
 }
 ```
+
+This example uses one absolute instant. It selects Tuesday at 18:00 in `America/Sao_Paulo` and
+Tuesday at 14:00 in `America/Los_Angeles`. For weekday/hour input, each item would retain the
+requested local pair while exposing its own Facility timezone; the corresponding absolute instants
+may differ.
 
 The current approved domain does not define the EVDriver-to-Facility eligibility relationship
 needed by the broad recommendation contract. That relationship is a prerequisite owned outside
@@ -1105,6 +1177,7 @@ The persistence design shall represent:
 - canonical-content digest;
 - acceptance and generation timestamps;
 - one current-publication reference per canonical scope;
+- serialized current-reference evaluation using publication `generated_at`;
 - complete history.
 
 Critical database constraints shall include, where supported:
@@ -1119,6 +1192,7 @@ Critical database constraints shall include, where supported:
 - unique `(publication_id, day_of_week, hour_of_day)`;
 - unique idempotency identity from Section 16;
 - unique canonical scope in the current-reference relation;
+- a current-reference foreign key whose publication has the same canonical scope;
 - training-data boundary completeness and ordering.
 
 The aggregate-level count of exactly 168 buckets shall be enforced transactionally before commit;
@@ -1128,7 +1202,8 @@ Required indexes shall support:
 
 - publication lookup by identifier;
 - current lookup by complete canonical scope;
-- history by scope and descending acceptance time;
+- history by scope and descending generation time, with acceptance time and identifier available
+  for deterministic presentation ordering;
 - filtering by model name and version;
 - filtering by generation period;
 - Dataset Export provenance lookup;
@@ -1197,6 +1272,8 @@ OpenAPI shall document:
 - rate bounds and finite-number requirements;
 - scope hierarchy and mutually exclusive time-input rules;
 - IANA timezone and RFC 3339 timestamp semantics;
+- per-candidate local-time resolution for cross-Facility recommendations and the absence of a
+  misleading shared timezone in those responses;
 - pagination defaults and maximums;
 - all status codes from Section 27;
 - idempotent replay and conflict behavior;
@@ -1235,6 +1312,13 @@ Tests shall cover:
 - spring skipped hours;
 - fall repeated hours;
 - Facility timezone changes after historical acceptance;
+- one absolute timestamp resolved independently across candidate Facility timezones;
+- weekday/hour input interpreted as local civil time independently across candidate Facility
+  timezones;
+- cross-Facility recommendation items containing their own resolved local weekday, hour and
+  timezone;
+- Station-specific recommendations using one shared resolved time only for candidates in the same
+  owning Facility;
 - zero Operational Capacity and evaluation exclusion semantics.
 
 ## 32.3 Publication and Persistence Tests
@@ -1246,7 +1330,15 @@ Tests shall cover:
 - identical idempotent retry;
 - conflicting idempotency reuse;
 - exactly-once persistence of all 168 buckets;
-- concurrent current-publication selection;
+- later-`generated_at` publication replacing current atomically;
+- earlier-`generated_at` publication remaining accepted historical state;
+- equal-`generated_at` publication preserving the existing current reference;
+- identical idempotent retry leaving current selection unchanged;
+- concurrent current-publication selection serialized per canonical scope;
+- concurrent different-time publications selecting the greatest `generated_at` independent of
+  commit arrival order;
+- concurrent equal-time publications preserving the first successfully serialized current
+  publication;
 - immutable history and superseded visibility;
 - critical check, unique and foreign-key constraints;
 - index-supported current, history and point lookups;
@@ -1276,6 +1368,11 @@ Tests shall cover:
 - exclusion of closed, inactive, under-maintenance and out-of-service infrastructure;
 - expected availability derivation;
 - descending ranking and deterministic tie-breaking;
+- timestamp-based cross-Facility ranking using independently resolved local buckets;
+- weekday/hour cross-Facility ranking using independently interpreted local civil time;
+- absence of one top-level resolved timezone from broad multi-Facility responses;
+- item-level Facility timezone and resolved weekday/hour fields;
+- Station-specific shared-time response restricted to one owning Facility;
 - missing Connector publication exclusion;
 - no automatic Reservation creation;
 - recurring-pattern and no-guarantee response fields.
@@ -1306,6 +1403,10 @@ SPEC-012 Version 1 is ready for approval when:
 - publication is immutable, atomic and safe to retry;
 - identical retry and conflicting reuse behavior are deterministic;
 - current selection and historical visibility are explicit;
+- only a strictly later `generated_at` replaces the current publication, while earlier and equal
+  timestamps remain accepted history;
+- cross-Facility recommendations resolve time independently per Facility and expose resolved local
+  time per item without a misleading shared timezone;
 - Dataset Export provenance and expiration behavior are explicit;
 - administrative, point and recommendation APIs are fully defined;
 - eligibility and operational availability remain owned by existing domains;
