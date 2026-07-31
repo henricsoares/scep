@@ -53,7 +53,7 @@ from app.shared.clock import Clock
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pytest import MonkeyPatch
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 
@@ -161,7 +161,7 @@ def seed(db: Session, role: HumanRole = HumanRole.PLATFORM_ADMINISTRATOR) -> tup
             TelemetrySampleModel(
                 id=uuid4(),
                 session_id=session_id,
-                sample_id="sample-1",
+                sample_id="at-cutoff",
                 source="API_CLIENT",
                 recorded_at=dt("2026-07-20T11:00Z"),
                 received_at=FIXED_PROCESSING_TIME,
@@ -173,7 +173,7 @@ def seed(db: Session, role: HumanRole = HumanRole.PLATFORM_ADMINISTRATOR) -> tup
             TelemetrySampleModel(
                 id=uuid4(),
                 session_id=session_id,
-                sample_id="late-sample",
+                sample_id="after-cutoff",
                 source="API_CLIENT",
                 recorded_at=dt("2026-07-20T11:30Z"),
                 received_at=dt("2026-07-22T00:00Z"),
@@ -236,6 +236,48 @@ class RetryDeleteStorage:
         if self.fail_deletes:
             raise ArtifactStorageError("temporary deletion failure")
         self.delegate.delete(key)
+
+
+def test_telemetry_cutoff_includes_before_and_equal_and_excludes_after(
+    tmp_path: Path,
+) -> None:
+    _sessions, db = database(tmp_path / "cutoff-boundaries.db")
+    user, facility_id = seed(db)
+    source_session = db.scalar(
+        select(ChargingSessionModel).where(ChargingSessionModel.owner_id == user.id)
+    )
+    assert source_session is not None
+    db.add(
+        TelemetrySampleModel(
+            id=uuid4(),
+            session_id=source_session.id,
+            sample_id="before-cutoff",
+            source="API_CLIENT",
+            recorded_at=dt("2026-07-20T10:30Z"),
+            received_at=FIXED_PROCESSING_TIME - timedelta(microseconds=1),
+            power_kw=10.0,
+            energy_kwh=None,
+            state_of_charge_percent=45.0,
+            created_at=FIXED_PROCESSING_TIME - timedelta(microseconds=1),
+        )
+    )
+    db.commit()
+
+    rows = TelemetryDatasetReader(db).telemetry(
+        start=dt("2026-07-20T00:00Z"),
+        end=dt("2026-07-21T00:00Z"),
+        cutoff=FIXED_PROCESSING_TIME,
+        facility_id=facility_id,
+        station_id=None,
+        connector_id=None,
+        session_id=None,
+    )
+    sample_ids = {row.sample_id for row in rows}
+
+    assert "before-cutoff" in sample_ids
+    assert "at-cutoff" in sample_ids
+    assert "after-cutoff" not in sample_ids
+    assert sample_ids == {"before-cutoff", "at-cutoff"}
 
 
 def test_worker_generates_artifact_and_completed_event(tmp_path: Path) -> None:
@@ -910,4 +952,53 @@ def test_postgres_worker_uses_snapshot_and_atomic_claiming(tmp_path: Path) -> No
         assert snapshot_item is not None
         assert snapshot_item.status == ExportStatus.COMPLETED.value
         assert snapshot_item.row_count == 1
+    engine.dispose()
+
+
+@pytest.mark.skipif(
+    not os.getenv("POSTGRES_TEST_DATABASE_URL"),
+    reason="POSTGRES_TEST_DATABASE_URL is required for processing-time cutoff tests",
+)
+def test_postgres_worker_uses_database_transaction_timestamp_cutoff(tmp_path: Path) -> None:
+    database_url = os.environ["POSTGRES_TEST_DATABASE_URL"]
+    engine = create_engine(database_url, pool_pre_ping=True)
+    sessions = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    with sessions() as db:
+        user, facility_id = seed(db)
+        request = CreateExport.new(
+            dataset_type=DatasetType.OPERATIONAL_TELEMETRY,
+            export_profile=ExportProfile.ADMINISTRATIVE,
+            format=ExportFormat.CSV,
+            filters=ExportFilters(
+                dt("2026-07-20T00:00Z"),
+                dt("2026-07-21T00:00Z"),
+                facility_id=facility_id,
+            ),
+            requested_by=user.id,
+        )
+        DatasetExportRepository(db).create(request)
+        before_processing = db.scalar(select(func.clock_timestamp()))
+    assert before_processing is not None
+
+    worker = DatasetExportWorker(
+        sessions,
+        settings(tmp_path / "database-clock-artifacts"),
+        LocalDatasetArtifactStorage(tmp_path / "database-clock-artifacts"),
+        ChargingDatasetReader,
+        TelemetryDatasetReader,
+        lambda session: AnalyticsService(AnalyticsRepository(session)),
+        IdentityDatasetReader,
+    )
+    assert worker.process(request.id)
+
+    with sessions() as verify:
+        item = verify.get(DatasetExportModel, request.id)
+        after_processing = verify.scalar(select(func.clock_timestamp()))
+        assert item is not None
+        assert item.status == ExportStatus.COMPLETED.value
+        assert item.data_cutoff_at is not None
+        assert item.data_cutoff_at.tzinfo is not None
+        assert item.data_cutoff_at.utcoffset() is not None
+        assert after_processing is not None
+        assert before_processing <= item.data_cutoff_at <= after_processing
     engine.dispose()
