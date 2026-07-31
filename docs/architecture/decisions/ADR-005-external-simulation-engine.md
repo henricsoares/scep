@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Date:** 2026
+**Amended by:** SPEC-013 Version 1
 **Related Specs:**
 
 * `001-architecture-vision.md`
@@ -11,6 +12,7 @@
 * `005-data-view.md`
 * `006-quality-attributes.md`
 * `008-deployment-runtime-view.md`
+* `../../specs/SPEC-013-simulation-engine.md`
 
 ---
 
@@ -38,9 +40,9 @@ The **Digital Twin Simulation Engine** shall be implemented as an **independent 
 
 The Simulation Engine interacts with SCEP exclusively through public APIs.
 
-From the perspective of the Backend API, simulated entities are indistinguishable from future real-world clients.
-
 The Simulation Engine is **not part of the Modular Monolith**.
+
+Simulated domain operations continue to use the same public contracts and business rules as normal clients. However, accelerated and reproducible execution requires the Backend API to recognize a narrowly scoped simulation context for authorization, logical time, provenance and idempotency. This context does not move behavioral simulation into the backend and does not permit domain-rule bypass.
 
 ---
 
@@ -54,14 +56,16 @@ Keeping the Simulation Engine outside the Backend API preserves a clean separati
 The Backend API remains responsible for:
 
 * business rules;
+* authentication and authorization;
 * persistence;
 * domain events;
+* simulation-run context validation;
 * analytics;
 * dataset generation.
 
-The Simulation Engine becomes responsible for generating realistic external behavior.
+The Simulation Engine becomes responsible for generating realistic external behavior, controlling its logical event plan and advancing scenario time through authorized requests.
 
-This separation ensures that business logic is never coupled to simulation logic.
+This separation ensures that business logic is never coupled to simulation behavior.
 
 The platform therefore remains capable of supporting:
 
@@ -70,7 +74,7 @@ The platform therefore remains capable of supporting:
 * future physical chargers;
 * future third-party integrations;
 
-without requiring changes to its internal architecture.
+without embedding scenario models in the transactional application.
 
 ---
 
@@ -137,7 +141,8 @@ Rejected because:
 * independent simulator evolution;
 * reproducible experiments;
 * easier automated testing;
-* future compatibility with real charging infrastructure.
+* future compatibility with real charging infrastructure;
+* traceable and idempotent accelerated simulation runs.
 
 ---
 
@@ -146,7 +151,9 @@ Rejected because:
 * additional executable application;
 * API communication instead of direct method calls;
 * simulator lifecycle managed independently;
-* increased deployment complexity compared to an internal module.
+* increased deployment complexity compared to an internal module;
+* backend support for run authorization, logical time and provenance;
+* coordinated transactional handling for simulation idempotency.
 
 ---
 
@@ -157,10 +164,14 @@ The following rules are mandatory.
 * The Simulation Engine shall never access PostgreSQL directly.
 * The Simulation Engine shall never invoke Backend API internal modules.
 * Every interaction shall occur through public REST APIs.
-* Simulated requests shall be authenticated.
+* Simulated requests shall be authenticated as the acting user and authorized for a controlled execution.
 * Simulation scenarios shall be reproducible.
 * Simulation configuration shall be externalized.
 * Simulation execution shall be independent from backend deployment.
+* The Backend API shall not execute scenario behavior or probabilistic user models.
+* Logical time shall be supplied by the simulator and validated by the Backend API.
+* Simulation context shall not bypass normal domain invariants.
+* Provenance and idempotency metadata shall be assigned by the Backend API, never trusted from normal payload fields.
 
 ---
 
@@ -171,12 +182,15 @@ The following rules are mandatory.
 Responsible for:
 
 * validating requests;
-* executing business rules;
-* persisting transactional data;
+* authenticating the EVDriver and simulation execution context;
+* enforcing SimulationRun lifecycle, scope and logical-time boundaries;
+* executing business rules through existing domain services;
+* persisting transactional data and simulation provenance;
 * publishing Domain Events;
-* exporting datasets.
+* exporting datasets;
+* recording successful simulation-event receipts.
 
-The Backend API does not know whether requests originate from simulated or real clients.
+The Backend API recognizes whether a mutable request belongs to an authorized SimulationRun only to enforce time, scope, provenance and idempotency. It does not know or execute the external behavioral scenario.
 
 ---
 
@@ -184,33 +198,36 @@ The Backend API does not know whether requests originate from simulated or real 
 
 Responsible for:
 
-* generating synthetic users;
-* generating vehicles;
-* generating charging stations usage;
+* consuming pre-created synthetic users, vehicles and infrastructure;
+* generating charging-station usage behavior;
 * creating reservations;
 * starting charging sessions;
 * finishing charging sessions;
 * generating telemetry;
-* generating failures;
-* generating maintenance events;
-* executing configurable scenarios.
+* generating cancellations and no-show behavior through normal platform flows;
+* executing configurable scenarios;
+* maintaining the deterministic event plan, logical clock, checkpoints and execution report.
+
+Version 1 does not require the Simulation Engine to create Users, Vehicles, Facilities, Stations or Connectors. Those resources are provisioned administratively before execution.
 
 The Simulation Engine does not implement business rules.
 
-Its responsibility is to produce realistic external behavior.
+Its responsibility is to produce realistic external behavior and react to the Backend API's authoritative outcomes.
 
 ---
 
 # Communication Model
 
-The interaction follows the same communication model expected from any external client.
+The interaction follows the same public API boundary expected from any external client, with an additional validated simulation context for accelerated execution.
 
-```text id="9s71cm"
+```text
 Simulation Engine
 
         │
 
 HTTPS / REST APIs
+EVDriver authentication
+SimulationRun context
 
         │
 
@@ -220,7 +237,9 @@ Backend API
 
         │
 
-Business Validation
+Simulation authorization
+Logical-time validation
+Business validation
 
         │
 
@@ -239,13 +258,11 @@ Domain Events
         ▼
 
 Analytics
-
 Datasets
-
 Observability
 ```
 
-This communication model intentionally mirrors future production integrations.
+This communication model intentionally mirrors future production integrations while preserving controlled research execution.
 
 ---
 
@@ -265,37 +282,37 @@ Simulation scenarios may include:
 * shopping centers;
 * public charging stations.
 
-Each scenario defines:
+Each scenario may define externally:
 
-* number of users;
-* number of vehicles;
-* charger availability;
+* configured users and vehicles;
 * arrival distributions;
 * charging duration;
-* battery state of charge;
 * reservation behavior;
 * cancellation probability;
 * no-show probability;
-* equipment failures;
-* maintenance windows.
+* infrastructure preferences;
+* telemetry sampling behavior;
+* retry, rescheduling and abandonment policy.
+
+Detailed infrastructure failures, maintenance windows, battery models and other advanced behaviors remain future scenario capabilities unless approved by a later specification.
 
 ---
 
 # Reproducibility
 
-Every simulation shall support deterministic execution.
+Every simulation shall support deterministic planning.
 
-The following metadata shall be recorded:
+The following metadata shall be recorded or externally preserved:
 
-* experiment identifier;
-* simulation identifier;
+* experiment or scenario identifier;
+* SimulationRun identifier;
 * random seed;
 * execution timestamp;
 * simulator version;
-* platform version;
-* scenario configuration.
+* platform version when available;
+* scenario version and digest.
 
-Executing the same scenario using the same configuration should produce statistically equivalent results.
+Executing the same scenario using the same configuration, bootstrap, seed and simulator version shall generate the same initial event plan. Final operational results may differ when external platform state differs.
 
 This capability directly supports the research objectives of SCEP.
 
@@ -307,13 +324,13 @@ The Simulation Engine does not execute AI models.
 
 Its responsibility is to generate high-quality operational data.
 
-AI experiments consume datasets generated by SCEP.
+AI experiments consume datasets generated by SCEP and may publish completed prediction results through separately authorized contracts.
 
 This separation preserves a clear distinction between:
 
 * data generation;
 * model training;
-* prediction serving.
+* prediction publication and serving.
 
 ---
 
@@ -321,14 +338,15 @@ This separation preserves a clear distinction between:
 
 This decision primarily supports:
 
-| Quality Attribute | Support                                          |
-| ----------------- | ------------------------------------------------ |
-| Reproducibility   | Deterministic experiment execution               |
-| Maintainability   | Clear separation of concerns                     |
-| Extensibility     | New simulation scenarios without backend changes |
-| Testability       | End-to-end API validation                        |
-| Modularity        | Independent simulator lifecycle                  |
-| Research Support  | High-quality synthetic datasets                  |
+| Quality Attribute | Support |
+| ----------------- | ------- |
+| Reproducibility | Deterministic event planning and traceable runs |
+| Maintainability | Clear separation of scenario behavior and domain logic |
+| Extensibility | New external scenario models without backend embedding |
+| Testability | End-to-end validation through public APIs |
+| Modularity | Independent simulator lifecycle |
+| Security | Explicit run scope and authenticated logical-time use |
+| Research Support | High-quality synthetic datasets |
 
 ---
 
@@ -368,7 +386,23 @@ Mitigation:
 
 * reusable scenario templates;
 * configuration validation;
-* documented simulation presets.
+* documented simulation presets;
+* strict Version 1 behavioral scope in SPEC-013.
+
+---
+
+## Risk: Logical Time Escapes the Simulation Scope
+
+Accelerated time could affect normal data or another run.
+
+Mitigation:
+
+* authenticated run-scoped execution context;
+* explicit Facility and EVDriver associations;
+* provenance on operational roots;
+* partitioned temporal reconciliation;
+* coordinated transactions and run-row locking;
+* dedicated simulation Facilities for Version 1.
 
 ---
 
@@ -381,11 +415,13 @@ Future versions of the Simulation Engine may support:
 * electrical grid constraints;
 * dynamic electricity pricing;
 * weather influence;
-* user behavioral models;
+* richer user behavioral models;
 * reinforcement learning agents;
-* distributed simulation workers.
+* distributed simulation workers;
+* permanent non-human simulator identity;
+* explicit synthetic-data isolation and retention.
 
-These enhancements should remain independent from the Backend API.
+These enhancements shall remain independent from the Backend API's behavioral logic.
 
 ---
 
@@ -395,4 +431,6 @@ The Digital Twin Simulation Engine will remain an independent application throug
 
 By interacting with SCEP exclusively through public APIs, the simulator preserves architectural boundaries, validates the platform under realistic operating conditions and produces reproducible datasets for Smart Charging research.
 
-This decision reinforces SCEP's identity as a **research and experimentation platform**, where simulation is an external producer of operational behavior rather than an internal implementation concern.
+SPEC-013 clarifies that safe accelerated execution requires the Backend API to recognize a restricted SimulationRun context. This amendment does not reverse the external-engine decision: the backend validates execution context and domain invariants, while all scenario behavior remains external.
+
+This decision reinforces SCEP's identity as a **research and experimentation platform**, where simulation is an external producer of operational behavior rather than an internal behavioral implementation concern.
