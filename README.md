@@ -359,8 +359,8 @@ Completed:
 
 Next Steps:
 
-* SPEC-011 — Dataset Export: Approved, not implemented
-* SPEC-012 — Predictions: Planned, not implemented
+* ✅ SPEC-011 — Dataset Export: Approved and implemented
+* SPEC-012 — Weekly Occupancy Predictions: Draft / Under Review, planned after SPEC-013
 * SPEC-013 — Digital Twin Simulation Engine: Planned, not implemented
 
 ---

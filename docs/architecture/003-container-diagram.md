@@ -75,7 +75,7 @@ C4Container
 
     Rel(simulator, api, "Sends synthetic events and telemetry", "JSON/HTTPS")
     Rel(api, aiEnv, "Exports datasets", "Portable dataset formats")
-    Rel(aiEnv, api, "Publishes predictions and experiment outputs", "JSON/HTTPS")
+    Rel(aiEnv, api, "Publishes completed prediction results", "JSON/HTTPS")
     Rel(api, observability, "Emits logs, metrics and traces", "OTLP / Prometheus")
     Rel(webApp, observability, "May emit frontend telemetry", "OTLP / logs")
 ```
@@ -238,7 +238,7 @@ Responsibilities:
 * evaluate model performance;
 * compare algorithms;
 * generate experiment reports;
-* optionally publish prediction results back to SCEP.
+* publish complete prediction results through authorized Backend API contracts.
 
 Technology:
 
@@ -254,9 +254,13 @@ Initial AI experiment:
 Communication:
 
 * consumes exported datasets;
-* optionally calls Backend API to publish prediction results.
+* calls the Backend API to publish validated prediction results when authorized.
 
 The AI Research Environment is intentionally decoupled from the transactional application. This prevents experimental machine learning code from contaminating business-critical application logic.
+
+For SPEC-012 Version 1, it generates all 168 recurring weekday/hour buckets for one infrastructure
+scope. The Backend API stores and exposes the accepted publication but does not train models or
+execute model inference.
 
 Portable export formats are controlled by the Dataset Export functional specification. SPEC-011
 Version 1 selects CSV and Parquet; JSON is not required as a Version 1 data-file format.
@@ -414,7 +418,9 @@ Dashboards
 
 Description:
 
-The AI Research Environment consumes exported historical data, trains models and may return prediction results to SCEP for visualization.
+The AI Research Environment consumes exported historical data, trains models and publishes complete
+Weekly Occupancy Prediction results through the authorized SPEC-012 API. SCEP persists and serves
+those results for administrative queries and eligibility-aware EVDriver recommendations.
 
 ---
 

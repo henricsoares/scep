@@ -192,7 +192,9 @@ The architecture follows the following principles:
 
 The architecture is considered stable.
 
-SPEC-009 Domain Events and SPEC-010 Analytics are approved and implemented. Analytics computes
-read-only projections on demand without analytical persistence.
+SPEC-009 Domain Events, SPEC-010 Analytics and SPEC-011 Dataset Export are approved and
+implemented. SPEC-012 Weekly Occupancy Predictions is Draft / Under Review and Planned, with
+implementation recommended after the still-Planned SPEC-013 Digital Twin Simulation Engine.
+SPEC-012 has no mandatory runtime dependency on SPEC-013.
 
 Future architectural changes should be introduced through new ADRs instead of directly modifying the baseline documents whenever possible.

@@ -140,9 +140,11 @@ Owns:
 
 Owns:
 
-* Prediction Results
-* Model Metadata
-* Experiment Metadata
+* immutable Weekly Occupancy Prediction publications and buckets inside SCEP
+* limited model, external-run and Dataset Export provenance references inside SCEP
+
+The external AI Research Environment owns model artifacts, feature pipelines and complete
+experiment metadata. SCEP does not become a Model Registry or Feature Store.
 
 ---
 
@@ -189,7 +191,7 @@ Operational Data / KPIs
 
             ▼
 
-Future Prediction Results
+Planned Weekly Occupancy Prediction Publications
 
             │
 
@@ -386,6 +388,11 @@ Dashboard
 ```
 
 The AI pipeline remains external to the transactional application.
+
+Under SPEC-012, Prediction Storage contains one immutable metadata record and exactly 168 unique
+weekday/hour buckets per publication, plus an atomic current-publication reference per canonical
+Facility, Station or Connector scope. New runs append history; they do not update accepted buckets.
+The Backend API validates and serves externally generated values but performs no model inference.
 
 ---
 

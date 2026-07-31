@@ -11,6 +11,7 @@
 * `006-quality-attributes.md`
 * `008-deployment-runtime-view.md`
 * `ADR-009-dataset-export-snapshot-source-and-provenance-strategy.md`
+* `../../specs/SPEC-012-predictions.md`
 
 ---
 
@@ -63,6 +64,7 @@ Communication between both environments shall occur through:
 * public REST APIs.
 
 The Backend API shall not perform model training.
+The Backend API shall not execute model inference.
 
 ---
 
@@ -167,6 +169,7 @@ Rejected because:
 The following rules are mandatory.
 
 * The Backend API shall never train machine learning models.
+* The Backend API shall never execute machine learning model inference.
 * AI workflows shall consume exported datasets.
 * AI workflows shall not access PostgreSQL directly.
 * Prediction results shall be published through public APIs.
@@ -188,6 +191,11 @@ Responsible for:
 * prediction storage;
 * prediction APIs.
 
+For SPEC-012 Version 1, prediction storage means immutable metadata plus one complete 168-bucket
+recurring weekly profile for one Facility, Station or Connector scope. The Backend API validates
+and exposes externally generated values; limited model and run references do not make it a Model
+Registry.
+
 The Backend API owns operational data.
 
 ---
@@ -206,6 +214,9 @@ Responsible for:
 * experiment documentation.
 
 The AI Research Environment owns research activities.
+
+It also owns inference execution. Publication transfers completed prediction results, not an
+executable model, feature pipeline or inference request.
 
 ---
 

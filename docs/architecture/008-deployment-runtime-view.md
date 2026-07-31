@@ -96,6 +96,10 @@ The reference runtime environment is illustrated below.
 
 The AI Research Environment executes independently and connects through exported datasets and public APIs.
 
+SPEC-012 does not add a model-serving runtime to the Backend API. Training and inference execute in
+the independent AI Research Environment. The planned Prediction Component is part of the Backend
+API deployment and stores only accepted publication metadata and buckets in PostgreSQL.
+
 ---
 
 # 4. Runtime Containers
@@ -207,6 +211,10 @@ Communication follows strict architectural boundaries.
 | AI Research Environment | Backend API               | REST / Dataset Export |
 
 Direct database access by external systems is prohibited.
+
+The AI Research Environment downloads authorized Dataset Export artifacts and publishes complete
+Weekly Occupancy Prediction profiles through HTTPS. It shall not mount Dataset Export storage or
+connect directly to PostgreSQL.
 
 ---
 
