@@ -49,6 +49,7 @@ from app.modules.identity.infrastructure.dataset_export_reader import IdentityDa
 from app.modules.identity.infrastructure.user_repository import SqlAlchemyUserRepository
 from app.modules.telemetry.dataset_export_reader import TelemetryDatasetReader
 from app.modules.telemetry.infrastructure import TelemetrySampleModel
+from app.shared.clock import Clock
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pytest import MonkeyPatch
@@ -58,6 +59,14 @@ from sqlalchemy.orm import Session, sessionmaker
 
 def dt(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+FIXED_PROCESSING_TIME = dt("2026-07-21T12:00Z")
+
+
+class FixedClock:
+    def now(self) -> datetime:
+        return FIXED_PROCESSING_TIME
 
 
 def database(path: Path) -> tuple[sessionmaker[Session], Session]:
@@ -155,11 +164,11 @@ def seed(db: Session, role: HumanRole = HumanRole.PLATFORM_ADMINISTRATOR) -> tup
                 sample_id="sample-1",
                 source="API_CLIENT",
                 recorded_at=dt("2026-07-20T11:00Z"),
-                received_at=dt("2026-07-20T11:01Z"),
+                received_at=FIXED_PROCESSING_TIME,
                 power_kw=11.0,
                 energy_kwh=None,
                 state_of_charge_percent=50.0,
-                created_at=dt("2026-07-20T11:01Z"),
+                created_at=FIXED_PROCESSING_TIME,
             ),
             TelemetrySampleModel(
                 id=uuid4(),
@@ -190,7 +199,10 @@ def settings(storage: Path, **overrides: object) -> Settings:
 
 
 def make_worker(
-    sessions: sessionmaker[Session], configured: Settings, storage: DatasetArtifactStorage
+    sessions: sessionmaker[Session],
+    configured: Settings,
+    storage: DatasetArtifactStorage,
+    clock: Clock | None = None,
 ) -> DatasetExportWorker:
     return DatasetExportWorker(
         sessions,
@@ -200,6 +212,7 @@ def make_worker(
         TelemetryDatasetReader,
         lambda session: AnalyticsService(AnalyticsRepository(session)),
         IdentityDatasetReader,
+        clock or FixedClock(),
     )
 
 
@@ -246,6 +259,7 @@ def test_worker_generates_artifact_and_completed_event(tmp_path: Path) -> None:
         assert item is not None
         assert item.status == ExportStatus.COMPLETED.value
         assert item.data_cutoff_at is not None
+        assert item.data_cutoff_at.replace(tzinfo=UTC) == FIXED_PROCESSING_TIME
         assert item.row_count == 1
         assert item.artifact_sha256 and len(item.artifact_sha256) == 64
         event = verify.scalar(
@@ -826,6 +840,7 @@ def test_postgres_worker_uses_snapshot_and_atomic_claiming(tmp_path: Path) -> No
         assert item is not None
         assert item.status == ExportStatus.COMPLETED.value
         assert item.data_cutoff_at is not None
+        assert item.data_cutoff_at.replace(tzinfo=UTC) == FIXED_PROCESSING_TIME
         assert item.row_count == 1
 
         source_session = verify.scalar(
@@ -867,6 +882,7 @@ def test_postgres_worker_uses_snapshot_and_atomic_claiming(tmp_path: Path) -> No
         TelemetryDatasetReader,
         lambda session: AnalyticsService(AnalyticsRepository(session)),
         BlockingIdentityReader,
+        FixedClock(),
     )
     with ThreadPoolExecutor(max_workers=1) as pool:
         future = pool.submit(snapshot_worker.process, snapshot_request.id)
