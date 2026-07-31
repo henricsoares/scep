@@ -52,6 +52,7 @@ from app.modules.events.infrastructure import EventPublisher
 from app.modules.identity.application.dataset_export import DatasetExportIdentityReadPort
 from app.modules.identity.domain.user import AccountStatus, AccountType, HumanRole, User
 from app.modules.telemetry.application.dataset_export import TelemetryDatasetReadPort
+from app.shared.clock import Clock, SystemClock
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -236,6 +237,7 @@ class DatasetExportWorker:
         telemetry_readers: Callable[[Session], TelemetryDatasetReadPort],
         analytics_projections: Callable[[Session], OccupancyProjectionPort],
         identity_readers: Callable[[Session], DatasetExportIdentityReadPort],
+        clock: Clock | None = None,
     ) -> None:
         self.sessions = sessions
         self.settings = settings
@@ -244,9 +246,11 @@ class DatasetExportWorker:
         self.telemetry_readers = telemetry_readers
         self.analytics_projections = analytics_projections
         self.identity_readers = identity_readers
+        self.clock = clock or SystemClock()
+        self._uses_database_processing_time = clock is None
 
     def process(self, export_id: UUID) -> bool:
-        started = datetime.now(UTC)
+        started = self.clock.now()
         with self.sessions() as metadata:
             repo = DatasetExportRepository(metadata)
             if metadata.get_bind().dialect.name == "postgresql":
@@ -304,10 +308,14 @@ class DatasetExportWorker:
                 if source.get_bind().dialect.name == "postgresql":
                     source.connection(execution_options={"isolation_level": "REPEATABLE READ"})
                     source.execute(text("SET TRANSACTION READ ONLY"))
-                    cutoff = source.scalar(select(func.transaction_timestamp()))
+                    cutoff = (
+                        source.scalar(select(func.transaction_timestamp()))
+                        if self._uses_database_processing_time
+                        else self.clock.now()
+                    )
                 else:
                     source.connection()
-                    cutoff = datetime.now(UTC)
+                    cutoff = self.clock.now()
                 if cutoff is None:
                     raise DatasetRuntimeError(
                         FailureCode.SNAPSHOT_LOST, "Source snapshot could not be established."
@@ -343,7 +351,7 @@ class DatasetExportWorker:
                         item.id,
                         self.settings.dataset_export_pseudonymization_secret,
                     )
-                generated_at = datetime.now(UTC)
+                generated_at = self.clock.now()
                 artifact, data, _manifest = build_artifact(
                     export_id=item.id,
                     dataset_type=DatasetType(item.dataset_type),
@@ -366,7 +374,7 @@ class DatasetExportWorker:
                 logger.info(
                     "dataset_export_artifact_stored", extra={"dataset_export_id": str(item.id)}
                 )
-                completed = datetime.now(UTC)
+                completed = self.clock.now()
                 with self.sessions() as metadata:
                     completed_item = metadata.get(DatasetExportModel, item.id)
                     if completed_item is None:
