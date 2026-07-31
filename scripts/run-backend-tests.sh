@@ -17,7 +17,8 @@ esac
 repository_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$repository_root"
 
-postgres_was_running=$(docker compose ps --status running -q postgres)
+temporary_env_created=false
+postgres_was_running=""
 
 cleanup() {
     status=$?
@@ -28,10 +29,20 @@ cleanup() {
     if [ -z "$postgres_was_running" ]; then
         docker compose rm --stop --force postgres >/dev/null 2>&1
     fi
+    if [ "$temporary_env_created" = true ]; then
+        rm -f "$repository_root/.env"
+    fi
     exit "$status"
 }
 
 trap cleanup EXIT INT TERM
+
+if [ ! -f .env ]; then
+    cp .env.example .env
+    temporary_env_created=true
+fi
+
+postgres_was_running=$(docker compose ps --status running -q postgres)
 
 docker compose up -d --wait postgres
 docker compose exec -T postgres dropdb --if-exists --force -U scep "$test_database_name"

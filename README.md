@@ -259,7 +259,8 @@ make ci
 service, recreates the dedicated `scep_test` database, applies all Alembic migrations, exports the
 test database URLs and runs every backend test. It never drops or recreates the normal local `scep`
 database. The test database and a PostgreSQL container started by the command are removed when the
-run finishes.
+run finishes. When the root `.env` is absent, the runner creates a temporary copy from
+`.env.example` and removes it during cleanup; an existing `.env` is never replaced or removed.
 
 `make test-unit` is the lightweight path. It runs only tests under `backend/tests/unit` and does not
 require PostgreSQL. PostgreSQL integration, migration, concurrency and snapshot tests are covered
