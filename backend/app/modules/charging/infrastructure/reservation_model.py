@@ -56,12 +56,16 @@ class ReservationModel(Base):
         Index("ix_reservations_vehicle_interval", "vehicle_id", "start_at", "end_at"),
         Index("ix_reservations_connector_interval", "connector_id", "start_at", "end_at"),
         Index("ix_reservations_status_start", "status", "start_at"),
+        Index("ix_reservations_simulation_run_start", "simulation_run_id", "start_at"),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     owner_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     vehicle_id: Mapped[UUID] = mapped_column(nullable=False)
     connector_id: Mapped[UUID] = mapped_column(ForeignKey("connectors.id"), nullable=False)
+    simulation_run_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("simulation_runs.id", ondelete="RESTRICT")
+    )
     start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     status: Mapped[str] = mapped_column(String(24), nullable=False)

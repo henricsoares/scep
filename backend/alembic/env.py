@@ -7,6 +7,7 @@ from app.modules.charging.infrastructure import FacilityModel
 from app.modules.datasets import infrastructure as datasets_infrastructure
 from app.modules.events import infrastructure as events_infrastructure
 from app.modules.identity.infrastructure import user_model
+from app.modules.simulation import infrastructure as simulation_infrastructure
 from app.modules.telemetry import infrastructure as telemetry_infrastructure
 from sqlalchemy import engine_from_config, pool
 
@@ -20,6 +21,7 @@ _ = (
     telemetry_infrastructure,
     events_infrastructure,
     datasets_infrastructure,
+    simulation_infrastructure,
 )
 target_metadata = Base.metadata
 config.set_main_option("sqlalchemy.url", get_settings().database_url)
