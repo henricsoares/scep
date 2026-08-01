@@ -66,7 +66,7 @@ Implementation becomes the translation of approved specifications into software.
 | SPEC-010 | Analytics | Approved | Implemented |
 | SPEC-011 | Dataset Export | Approved | Implemented |
 | SPEC-012 | Weekly Occupancy Predictions | Draft / Under Review | Planned |
-| SPEC-013 | Digital Twin Simulation Engine | Planned | Not Implemented |
+| SPEC-013 | Digital Twin Simulation Engine | Approved | Implemented |
 
 ---
 
@@ -399,6 +399,7 @@ Completed:
 * ✅ Domain Events implementation
 * ✅ Analytics implementation
 * ✅ Dataset Export implementation
+* ✅ Digital Twin Simulation Engine implementation
 
-SPEC-001 through SPEC-011 are approved and implemented. SPEC-012 is Draft / Under Review and
-Planned. SPEC-013 remains Planned and not implemented. Neither SPEC-012 nor SPEC-013 is implemented.
+SPEC-001 through SPEC-011 and SPEC-013 are approved and implemented. SPEC-012 is Draft / Under
+Review and Planned, with implementation intentionally sequenced after SPEC-013.

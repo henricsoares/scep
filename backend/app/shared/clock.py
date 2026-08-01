@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Protocol
 
@@ -9,3 +10,11 @@ class Clock(Protocol):
 class SystemClock:
     def now(self) -> datetime:
         return datetime.now(UTC)
+
+
+@dataclass(frozen=True, slots=True)
+class FixedClock:
+    value: datetime
+
+    def now(self) -> datetime:
+        return self.value

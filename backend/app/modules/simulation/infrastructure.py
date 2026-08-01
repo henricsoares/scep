@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import (
     JSON,
@@ -151,12 +151,15 @@ class SimulationRunRepository:
         model = self.session.scalar(stmt)
         return None if model is None else self._domain(model)
 
-    def save(self, item: SimulationRun) -> SimulationRun:
+    def save(self, item: SimulationRun, *, commit: bool = True) -> SimulationRun:
         model = self.session.get(SimulationRunModel, item.id)
         if model is None:
             raise ValueError("simulation run not found")
         self._apply(model, item)
-        self._commit()
+        if commit:
+            self._commit()
+        else:
+            self.session.flush()
         return self.get(item.id) or item
 
     def _commit(self) -> None:
@@ -165,6 +168,50 @@ class SimulationRunRepository:
         except DBAPIError:
             self.session.rollback()
             raise
+
+    def receipt(
+        self, run_id: UUID, operation: str, simulation_event_id: UUID
+    ) -> SimulationEventReceiptModel | None:
+        return self.session.scalar(
+            select(SimulationEventReceiptModel).where(
+                SimulationEventReceiptModel.simulation_run_id == run_id,
+                SimulationEventReceiptModel.operation == operation,
+                SimulationEventReceiptModel.simulation_event_id == simulation_event_id,
+            )
+        )
+
+    def add_receipt(
+        self,
+        *,
+        run_id: UUID,
+        event_id: UUID,
+        operation: str,
+        actor_id: UUID,
+        simulated_at: datetime,
+        request_sha256: str,
+        resource_type: str | None,
+        resource_id: UUID | None,
+        response_status: int,
+        response_snapshot: dict[str, Any],
+        created_at: datetime,
+    ) -> None:
+        self.session.add(
+            SimulationEventReceiptModel(
+                id=uuid4(),
+                simulation_run_id=run_id,
+                simulation_event_id=event_id,
+                operation=operation,
+                actor_id=actor_id,
+                simulated_at=simulated_at,
+                request_sha256=request_sha256,
+                resource_type=resource_type,
+                resource_id=resource_id,
+                response_status=response_status,
+                response_snapshot=response_snapshot,
+                created_at=created_at,
+            )
+        )
+        self.session.flush()
 
     @staticmethod
     def _model(item: SimulationRun) -> SimulationRunModel:

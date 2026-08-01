@@ -36,8 +36,9 @@ CONSTRAINT_CODES = {
 
 
 class SqlAlchemyChargingSessionRepository:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, *, auto_commit: bool = True) -> None:
         self.session = session
+        self.auto_commit = auto_commit
 
     def get(self, session_id: UUID) -> ChargingSession | None:
         model = self.session.get(ChargingSessionModel, session_id)
@@ -148,6 +149,7 @@ class SqlAlchemyChargingSessionRepository:
                 vehicle_id=reservation.vehicle_id,
                 connector_id=reservation.connector_id,
                 now=now,
+                simulation_run_id=reservation.simulation_run_id,
             )
             self.session.add(self._model(item))
             reservation_model.status = activated.status.value
@@ -156,7 +158,7 @@ class SqlAlchemyChargingSessionRepository:
             connector.status = ConnectorStatus.CHARGING.value
             connector.updated_at = now
             EventPublisher(self.session).publish(charging_session_event("started", item))
-            self.session.commit()
+            self._finish()
             return self.get(item.id) or item
         except ChargingSessionWriteConflict:
             self.session.rollback()
@@ -208,7 +210,7 @@ class SqlAlchemyChargingSessionRepository:
             connector.status = next_status.value
             connector.updated_at = now
             EventPublisher(self.session).publish(charging_session_event("completed", completed))
-            self.session.commit()
+            self._finish()
             return self.get(item.id) or completed, next_status
         except Exception:
             self.session.rollback()
@@ -269,6 +271,7 @@ class SqlAlchemyChargingSessionRepository:
             ended_at=None if model.ended_at is None else _utc(model.ended_at),
             created_at=_utc(model.created_at),
             updated_at=_utc(model.updated_at),
+            simulation_run_id=model.simulation_run_id,
         )
 
     @staticmethod
@@ -291,7 +294,14 @@ class SqlAlchemyChargingSessionRepository:
             cancelled_at=optional(model.cancelled_at),
             late_cancelled_at=optional(model.late_cancelled_at),
             no_show_at=optional(model.no_show_at),
+            simulation_run_id=model.simulation_run_id,
         )
+
+    def _finish(self) -> None:
+        if self.auto_commit:
+            self.session.commit()
+        else:
+            self.session.flush()
 
 
 def _utc(value: datetime) -> datetime:

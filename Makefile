@@ -1,4 +1,4 @@
-.PHONY: up down logs backend-test backend-test-unit backend-lint backend-format backend-typecheck backend-security format lint typecheck test test-unit migrate ci precommit
+.PHONY: up down logs backend-test backend-test-unit backend-lint backend-format backend-typecheck backend-security simulation-test simulation-lint simulation-format format lint typecheck test test-unit migrate ci precommit
 
 up:
 	docker compose up --build
@@ -9,9 +9,11 @@ down:
 logs:
 	docker compose logs -f
 
-backend-test: test
+backend-test:
+	./scripts/run-backend-tests.sh test
 
-backend-test-unit: test-unit
+backend-test-unit:
+	cd backend && OTEL_SDK_DISABLED=true uv run pytest tests/unit
 
 backend-lint:
 	cd backend && uv run ruff check app tests && uv run black --check app tests
@@ -22,17 +24,24 @@ backend-format:
 backend-typecheck:
 	cd backend && uv run mypy app tests
 
-format: backend-format
+simulation-test:
+	cd simulation-engine && uv run pytest -q
 
-lint: backend-lint
+simulation-lint:
+	cd simulation-engine && uv run ruff check app tests && uv run black --check app tests
+
+simulation-format:
+	cd simulation-engine && uv run ruff check --fix app tests && uv run black app tests
+
+format: backend-format simulation-format
+
+lint: backend-lint simulation-lint
 
 typecheck: backend-typecheck
 
-test:
-	./scripts/run-backend-tests.sh test
+test: backend-test simulation-test
 
-test-unit:
-	cd backend && OTEL_SDK_DISABLED=true uv run pytest tests/unit
+test-unit: backend-test-unit simulation-test
 
 backend-security:
 	cd backend && uv run bandit -c pyproject.toml -r app && uv run pip-audit
@@ -45,4 +54,5 @@ precommit:
 
 ci: backend-lint backend-typecheck
 	./scripts/run-backend-tests.sh coverage
+	$(MAKE) simulation-test
 	cd backend && uv run bandit -c pyproject.toml -r app && uv run pip-audit

@@ -157,13 +157,13 @@ Responsibilities:
 
 Responsibilities:
 
-* synthetic users;
-* synthetic vehicles;
-* synthetic telemetry;
-* synthetic reservations;
-* scenario execution.
+* deterministic external scenario planning;
+* synthetic Reservations, Charging Sessions and optional Telemetry through public APIs;
+* chronological timestamp barriers, bounded retries and local checkpointing;
+* external execution reports.
 
-The Simulation Engine is intentionally deployed independently.
+Users, Vehicles and dedicated infrastructure are provisioned before a Version 1 run. The Simulation
+Engine is intentionally deployed independently and has no PostgreSQL or backend-module access.
 
 ---
 

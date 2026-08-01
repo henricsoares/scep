@@ -3,15 +3,23 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.modules.charging.application.reservation_metrics import reservations_no_show_total
 from app.modules.charging.infrastructure.charging_session_model import ChargingSessionModel
 from app.modules.charging.infrastructure.facility_model import FacilityModel
+from app.modules.charging.infrastructure.reservation_repository import (
+    SqlAlchemyReservationRepository,
+)
 from app.modules.identity.domain.user import AccountStatus, AccountType, HumanRole
 from app.modules.identity.infrastructure.user_repository import SqlAlchemyUserRepository
 from app.modules.simulation.domain import SimulationRun, SimulationRunStatus
-from app.modules.simulation.infrastructure import SimulationRunRepository
+from app.modules.simulation.infrastructure import SimulationRunModel, SimulationRunRepository
+from app.modules.simulation.metrics import (
+    simulation_no_show_reconciliations_total,
+    simulation_runs,
+)
 from app.modules.simulation.security import issue_run_credential
 from app.shared.clock import Clock
 
@@ -57,7 +65,9 @@ class SimulationRunService:
             scenario_sha256=scenario_sha256,
             simulator_version=simulator_version,
         )
-        return self.runs.add(item)
+        saved = self.runs.add(item)
+        self._refresh_run_metrics()
+        return saved
 
     def get(self, run_id: UUID) -> SimulationRun:
         item = self.runs.get(run_id)
@@ -93,7 +103,9 @@ class SimulationRunService:
             scenario_sha256=scenario_sha256,
             simulator_version=simulator_version,
         )
-        return self.runs.save(updated)
+        saved = self.runs.save(updated)
+        self._refresh_run_metrics()
+        return saved
 
     def start(self, run_id: UUID) -> tuple[SimulationRun, str]:
         item = self._locked(run_id)
@@ -101,13 +113,19 @@ class SimulationRunService:
             list(item.facility_ids), list(item.evdriver_ids), require_nonempty=True
         )
         plaintext, credential_hash = issue_run_credential()
-        return (
-            self.runs.save(item.start(credential_hash=credential_hash, now=self.clock.now())),
-            plaintext,
-        )
+        saved = self.runs.save(item.start(credential_hash=credential_hash, now=self.clock.now()))
+        self._refresh_run_metrics()
+        return saved, plaintext
 
     def complete(self, run_id: UUID) -> SimulationRun:
         item = self._locked(run_id)
+        completed = item.complete(now=self.clock.now())
+        reconciled = SqlAlchemyReservationRepository(
+            self.session, auto_commit=False
+        ).reconcile_overdue(item.logical_end_at, simulation_run_id=run_id)
+        if reconciled:
+            reservations_no_show_total.inc(reconciled)
+            simulation_no_show_reconciliations_total.inc(reconciled)
         active = self.session.scalar(
             select(ChargingSessionModel.id)
             .where(
@@ -119,11 +137,24 @@ class SimulationRunService:
         if active is not None:
             self.session.rollback()
             raise SimulationRunActiveSessionsError("simulation run has ACTIVE charging sessions")
-        return self.runs.save(item.complete(now=self.clock.now()))
+        saved = self.runs.save(completed, commit=False)
+        self.session.commit()
+        self._refresh_run_metrics()
+        return saved
 
     def cancel(self, run_id: UUID) -> SimulationRun:
         item = self._locked(run_id)
-        return self.runs.save(item.cancel(now=self.clock.now()))
+        saved = self.runs.save(item.cancel(now=self.clock.now()))
+        self._refresh_run_metrics()
+        return saved
+
+    def _refresh_run_metrics(self) -> None:
+        rows = self.session.execute(
+            select(SimulationRunModel.status, func.count()).group_by(SimulationRunModel.status)
+        ).all()
+        counts: dict[str, int] = {status: count for status, count in rows}
+        for status in SimulationRunStatus:
+            simulation_runs.labels(status.value).set(counts.get(status.value, 0))
 
     def _locked(self, run_id: UUID) -> SimulationRun:
         item = self.runs.get(run_id, for_update=True)

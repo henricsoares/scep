@@ -342,8 +342,13 @@ Produces:
 
 * simulation lifecycle;
 * generated events;
-* simulation execution time;
-* simulation failures.
+* logical and real execution time;
+* idempotent replay, rejection and failure outcomes;
+* checkpoint and final-report outcomes.
+
+Backend telemetry uses bounded operation, outcome and error-code labels. Run, event and EVDriver
+identifiers belong in structured logs and traces, not metric labels. Bearer tokens, run credentials
+and complete Telemetry batches shall not be logged.
 
 ---
 

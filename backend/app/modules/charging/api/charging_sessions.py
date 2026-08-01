@@ -21,12 +21,21 @@ from app.modules.charging.domain.reservation import normalize_utc
 from app.modules.charging.infrastructure.charging_session_repository import (
     SqlAlchemyChargingSessionRepository,
 )
-from app.modules.charging.infrastructure.reservation_repository import SqlAlchemyVehicleRepository
+from app.modules.charging.infrastructure.reservation_repository import (
+    SqlAlchemyReservationRepository,
+    SqlAlchemyVehicleRepository,
+)
 from app.modules.charging.infrastructure.station_repository import (
     SqlAlchemyChargingStationRepository,
 )
 from app.modules.identity.api.dependencies import current_user
 from app.modules.identity.domain.user import User
+from app.modules.simulation.context import SimulationRequestContext, optional_simulation_context
+from app.modules.simulation.coordinator import (
+    SimulationMutationCoordinator,
+    SimulationMutationResult,
+)
+from app.modules.simulation.operations import reservation_scope, session_scope
 from app.shared.clock import SystemClock
 
 router = APIRouter(tags=["Charging Sessions"])
@@ -47,6 +56,8 @@ class ChargingSessionResponse(BaseModel):
 
 
 ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
+    400: {"description": "Incomplete or unsupported simulation context"},
+    401: {"description": "Invalid authentication or simulation credential"},
     403: {"description": "Authenticated identity lacks the explicit capability"},
     404: {"description": "Resource absent or concealed"},
     409: {
@@ -112,8 +123,41 @@ def activate_charging_session(
     reservationId: UUID,
     service: Annotated[ChargingSessionService, Depends(get_charging_session_service)],
     user: Annotated[User, Depends(current_user)],
+    db: Annotated[Session, Depends(get_db)],
+    simulation: Annotated[
+        SimulationRequestContext | None, Depends(optional_simulation_context)
+    ] = None,
 ) -> ChargingSessionResponse:
     try:
+        if simulation is not None:
+            facility_id, _ = reservation_scope(db, reservationId, simulation.simulation_run_id)
+            reservation_service = get_reservation_service(db)
+            reservation_service.reservations = SqlAlchemyReservationRepository(
+                db, auto_commit=False
+            )
+            reservation_service.clock = simulation.clock
+            reservation_service.simulation_run_id = simulation.simulation_run_id
+            simulated_service = ChargingSessionService(
+                SqlAlchemyChargingSessionRepository(db, auto_commit=False),
+                reservation_service,
+                SqlAlchemyVehicleRepository(db),
+                SqlAlchemyChargingStationRepository(db),
+                simulation.clock,
+            )
+
+            def action() -> SimulationMutationResult:
+                item = simulated_service.activate(reservationId, actor=user)
+                body = response(item).model_dump(mode="json")
+                return SimulationMutationResult(201, body, "ChargingSession", item.id)
+
+            result = SimulationMutationCoordinator(db).execute(
+                context=simulation,
+                operation="SESSION_ACTIVATE",
+                canonical_content={"reservation_id": str(reservationId)},
+                facility_id=facility_id,
+                action=action,
+            )
+            return ChargingSessionResponse.model_validate(result.response_snapshot)
         return response(service.activate(reservationId, actor=user))
     except Exception as exc:
         if isinstance(
@@ -179,14 +223,47 @@ def get_charging_session(
 @router.post(
     "/charging-sessions/{sessionId}/complete",
     response_model=ChargingSessionResponse,
-    responses={403: ERROR_RESPONSES[403], 404: ERROR_RESPONSES[404], 422: ERROR_RESPONSES[422]},
+    responses=ERROR_RESPONSES,
 )
 def complete_charging_session(
     sessionId: UUID,
     service: Annotated[ChargingSessionService, Depends(get_charging_session_service)],
     user: Annotated[User, Depends(current_user)],
+    db: Annotated[Session, Depends(get_db)],
+    simulation: Annotated[
+        SimulationRequestContext | None, Depends(optional_simulation_context)
+    ] = None,
 ) -> ChargingSessionResponse:
     try:
+        if simulation is not None:
+            facility_id, _ = session_scope(db, sessionId, simulation.simulation_run_id)
+            reservation_service = get_reservation_service(db)
+            reservation_service.reservations = SqlAlchemyReservationRepository(
+                db, auto_commit=False
+            )
+            reservation_service.clock = simulation.clock
+            reservation_service.simulation_run_id = simulation.simulation_run_id
+            simulated_service = ChargingSessionService(
+                SqlAlchemyChargingSessionRepository(db, auto_commit=False),
+                reservation_service,
+                SqlAlchemyVehicleRepository(db),
+                SqlAlchemyChargingStationRepository(db),
+                simulation.clock,
+            )
+
+            def action() -> SimulationMutationResult:
+                item = simulated_service.complete(sessionId, actor=user)
+                body = response(item).model_dump(mode="json")
+                return SimulationMutationResult(200, body, "ChargingSession", item.id)
+
+            result = SimulationMutationCoordinator(db).execute(
+                context=simulation,
+                operation="SESSION_COMPLETE",
+                canonical_content={"session_id": str(sessionId)},
+                facility_id=facility_id,
+                action=action,
+            )
+            return ChargingSessionResponse.model_validate(result.response_snapshot)
         return response(service.complete(sessionId, actor=user))
     except (ValueError, PermissionError, ChargingSessionNotFoundError) as exc:
         raise map_error(exc) from exc

@@ -9,4 +9,19 @@ class Settings(BaseSettings):
         default=5.0,
         alias="BACKEND_HEALTH_RETRY_DELAY_SECONDS",
     )
+    scenario_path: str | None = Field(default=None, alias="SIMULATION_SCENARIO_PATH")
+    bootstrap_path: str | None = Field(default=None, alias="SIMULATION_BOOTSTRAP_PATH")
+    checkpoint_path: str = Field(
+        default="simulation-checkpoint.json", alias="SIMULATION_CHECKPOINT_PATH"
+    )
+    report_path: str = Field(
+        default="simulation-report.json", alias="SIMULATION_REPORT_PATH"
+    )
+    run_token: str | None = Field(default=None, alias="SIMULATION_RUN_TOKEN")
+    driver_tokens_json: str | None = Field(
+        default=None, alias="SIMULATION_DRIVER_TOKENS_JSON"
+    )
+    registered_scenario_sha256: str | None = Field(
+        default=None, alias="SIMULATION_REGISTERED_SCENARIO_SHA256"
+    )
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

@@ -28,6 +28,7 @@ from app.modules.identity.application.user_service import UserService, bootstrap
 from app.modules.identity.infrastructure.dataset_export_reader import IdentityDatasetReader
 from app.modules.identity.infrastructure.user_repository import SqlAlchemyUserRepository
 from app.modules.simulation.api import router as simulation_router
+from app.modules.simulation.context import SimulationContextAllowlistMiddleware
 from app.modules.telemetry.api import router as telemetry_router
 from app.modules.telemetry.dataset_export_reader import TelemetryDatasetReader
 
@@ -42,6 +43,7 @@ def create_app(*, export_telemetry: bool | None = None) -> FastAPI:
     dispatcher = InternalEventDispatcher(SessionLocal)
     configure_post_commit_dispatch(dispatcher.recover)
     app.add_middleware(RequestCorrelationMiddleware)
+    app.add_middleware(SimulationContextAllowlistMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],

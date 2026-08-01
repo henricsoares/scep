@@ -80,14 +80,15 @@ class SqlAlchemyVehicleRepository:
 
 
 class SqlAlchemyReservationRepository:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, *, auto_commit: bool = True) -> None:
         self.session = session
+        self.auto_commit = auto_commit
 
     def add(self, reservation: Reservation) -> Reservation:
         self.session.add(self._model(reservation))
         EventPublisher(self.session).publish(reservation_event("created", reservation))
         try:
-            self.session.commit()
+            self._finish()
         except DBAPIError as exc:
             self.session.rollback()
             conflict = classify_reservation_calendar_write(exc)
@@ -226,12 +227,13 @@ class SqlAlchemyReservationRepository:
             stmt = stmt.where(ReservationModel.id != exclude_id)
         return self.session.scalar(stmt.limit(1)) is not None
 
-    def reconcile_overdue(self, now: datetime) -> int:
+    def reconcile_overdue(self, now: datetime, *, simulation_run_id: UUID | None = None) -> int:
         overdue = self.session.scalars(
             select(ReservationModel)
             .where(
                 ReservationModel.status == ReservationStatus.CONFIRMED.value,
                 ReservationModel.start_at < now - timedelta(minutes=15),
+                ReservationModel.simulation_run_id == simulation_run_id,
             )
             .with_for_update()
         ).all()
@@ -240,7 +242,7 @@ class SqlAlchemyReservationRepository:
             model.status, model.no_show_at, model.updated_at = item.status.value, now, now
             EventPublisher(self.session).publish(reservation_event("marked-no-show", item))
         try:
-            self.session.commit()
+            self._finish()
         except DBAPIError:
             self.session.rollback()
             raise
@@ -262,7 +264,7 @@ class SqlAlchemyReservationRepository:
         )
         try:
             transitioned = tuple(self.session.scalars(stmt).all())
-            self.session.commit()
+            self._finish()
         except DBAPIError:
             self.session.rollback()
             raise
@@ -293,7 +295,7 @@ class SqlAlchemyReservationRepository:
         else:
             EventPublisher(self.session).publish(reservation_event("rescheduled", reservation))
         try:
-            self.session.commit()
+            self._finish()
         except DBAPIError as exc:
             self.session.rollback()
             conflict = classify_reservation_calendar_write(exc)
@@ -323,7 +325,14 @@ class SqlAlchemyReservationRepository:
             cancelled_at=_utc_or_none(model.cancelled_at),
             late_cancelled_at=_utc_or_none(model.late_cancelled_at),
             no_show_at=_utc_or_none(model.no_show_at),
+            simulation_run_id=model.simulation_run_id,
         )
+
+    def _finish(self) -> None:
+        if self.auto_commit:
+            self.session.commit()
+        else:
+            self.session.flush()
 
 
 def _utc(value: datetime) -> datetime:

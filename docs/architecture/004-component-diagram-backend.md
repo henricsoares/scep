@@ -171,8 +171,10 @@ Initial roles include:
 * Platform Administrator;
 * Technical Client account type.
 
-The Technical Client account type is used by the external Digital Twin Simulation Engine to
-interact with SCEP through public APIs. It is not a Human Role.
+SPEC-013 Version 1 does not permanently bind the Simulation Engine to the Technical Client account
+type. Allowed mutations require both the normal EVDriver bearer identity and a run-scoped
+credential. The permanent non-human actor mapping remains the cross-specification identity debt in
+issue #46; SPEC-005 is not redefined by the simulation implementation.
 
 ---
 

@@ -159,3 +159,18 @@ def test_rescheduling_before_early_start_preserves_immutable_fields() -> None:
             end_at=item.end_at + timedelta(hours=1),
             now=item.start_at - timedelta(minutes=15),
         )
+
+
+def test_simulation_provenance_survives_lifecycle_transitions() -> None:
+    run_id = uuid4()
+    item = Reservation.create(
+        owner_id=uuid4(),
+        vehicle_id=uuid4(),
+        connector_id=uuid4(),
+        start_at=NOW + timedelta(hours=1),
+        end_at=NOW + timedelta(hours=2),
+        now=NOW,
+        simulation_run_id=run_id,
+    )
+    assert item.simulation_run_id == run_id
+    assert item.cancel(now=NOW + timedelta(minutes=10)).simulation_run_id == run_id
