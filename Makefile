@@ -25,7 +25,7 @@ backend-typecheck:
 	cd backend && uv run mypy app tests
 
 simulation-test:
-	cd simulation-engine && uv run pytest -q
+	cd simulation-engine && PYTHONPATH=. uv run pytest -q
 
 simulation-lint:
 	cd simulation-engine && uv run ruff check app tests && uv run black --check app tests
