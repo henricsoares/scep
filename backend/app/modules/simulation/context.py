@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
@@ -138,8 +138,8 @@ def optional_simulation_context(
     )
     if authorized is None:
         raise _error(403, "SIMULATION_DRIVER_NOT_AUTHORIZED", "driver is not authorized")
-    start = utc(run.logical_start_at)
-    end = utc(run.logical_end_at)
+    start = _stored_utc(run.logical_start_at)
+    end = _stored_utc(run.logical_end_at)
     if not start <= parsed_time <= end:
         raise _error(422, "SIMULATION_TIME_OUTSIDE_WINDOW", "simulated time is outside run window")
     return SimulationRequestContext(parsed_run_id, parsed_event_id, parsed_time, user.id)
@@ -148,3 +148,7 @@ def optional_simulation_context(
 def _error(status_code: int, code: str, message: str) -> HTTPException:
     simulation_rejections_total.labels(code).inc()
     return HTTPException(status_code=status_code, detail={"code": code, "message": message})
+
+
+def _stored_utc(value: datetime) -> datetime:
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
