@@ -52,7 +52,7 @@ migrate:
 precommit:
 	uv run --project backend pre-commit run --all-files
 
-ci: backend-lint backend-typecheck
+ci: lint backend-typecheck
 	./scripts/run-backend-tests.sh coverage
 	$(MAKE) simulation-test
 	cd backend && uv run bandit -c pyproject.toml -r app && uv run pip-audit
