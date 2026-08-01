@@ -114,9 +114,8 @@ def optional_simulation_context(
     values = (run_id, simulated_at, event_id, token)
     if all(value is None for value in values):
         return None
-    if any(not value for value in values):
+    if not run_id or not simulated_at or not event_id or not token:
         raise _error(400, "SIMULATION_CONTEXT_INCOMPLETE", "all simulation headers are required")
-    assert run_id is not None and simulated_at is not None and event_id is not None and token
     try:
         parsed_run_id = UUID(run_id)
         parsed_event_id = UUID(event_id)
