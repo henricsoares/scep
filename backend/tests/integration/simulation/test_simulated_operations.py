@@ -127,13 +127,14 @@ def test_simulated_reservation_is_atomic_idempotent_and_monotonic(
     client, sessions, _driver, connector_id, run_id, token, start = simulated_client
     vehicle = client.post("/vehicles", json={"display_name": "Simulated EV"}).json()
     event_id = uuid4()
+    accepted_at = start + timedelta(minutes=10)
     payload = {
         "vehicle_id": vehicle["id"],
         "connector_id": str(connector_id),
         "start_at": (start + timedelta(hours=1)).isoformat(),
         "end_at": (start + timedelta(hours=2)).isoformat(),
     }
-    request_headers = headers(run_id, token, start, event_id)
+    request_headers = headers(run_id, token, accepted_at, event_id)
     created = client.post("/reservations", json=payload, headers=request_headers)
     assert created.status_code == 201
     retry = client.post("/reservations", json=payload, headers=request_headers)
@@ -148,7 +149,7 @@ def test_simulated_reservation_is_atomic_idempotent_and_monotonic(
     assert conflict.json()["detail"]["code"] == "SIMULATION_EVENT_IDEMPOTENCY_CONFLICT"
     stale = client.post(
         f"/reservations/{created.json()['reservation']['id']}/cancel",
-        headers=headers(run_id, token, start - timedelta(seconds=1), uuid4()),
+        headers=headers(run_id, token, start + timedelta(minutes=5), uuid4()),
     )
     assert stale.status_code == 409
     assert stale.json()["detail"]["code"] == "SIMULATION_TIME_REGRESSION"
@@ -157,7 +158,9 @@ def test_simulated_reservation_is_atomic_idempotent_and_monotonic(
         row = db.get(ReservationModel, UUID(created.json()["reservation"]["id"]))
         run = db.get(SimulationRunModel, run_id)
         assert row is not None and row.simulation_run_id == run_id
-        assert run is not None and run.last_accepted_simulated_at == start.replace(tzinfo=None)
+        assert run is not None and run.last_accepted_simulated_at == accepted_at.replace(
+            tzinfo=None
+        )
         assert db.scalar(select(func.count()).select_from(SimulationEventReceiptModel)) == 1
 
 
