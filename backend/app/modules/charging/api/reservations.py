@@ -177,7 +177,13 @@ def create_reservation(
                 body = envelope(item, "BACK_TO_BACK_RESERVATION" if adjacent else None).model_dump(
                     mode="json"
                 )
-                return SimulationMutationResult(201, body, "Reservation", item.id)
+                return SimulationMutationResult(
+                    201,
+                    body,
+                    "Reservation",
+                    item.id,
+                    reconciled_no_show_count=simulated_service.pending_no_show_reconciliations,
+                )
 
             result = SimulationMutationCoordinator(db).execute(
                 context=simulation,
@@ -320,7 +326,13 @@ def cancel_reservation(
                     "LATE_CANCELLATION" if item.status == ReservationStatus.LATE_CANCELLED else None
                 )
                 body = envelope(item, warning).model_dump(mode="json")
-                return SimulationMutationResult(200, body, "Reservation", item.id)
+                return SimulationMutationResult(
+                    200,
+                    body,
+                    "Reservation",
+                    item.id,
+                    reconciled_no_show_count=simulated_service.pending_no_show_reconciliations,
+                )
 
             result = SimulationMutationCoordinator(db).execute(
                 context=simulation,

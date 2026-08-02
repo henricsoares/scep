@@ -13,10 +13,14 @@ from uuid import UUID
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from app.modules.charging.application.reservation_metrics import (
+    reservations_no_show_total,
+)
 from app.modules.simulation.context import SimulationRequestContext
 from app.modules.simulation.domain import SimulationRunStatus
 from app.modules.simulation.infrastructure import SimulationRunRepository
 from app.modules.simulation.metrics import (
+    simulation_no_show_reconciliations_total,
     simulation_operations_total,
     simulation_rejections_total,
     simulation_transaction_duration_seconds,
@@ -32,6 +36,7 @@ class SimulationMutationResult:
     resource_type: str | None
     resource_id: UUID | None
     replayed: bool = False
+    reconciled_no_show_count: int = 0
 
 
 class SimulationMutationCoordinator:
@@ -125,6 +130,13 @@ class SimulationMutationCoordinator:
             )
             self.runs.save(advanced, commit=False)
             self.session.commit()
+            if result.reconciled_no_show_count:
+                reservations_no_show_total.inc(result.reconciled_no_show_count)
+                simulation_no_show_reconciliations_total.inc(result.reconciled_no_show_count)
+                logger.info(
+                    "simulation no-show reconciliation committed",
+                    extra={"count": result.reconciled_no_show_count},
+                )
             simulation_operations_total.labels(operation, "accepted").inc()
             self._log(context, operation, result)
             return result

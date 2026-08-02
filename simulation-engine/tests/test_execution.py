@@ -461,3 +461,38 @@ async def test_operational_rejections_remain_behavioral(
             await client.execute(event, {})
     finally:
         await client.close()
+
+
+async def test_fastapi_request_validation_error_is_terminal() -> None:
+    event = reservation_event(connector())
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            422,
+            json={
+                "detail": [
+                    {
+                        "type": "missing",
+                        "loc": ["body", "connector_id"],
+                        "msg": "Field required",
+                        "input": {},
+                    }
+                ]
+            },
+        )
+
+    client = BackendClient(
+        "http://backend",
+        uuid4(),
+        "run-token",
+        {event.driver_id: "driver-token"},
+    )
+    await client.http.aclose()
+    client.http = httpx.AsyncClient(
+        base_url="http://backend", transport=httpx.MockTransport(handler)
+    )
+    try:
+        with pytest.raises(TerminalBackendError, match="HTTP 422"):
+            await client.execute(event, {})
+    finally:
+        await client.close()

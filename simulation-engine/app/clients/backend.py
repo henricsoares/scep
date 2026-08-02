@@ -151,7 +151,7 @@ class BackendClient:
                     else error_body
                 )
                 code = detail.get("code") if isinstance(detail, dict) else None
-                if _is_expected_domain_rejection(response.status_code, code):
+                if _is_expected_domain_rejection(response.status_code, code, detail):
                     raise DomainRejected(response.status_code, code, detail)
                 raise TerminalBackendError(response.status_code, code, detail)
             if attempt + 1 < self.max_attempts:
@@ -205,11 +205,15 @@ def parse_time(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
-def _is_expected_domain_rejection(status_code: int, code: str | None) -> bool:
+def _is_expected_domain_rejection(
+    status_code: int, code: str | None, detail: object
+) -> bool:
     if status_code not in {409, 422}:
         return False
+    if status_code == 422:
+        return code is None and isinstance(detail, str)
     if code is None:
-        return status_code == 422
+        return False
     return not (
         code.startswith("SIMULATION_") or code in {"TELEMETRY_IDEMPOTENCY_CONFLICT"}
     )

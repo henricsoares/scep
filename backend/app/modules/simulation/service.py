@@ -123,9 +123,6 @@ class SimulationRunService:
         reconciled = SqlAlchemyReservationRepository(
             self.session, auto_commit=False
         ).reconcile_overdue(item.logical_end_at, simulation_run_id=run_id)
-        if reconciled:
-            reservations_no_show_total.inc(reconciled)
-            simulation_no_show_reconciliations_total.inc(reconciled)
         active = self.session.scalar(
             select(ChargingSessionModel.id)
             .where(
@@ -139,6 +136,9 @@ class SimulationRunService:
             raise SimulationRunActiveSessionsError("simulation run has ACTIVE charging sessions")
         saved = self.runs.save(completed, commit=False)
         self.session.commit()
+        if reconciled:
+            reservations_no_show_total.inc(reconciled)
+            simulation_no_show_reconciliations_total.inc(reconciled)
         self._refresh_run_metrics()
         return saved
 
