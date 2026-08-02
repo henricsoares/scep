@@ -10,6 +10,11 @@ Reservation -> Session activation -> Telemetry batch -> Session completion
 It uses only public SCEP APIs and the existing simulator entrypoint. It does not clean up resources,
 change production behavior or complete the backend run automatically.
 
+For an Insomnia-driven alternative that creates a fresh isolated dataset and captures every ID,
+JWT and the one-time run token in the local workspace, import
+[`../../docs/api/scep-spec013-insomnia.json`](../../docs/api/scep-spec013-insomnia.json) and follow
+the SPEC-013 section in [`../../docs/api/README.md`](../../docs/api/README.md).
+
 ## Prerequisites
 
 - Bash, `curl`, `jq` and `uv`;

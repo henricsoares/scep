@@ -127,6 +127,51 @@ If it returns `401`, set `admin_email` and `admin_password` in the Base Environm
 local Platform Administrator credentials. Import updated versions into a fresh workspace so
 Insomnia does not retain old scripts or environment state.
 
+## SPEC-013 external simulator bootstrap collection
+
+Import `scep-spec013-insomnia.json` into a fresh Insomnia workspace. The collection prepares the
+complete operator dataset for the external Digital Twin without bypassing normal APIs:
+
+- one unique UTC Facility, Station and Type2 Connector;
+- one active EVDriver and owned Vehicle;
+- one DRAFT `SimulationRun` with a Monday-to-Tuesday one-day logical window;
+- explicit run start and capture of the one-time simulation token;
+- DRAFT and RUNNING bootstrap exports;
+- a deterministic scenario with Reservation probability `1.0`, cancellation/no-show probability
+  `0`, fixed one-hour duration and Telemetry enabled.
+
+Before running the collection, update the four `simulator_*_path` values in its Base Environment to
+absolute local paths. Run only **SPEC-013 1 - Prepare External Simulator** requests 01 through 12.
+Request 10 stores the one-time token, IDs, EVDriver JWT, generated `scenario_json` and a ready-to-use
+`simulator_env` block in the local Base Environment. Request 11 returns the RUNNING bootstrap; use
+Insomnia's **Save Response** action to save it at `simulator_bootstrap_path`. Copy `scenario_json` to
+`simulator_scenario_path`, then copy `simulator_env` into an ignored local `.env` or export those
+values in the shell. The Base Environment also exposes the same values under the simulator's exact
+configuration names (`BACKEND_URL`, the four `SIMULATION_*_PATH` values,
+`SIMULATION_RUN_TOKEN` and `SIMULATION_DRIVER_TOKENS_JSON`) so they can be copied individually
+without translating Insomnia variable names.
+
+Run the existing simulator from `simulation-engine/`:
+
+```bash
+uv run python -m app.main
+```
+
+After its report is `FINISHED`, run **SPEC-013 2 - Verify and Complete After Simulator** requests
+13 through 17. They verify that the backend run remains `RUNNING`, capture the completed Reservation
+and Charging Session, verify Telemetry, and finally complete the run as Platform Administrator.
+
+The collection intentionally leaves `scenario_sha256` unset because Insomnia does not reproduce the
+simulator's Pydantic canonical digest. That field and
+`SIMULATION_REGISTERED_SCENARIO_SHA256` are optional when no digest is registered. The simulator
+still validates the scenario schema, exact bootstrap window and checkpoint digest locally.
+
+The committed collection contains only the local bootstrap credentials from `.env.example` and
+blank token/ID fields. Generated JWTs, the plaintext run token, `scenario_json`, `bootstrap_json`
+and `simulator_env` exist only in the imported Insomnia workspace. If request 01 returns `401`, use
+the credentials of the administrator already persisted in the local database. Do not rerun request
+10 after losing its one-time response; start a fresh flow at request 01 instead.
+
 ## SPEC-006 visual acceptance
 
 Start the complete local stack before running the collection:
