@@ -101,3 +101,10 @@ use bounded exponential backoff with jitter.
 
 The final report is an external artifact. The simulator does not complete or cancel the backend
 run; an administrator performs that lifecycle transition after reviewing the report.
+
+## Operator smoke validation
+
+The reproducible one-Facility, one-EVDriver validation workflow is documented in
+[`smoke/README.md`](smoke/README.md). It prepares a DRAFT run, retains credentials and generated
+artifacts only in ignored local files, executes this existing entrypoint, verifies the resulting
+resources through public APIs and leaves final run completion to the administrator.

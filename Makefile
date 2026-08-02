@@ -28,10 +28,10 @@ simulation-test:
 	cd simulation-engine && PYTHONPATH=. uv run pytest -q
 
 simulation-lint:
-	cd simulation-engine && uv run ruff check app tests && uv run black --check app tests
+	cd simulation-engine && uv run ruff check app tests smoke && uv run black --check app tests smoke
 
 simulation-format:
-	cd simulation-engine && uv run ruff check --fix app tests && uv run black app tests
+	cd simulation-engine && uv run ruff check --fix app tests smoke && uv run black app tests smoke
 
 format: backend-format simulation-format
 
