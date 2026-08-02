@@ -346,6 +346,68 @@ def test_domain_rejection_rolls_back_no_show_state_and_metrics(
     )
 
 
+def test_session_activation_publishes_committed_no_show_metrics(
+    simulated_client: tuple[TestClient, sessionmaker[Session], User, UUID, UUID, str, datetime],
+) -> None:
+    client, sessions, driver, connector_id, run_id, token, start = simulated_client
+    overdue_vehicle = client.post("/vehicles", json={"display_name": "Overdue EV"}).json()
+    active_vehicle = client.post("/vehicles", json={"display_name": "Activation EV"}).json()
+    overdue = Reservation.create(
+        owner_id=driver.id,
+        vehicle_id=UUID(overdue_vehicle["id"]),
+        connector_id=connector_id,
+        start_at=start + timedelta(hours=1),
+        end_at=start + timedelta(hours=2),
+        now=start,
+        simulation_run_id=run_id,
+    )
+    target = Reservation.create(
+        owner_id=driver.id,
+        vehicle_id=UUID(active_vehicle["id"]),
+        connector_id=connector_id,
+        start_at=start + timedelta(hours=5),
+        end_at=start + timedelta(hours=6),
+        now=start,
+        simulation_run_id=run_id,
+    )
+    with sessions() as db:
+        repository = SqlAlchemyReservationRepository(db)
+        repository.add(overdue)
+        repository.add(target)
+    reservation_metric_before = counter_value(
+        reservations_no_show_total, "scep_reservations_no_show_total"
+    )
+    simulation_metric_before = counter_value(
+        simulation_no_show_reconciliations_total,
+        "scep_simulation_no_show_reconciliations_total",
+    )
+
+    activated = client.post(
+        f"/reservations/{target.id}/charging-session",
+        headers=headers(run_id, token, target.start_at, uuid4()),
+    )
+
+    assert activated.status_code == 201
+    with sessions() as db:
+        stored_overdue = db.get(ReservationModel, overdue.id)
+        stored_target = db.get(ReservationModel, target.id)
+        assert stored_overdue is not None
+        assert stored_overdue.status == ReservationStatus.NO_SHOW.value
+        assert stored_target is not None
+        assert stored_target.status == ReservationStatus.ACTIVE.value
+    assert (
+        counter_value(reservations_no_show_total, "scep_reservations_no_show_total")
+        == reservation_metric_before + 1
+    )
+    assert (
+        counter_value(
+            simulation_no_show_reconciliations_total,
+            "scep_simulation_no_show_reconciliations_total",
+        )
+        == simulation_metric_before + 1
+    )
+
+
 def test_active_session_completion_rollback_does_not_increment_no_show_metrics(
     simulated_client: tuple[TestClient, sessionmaker[Session], User, UUID, UUID, str, datetime],
 ) -> None:

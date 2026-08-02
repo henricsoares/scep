@@ -148,7 +148,14 @@ def activate_charging_session(
             def action() -> SimulationMutationResult:
                 item = simulated_service.activate(reservationId, actor=user)
                 body = response(item).model_dump(mode="json")
-                return SimulationMutationResult(201, body, "ChargingSession", item.id)
+                no_show_count = reservation_service.pending_no_show_reconciliations
+                return SimulationMutationResult(
+                    201,
+                    body,
+                    "ChargingSession",
+                    item.id,
+                    reconciled_no_show_count=no_show_count,
+                )
 
             result = SimulationMutationCoordinator(db).execute(
                 context=simulation,
