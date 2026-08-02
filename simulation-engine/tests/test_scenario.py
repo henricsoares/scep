@@ -36,7 +36,9 @@ def scenario(driver_id: UUID, facility_id: UUID) -> Scenario:
 
 
 def test_plan_is_deterministic_chronological_and_uses_stable_event_ids() -> None:
-    driver_id, facility_id, vehicle_id, connector_id = (uuid4() for _ in range(4))
+    driver_id, facility_id, station_id, vehicle_id, connector_id = (
+        uuid4() for _ in range(5)
+    )
     configured = scenario(driver_id, facility_id)
     inventory = DriverInventory(
         driver_id=driver_id,
@@ -45,6 +47,7 @@ def test_plan_is_deterministic_chronological_and_uses_stable_event_ids() -> None
             ConnectorCandidate(
                 id=connector_id,
                 facility_id=facility_id,
+                station_id=station_id,
                 connector_type="Type2",
                 maximum_power_kw=22,
             )

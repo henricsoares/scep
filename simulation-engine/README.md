@@ -70,7 +70,15 @@ Reservation.
       "no_show_probability": 0.05,
       "lead_time_minutes": {"min": 30, "max": 120},
       "session_duration_minutes": {"min": 30, "max": 90},
-      "power_utilization_factor": {"min": 0.5, "max": 0.9}
+      "power_utilization_factor": {"min": 0.5, "max": 0.9},
+      "failure_handling": {
+        "try_another_connector": true,
+        "try_another_station": true,
+        "try_another_facility": true,
+        "maximum_alternative_attempts": 3,
+        "rescheduling_delay_minutes": {"min": 15, "max": 60},
+        "maximum_rescheduling_attempts": 2
+      }
     }
   ]
 }
@@ -78,9 +86,18 @@ Reservation.
 
 The planner derives an independent stable random stream per EVDriver and stable event UUIDs. It
 executes events in timestamp order, completes one global timestamp barrier before advancing,
-reuses the same event ID for technical retries, and checkpoints only completed barriers. Restarting
-with the same run, scenario digest and simulator version replays uncertain events safely through
-backend receipts.
+reuses the same event ID for technical retries, and checkpoints resolved outcomes and completed
+barriers. Restarting with the same run, scenario digest and simulator version replays uncertain
+events safely through backend receipts.
+
+Expected operational rejections can trigger the configured, bounded Connector, Station and
+Facility alternatives after refreshing the driver's inventory. If alternatives are exhausted, the
+simulator can shift the charging interval within the configured rescheduling limits. Every
+alternative or rescheduled attempt receives a deterministic new event ID. Resolved domain
+rejections remain resolved across checkpoint resume. Authentication, authorization, logical-time,
+idempotency and simulation-contract failures terminate execution instead of activating the
+behavioral fallback policy. Technical transport and server retries retain the original event ID and
+use bounded exponential backoff with jitter.
 
 The final report is an external artifact. The simulator does not complete or cancel the backend
 run; an administrator performs that lifecycle transition after reviewing the report.

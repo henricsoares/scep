@@ -8,7 +8,12 @@ from uuid import UUID, uuid5
 
 from pydantic import BaseModel, ConfigDict
 
-from app.scenarios.schema import DriverBehavior, Scenario, TelemetryConfig
+from app.scenarios.schema import (
+    DriverBehavior,
+    FailureHandling,
+    Scenario,
+    TelemetryConfig,
+)
 
 EVENT_NAMESPACE = UUID("5f064fa5-a20d-43b3-a3a4-76f8dcb06413")
 
@@ -24,6 +29,7 @@ class Operation(StrEnum):
 class ConnectorCandidate(BaseModel):
     id: UUID
     facility_id: UUID
+    station_id: UUID
     connector_type: str
     maximum_power_kw: float
 
@@ -43,6 +49,11 @@ class PlannedEvent(BaseModel):
     payload: dict[str, object]
     depends_on: UUID | None = None
     attempt: int = 0
+    failure_handling: FailureHandling | None = None
+    preferred_connector_types: tuple[str, ...] = ()
+    selected_connector: ConnectorCandidate | None = None
+    source_event_id: UUID | None = None
+    reschedule_shift_minutes: int = 0
     model_config = ConfigDict(frozen=True)
 
 
@@ -57,7 +68,10 @@ def build_plan(
         inventory = inventories.get(profile.driver_id)
         if inventory is None or not inventory.vehicle_ids or not inventory.connectors:
             continue
-        rng = random.Random(_driver_seed(scenario.random_seed, profile.driver_id))
+        # Reproducible scenario generation is intentionally non-cryptographic.
+        rng = random.Random(  # nosec B311
+            _driver_seed(scenario.random_seed, profile.driver_id)
+        )
         for week in range(weeks):
             attempts = rng.randint(
                 profile.sessions_per_week.min, profile.sessions_per_week.max
@@ -73,7 +87,7 @@ def build_plan(
         key=lambda item: (
             item.simulated_at,
             str(item.driver_id),
-            _operation_order(item.operation),
+            operation_order(item.operation),
             str(item.event_id),
         ),
     )
@@ -123,6 +137,9 @@ def _flow_events(
             "start_at": start.isoformat(),
             "end_at": end.isoformat(),
         },
+        failure_handling=profile.failure_handling,
+        preferred_connector_types=tuple(profile.preferred_connector_types),
+        selected_connector=connector,
     )
     outcome = rng.random()
     if outcome < profile.cancellation_probability:
@@ -199,6 +216,9 @@ def _event(
     payload: dict[str, object],
     *,
     depends_on: UUID | None = None,
+    failure_handling: FailureHandling | None = None,
+    preferred_connector_types: tuple[str, ...] = (),
+    selected_connector: ConnectorCandidate | None = None,
 ) -> PlannedEvent:
     event_id = uuid5(EVENT_NAMESPACE, f"{flow_id}:{operation.value}:0")
     return PlannedEvent(
@@ -209,6 +229,9 @@ def _event(
         simulated_at=simulated_at,
         payload=payload,
         depends_on=depends_on,
+        failure_handling=failure_handling,
+        preferred_connector_types=preferred_connector_types,
+        selected_connector=selected_connector,
     )
 
 
@@ -269,7 +292,7 @@ def _driver_seed(seed: int, driver_id: UUID) -> int:
     return int.from_bytes(digest[:8], "big")
 
 
-def _operation_order(operation: Operation) -> int:
+def operation_order(operation: Operation) -> int:
     return {
         Operation.RESERVATION_CREATE: 0,
         Operation.RESERVATION_CANCEL: 1,

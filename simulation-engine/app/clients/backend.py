@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import random
+import secrets
 from datetime import datetime
 from uuid import UUID
 
@@ -20,6 +22,14 @@ class DomainRejected(Exception):
         self.code = code
         self.detail = detail
         super().__init__(f"backend rejected request with HTTP {status_code}: {detail}")
+
+
+class TerminalBackendError(Exception):
+    def __init__(self, status_code: int, code: str | None, detail: object) -> None:
+        self.status_code = status_code
+        self.code = code
+        self.detail = detail
+        super().__init__(f"backend contract failed with HTTP {status_code}: {detail}")
 
 
 async def fetch_backend_health(
@@ -55,11 +65,13 @@ class BackendClient:
         *,
         timeout_seconds: float = 20,
         max_attempts: int = 4,
+        retry_random: random.Random | None = None,
     ) -> None:
         self.run_id = run_id
         self.run_token = run_token
         self.driver_tokens = driver_tokens
-        self.max_attempts = max_attempts
+        self.max_attempts = max(max_attempts, 1)
+        self.retry_random = retry_random or secrets.SystemRandom()
         self.http = httpx.AsyncClient(
             base_url=backend_url.rstrip("/"), timeout=timeout_seconds
         )
@@ -94,6 +106,7 @@ class BackendClient:
                         ConnectorCandidate(
                             id=connector["id"],
                             facility_id=facility_id,
+                            station_id=station["id"],
                             connector_type=connector["connector_type"],
                             maximum_power_kw=connector["maximum_power_kw"],
                         )
@@ -123,15 +136,27 @@ class BackendClient:
             else:
                 if response.status_code < 300:
                     return response.json(), attempt
-                detail = response.json().get("detail")
-                code = detail.get("code") if isinstance(detail, dict) else None
-                if response.status_code < 500:
-                    raise DomainRejected(response.status_code, code, detail)
-                last_error = RuntimeError(
-                    f"backend returned HTTP {response.status_code}"
+                if response.status_code >= 500:
+                    last_error = RuntimeError(
+                        f"backend returned HTTP {response.status_code}"
+                    )
+                    if attempt + 1 < self.max_attempts:
+                        upper_bound = min(0.25 * (2**attempt), 2.0)
+                        await asyncio.sleep(self.retry_random.uniform(0, upper_bound))
+                    continue
+                error_body = response.json()
+                detail = (
+                    error_body.get("detail")
+                    if isinstance(error_body, dict)
+                    else error_body
                 )
+                code = detail.get("code") if isinstance(detail, dict) else None
+                if _is_expected_domain_rejection(response.status_code, code):
+                    raise DomainRejected(response.status_code, code, detail)
+                raise TerminalBackendError(response.status_code, code, detail)
             if attempt + 1 < self.max_attempts:
-                await asyncio.sleep(min(0.25 * (2**attempt), 2.0))
+                upper_bound = min(0.25 * (2**attempt), 2.0)
+                await asyncio.sleep(self.retry_random.uniform(0, upper_bound))
         raise RuntimeError("simulated request exhausted retry policy") from last_error
 
     def _bearer(self, driver_id: UUID) -> dict[str, str]:
@@ -178,3 +203,13 @@ def response_resource(
 
 def parse_time(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def _is_expected_domain_rejection(status_code: int, code: str | None) -> bool:
+    if status_code not in {409, 422}:
+        return False
+    if code is None:
+        return status_code == 422
+    return not (
+        code.startswith("SIMULATION_") or code in {"TELEMETRY_IDEMPOTENCY_CONFLICT"}
+    )

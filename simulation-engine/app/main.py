@@ -73,6 +73,8 @@ async def run() -> None:
             checkpoint_path=checkpoint_path,
             scenario_id=scenario.scenario_id,
             scenario_version=scenario.scenario_version,
+            authorized_facility_ids=bootstrap.authorized_facility_ids,
+            logical_end_at=scenario.logical_end_at,
         )
         write_report(report, Path(settings.report_path))
         logger.info(report.model_dump_json())
