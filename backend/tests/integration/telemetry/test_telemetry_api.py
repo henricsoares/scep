@@ -129,6 +129,7 @@ def test_temporal_measurement_authentication_and_openapi(
         ("/charging-sessions/{sessionId}/telemetry", "post"): {
             "200",
             "201",
+            "400",
             "401",
             "404",
             "409",
@@ -137,6 +138,7 @@ def test_temporal_measurement_authentication_and_openapi(
         ("/charging-sessions/{sessionId}/telemetry/batch", "post"): {
             "200",
             "201",
+            "400",
             "401",
             "404",
             "409",

@@ -120,6 +120,11 @@ A Technical Client represents a non-human identity used by an external automated
 
 The initial Technical Client is the Digital Twin Simulation Engine.
 
+Current implementation note: SPEC-013 Version 1 does not grant simulation mutation authority to a
+`TechnicalClient` account. Each simulated mutation requires the normal EVDriver bearer identity
+plus a run-scoped credential. The permanent non-human actor mapping remains the cross-specification
+identity debt tracked by issue #46; SPEC-013 does not otherwise redefine this specification.
+
 A Technical Client:
 
 - authenticates through the same token endpoint as Human accounts;
@@ -1349,7 +1354,7 @@ This specification is complete when:
 * persistence and migrations are implemented;
 * automated tests validate authentication and authorization;
 * Docker Compose smoke tests validate the complete authentication flow;
-* Domain Events remain deferred to SPEC-009.
+* Domain Events remain outside SPEC-005 and are implemented by SPEC-009.
 
 ---
 

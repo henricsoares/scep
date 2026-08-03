@@ -34,6 +34,7 @@ class ChargingSessionModel(Base):
         Index("ix_charging_sessions_owner_created", "owner_id", "created_at"),
         Index("ix_charging_sessions_status_started", "status", "started_at"),
         Index("ix_charging_sessions_connector_started", "connector_id", "started_at"),
+        Index("ix_charging_sessions_simulation_run_status", "simulation_run_id", "status"),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
@@ -41,6 +42,9 @@ class ChargingSessionModel(Base):
     owner_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     vehicle_id: Mapped[UUID] = mapped_column(ForeignKey("vehicles.id"), nullable=False)
     connector_id: Mapped[UUID] = mapped_column(ForeignKey("connectors.id"), nullable=False)
+    simulation_run_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("simulation_runs.id", ondelete="RESTRICT")
+    )
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

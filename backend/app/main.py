@@ -27,6 +27,8 @@ from app.modules.identity.api.users import router as users_router
 from app.modules.identity.application.user_service import UserService, bootstrap_admin
 from app.modules.identity.infrastructure.dataset_export_reader import IdentityDatasetReader
 from app.modules.identity.infrastructure.user_repository import SqlAlchemyUserRepository
+from app.modules.simulation.api import router as simulation_router
+from app.modules.simulation.context import SimulationContextAllowlistMiddleware
 from app.modules.telemetry.api import router as telemetry_router
 from app.modules.telemetry.dataset_export_reader import TelemetryDatasetReader
 
@@ -41,6 +43,7 @@ def create_app(*, export_telemetry: bool | None = None) -> FastAPI:
     dispatcher = InternalEventDispatcher(SessionLocal)
     configure_post_commit_dispatch(dispatcher.recover)
     app.add_middleware(RequestCorrelationMiddleware)
+    app.add_middleware(SimulationContextAllowlistMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -67,6 +70,7 @@ def create_app(*, export_telemetry: bool | None = None) -> FastAPI:
     app.include_router(events_router)
     app.include_router(analytics_router)
     app.include_router(datasets_router)
+    app.include_router(simulation_router)
 
     @app.on_event("startup")
     def recover_domain_event_deliveries() -> None:

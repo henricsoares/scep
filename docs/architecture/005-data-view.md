@@ -38,9 +38,9 @@ No duplicated transactional data should exist between modules.
 
 ## Event as Historical Record
 
-Business events represent immutable facts.
-
-Operational history should be reconstructed from events whenever necessary.
+Business events represent immutable facts. The current runtime is not event-sourced: Domain Events
+preserve emitted facts, but complete historical reconstruction is not universally guaranteed from
+the event catalog. ADR-009 defines the current snapshot and provenance boundary.
 
 ---
 
@@ -136,9 +136,24 @@ Owns:
 
 ---
 
-## AI
+## Simulation Coordination
 
 Owns:
+
+* `SimulationRun` lifecycle and scoped Facility/EVDriver associations
+* hash-only run credentials
+* successful Simulation Event Receipts and canonical request digests
+* logical-clock state
+
+Reservation and Charging Session provenance remain fields on records owned by Smart Charging.
+Scenario files, driver probability profiles, checkpoints and execution reports remain owned by the
+external Simulation Engine and are not stored as backend aggregates.
+
+---
+
+## AI
+
+Planned SCEP ownership under SPEC-012:
 
 * immutable Weekly Occupancy Prediction publications and buckets inside SCEP
 * limited model, external-run and Dataset Export provenance references inside SCEP
@@ -179,13 +194,13 @@ Operational Data / KPIs
 
             ▼
 
- Future Dataset Export
+ Dataset Export
 
             │
 
             ▼
 
- Future Machine Learning Models
+ External AI Research Environment
 
             │
 
@@ -224,8 +239,10 @@ The same operational data simultaneously supports:
 | Domain Event     | Events         |
 | KPI              | Analytics      |
 | Dataset          | Dataset Export |
+| Simulation Run   | Simulation Coordination |
+| Simulation Event Receipt | Simulation Coordination |
 | Prediction       | AI             |
-| Experiment       | AI             |
+| AI Experiment    | External AI Research Environment |
 
 Only the owning module may modify its entities.
 
@@ -328,7 +345,7 @@ Datasets may include:
 * telemetry;
 * occupancy history;
 * failures;
-* simulation metadata;
+* optional future simulation lineage when a truthful public contract is defined;
 * operational KPIs.
 
 Portable export formats are selected by the Dataset Export functional specification. Version 1
@@ -350,6 +367,10 @@ Experiment identifiers, feature descriptions, simulation seeds and simulation pa
 conditional source lineage rather than universal export metadata. A future specification may
 introduce a structured `source_lineage` object when the source association can be represented
 truthfully.
+
+Dataset Export Version 1 does not filter by `SimulationRun` and does not expose run provenance in
+export rows. Synthetic activity may therefore appear when its dedicated Facility and time window
+are selected, as accepted by SPEC-013 Version 1.
 
 ---
 

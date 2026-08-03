@@ -62,6 +62,7 @@ class Reservation:
     cancelled_at: datetime | None = None
     late_cancelled_at: datetime | None = None
     no_show_at: datetime | None = None
+    simulation_run_id: UUID | None = None
 
     @classmethod
     def create(
@@ -73,19 +74,21 @@ class Reservation:
         start_at: datetime,
         end_at: datetime,
         now: datetime,
+        simulation_run_id: UUID | None = None,
     ) -> Reservation:
         current = normalize_utc(now)
         start, end = validate_interval(start_at, end_at, now=current)
         return cls(
-            uuid4(),
-            owner_id,
-            vehicle_id,
-            connector_id,
-            start,
-            end,
-            ReservationStatus.CONFIRMED,
-            current,
-            current,
+            id=uuid4(),
+            owner_id=owner_id,
+            vehicle_id=vehicle_id,
+            connector_id=connector_id,
+            start_at=start,
+            end_at=end,
+            status=ReservationStatus.CONFIRMED,
+            created_at=current,
+            updated_at=current,
+            simulation_run_id=simulation_run_id,
         )
 
     def reschedule(

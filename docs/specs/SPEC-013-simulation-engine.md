@@ -4,7 +4,7 @@
 
 **Document Status:** Approved
 
-**Implementation Status:** Planned
+**Implementation Status:** Implemented
 
 **Version:** 1.0
 

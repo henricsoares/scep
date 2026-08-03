@@ -13,6 +13,12 @@ from app.modules.charging.infrastructure.charging_session_repository import (
 )
 from app.modules.identity.api.dependencies import current_user
 from app.modules.identity.domain.user import User
+from app.modules.simulation.context import SimulationRequestContext, optional_simulation_context
+from app.modules.simulation.coordinator import (
+    SimulationMutationCoordinator,
+    SimulationMutationResult,
+)
+from app.modules.simulation.operations import session_scope
 from app.modules.telemetry.domain import TelemetrySample, TelemetrySource
 from app.modules.telemetry.infrastructure import (
     SqlAlchemyTelemetryRepository,
@@ -54,6 +60,7 @@ class TelemetryResponse(BaseModel):
 
 
 ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
+    400: {"description": "Incomplete or unsupported simulation context"},
     401: {"description": "Missing or invalid Bearer authentication"},
     404: {"description": "Charging Session or TelemetrySample absent or concealed"},
     409: {
@@ -84,10 +91,12 @@ def get_telemetry_service(db: Annotated[Session, Depends(get_db)]) -> TelemetryS
     )
 
 
-def _sample(payload: TelemetryIngestRequest, session_id: UUID) -> TelemetrySample:
+def _sample(
+    payload: TelemetryIngestRequest, session_id: UUID, received_at: datetime | None = None
+) -> TelemetrySample:
     return TelemetrySample.create(
         session_id=session_id,
-        received_at=SystemClock().now(),
+        received_at=received_at or SystemClock().now(),
         **payload.model_dump(),
     )
 
@@ -122,8 +131,45 @@ def ingest_telemetry(
     response: Response,
     service: Annotated[TelemetryService, Depends(get_telemetry_service)],
     user: Annotated[User, Depends(current_user)],
+    db: Annotated[Session, Depends(get_db)],
+    simulation: Annotated[
+        SimulationRequestContext | None, Depends(optional_simulation_context)
+    ] = None,
 ) -> TelemetryResponse:
     try:
+        if simulation is not None:
+            facility_id, _ = session_scope(db, sessionId, simulation.simulation_run_id)
+            if normalize_utc(payload.recorded_at) > simulation.simulated_at:
+                raise ValueError("recorded_at cannot be later than X-Simulated-At")
+            simulated_service = TelemetryService(
+                SqlAlchemyTelemetryRepository(db, auto_commit=False),
+                SqlAlchemyChargingSessionRepository(db, auto_commit=False),
+            )
+
+            def action() -> SimulationMutationResult:
+                canonical, created = simulated_service.ingest(
+                    sessionId,
+                    [_sample(payload, sessionId, simulation.simulated_at)],
+                    actor=user,
+                    batch=False,
+                )
+                body = _response(canonical[0]).model_dump(mode="json")
+                return SimulationMutationResult(
+                    201 if created else 200, body, "TelemetrySample", canonical[0].id
+                )
+
+            result = SimulationMutationCoordinator(db).execute(
+                context=simulation,
+                operation="TELEMETRY_CREATE",
+                canonical_content={
+                    "session_id": str(sessionId),
+                    "payload": payload.model_dump(mode="json"),
+                },
+                facility_id=facility_id,
+                action=action,
+            )
+            response.status_code = result.response_status
+            return TelemetryResponse.model_validate(result.response_snapshot)
         canonical, created = service.ingest(
             sessionId, [_sample(payload, sessionId)], actor=user, batch=False
         )
@@ -151,8 +197,54 @@ def ingest_telemetry_batch(
     response: Response,
     service: Annotated[TelemetryService, Depends(get_telemetry_service)],
     user: Annotated[User, Depends(current_user)],
+    db: Annotated[Session, Depends(get_db)],
+    simulation: Annotated[
+        SimulationRequestContext | None, Depends(optional_simulation_context)
+    ] = None,
 ) -> list[TelemetryResponse]:
     try:
+        if simulation is not None:
+            facility_id, _ = session_scope(db, sessionId, simulation.simulation_run_id)
+            if any(
+                normalize_utc(item.recorded_at) > simulation.simulated_at
+                for item in payload.samples
+            ):
+                raise ValueError("recorded_at cannot be later than X-Simulated-At")
+            simulated_service = TelemetryService(
+                SqlAlchemyTelemetryRepository(db, auto_commit=False),
+                SqlAlchemyChargingSessionRepository(db, auto_commit=False),
+            )
+
+            def action() -> SimulationMutationResult:
+                canonical, created = simulated_service.ingest(
+                    sessionId,
+                    [_sample(item, sessionId, simulation.simulated_at) for item in payload.samples],
+                    actor=user,
+                    batch=True,
+                )
+                body = {"samples": [_response(item).model_dump(mode="json") for item in canonical]}
+                return SimulationMutationResult(
+                    201 if created else 200,
+                    body,
+                    "ChargingSession",
+                    sessionId,
+                )
+
+            result = SimulationMutationCoordinator(db).execute(
+                context=simulation,
+                operation="TELEMETRY_BATCH_CREATE",
+                canonical_content={
+                    "session_id": str(sessionId),
+                    "payload": payload.model_dump(mode="json"),
+                },
+                facility_id=facility_id,
+                action=action,
+            )
+            response.status_code = result.response_status
+            return [
+                TelemetryResponse.model_validate(item)
+                for item in result.response_snapshot["samples"]
+            ]
         canonical, created = service.ingest(
             sessionId,
             [_sample(item, sessionId) for item in payload.samples],

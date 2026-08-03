@@ -62,3 +62,18 @@ otherwise `Available`.
 Prometheus exposes activation, completion, failure and conflict counters under the
 `scep_charging_session*` namespace. Direct sessions, telemetry, OCPP, energy calculation, billing,
 notifications and Domain Events remain outside SPEC-007.
+
+## Current Backend Capabilities
+
+Subsequent approved specifications extend the same modular monolith with:
+
+- immutable single and batch Telemetry ingestion from normal and simulated Sessions;
+- transactional Domain Event persistence and post-commit internal dispatch;
+- authenticated read-only Analytics overview and time-series endpoints;
+- CSV and Parquet Dataset Exports with processing-time snapshots, integrity and provenance;
+- the SPEC-013 `SimulationRun` lifecycle, run-scoped credential validation, immutable event
+  receipts, logical-clock enforcement and Reservation-to-Session simulation provenance.
+
+The behavioral Digital Twin engine remains in `simulation-engine/`. The backend does not plan
+scenarios or generate synthetic behavior; it validates the restricted simulation context and
+applies existing domain rules atomically. Normal requests do not require simulation headers.

@@ -54,19 +54,28 @@ class ReservationService:
         stations: SqlAlchemyChargingStationRepository,
         facilities: SqlAlchemyFacilityRepository,
         clock: Clock,
+        simulation_run_id: UUID | None = None,
     ) -> None:
         self.reservations = reservations
         self.vehicles = vehicles
         self.stations = stations
         self.facilities = facilities
         self.clock = clock
+        self.simulation_run_id = simulation_run_id
+        self.pending_no_show_reconciliations = 0
 
     def reconcile_overdue(self) -> int:
         now = self.clock.now()
-        count = self.reservations.reconcile_overdue(now)
+        count = self.reservations.reconcile_overdue(now, simulation_run_id=self.simulation_run_id)
         if count:
-            reservations_no_show_total.inc(count)
-            logger.info("reservation no-show reconciliation completed", extra={"count": count})
+            if self.reservations.auto_commit:
+                reservations_no_show_total.inc(count)
+                logger.info(
+                    "reservation no-show reconciliation completed",
+                    extra={"count": count},
+                )
+            else:
+                self.pending_no_show_reconciliations += count
         return count
 
     def _vehicle_for_owner(self, vehicle_id: UUID, actor: User) -> tuple[UUID, object]:
@@ -168,6 +177,7 @@ class ReservationService:
             start_at=start_at,
             end_at=end_at,
             now=self.clock.now(),
+            simulation_run_id=self.simulation_run_id,
         )
         self._check_conflict(
             connector_id=connector_id,

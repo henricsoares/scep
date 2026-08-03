@@ -1,0 +1,360 @@
+{
+  "_type": "export",
+  "__export_format": 4,
+  "__export_date": "2026-08-02T00:00:00.000Z",
+  "__export_source": "scep.repository",
+  "resources": [
+    {
+      "_id": "wrk_scep_spec013",
+      "_type": "workspace",
+      "name": "SCEP SPEC-013 Simulator Bootstrap",
+      "description": "Prepare one isolated SPEC-013 SimulationRun and its external simulator inputs. Run folder 1 first, save the RUNNING bootstrap response and copy scenario_json plus simulator_env from the Base Environment. Execute the external simulator, then run folder 2 to verify public resources and complete the run.",
+      "scope": "collection"
+    },
+    {
+      "_id": "env_scep_spec013",
+      "_type": "environment",
+      "parentId": "wrk_scep_spec013",
+      "name": "Base Environment",
+      "data": {
+        "base_url": "http://localhost:8000",
+        "admin_email": "admin@scep.local",
+        "admin_password": "LocalAdmin123!",
+        "driver_password": "Spec013!Local123",
+        "run_id": "",
+        "admin_token": "",
+        "driver_token": "",
+        "driver_id": "",
+        "facility_id": "",
+        "station_id": "",
+        "connector_id": "",
+        "vehicle_id": "",
+        "simulation_run_id": "",
+        "simulation_run_token": "",
+        "reservation_id": "",
+        "session_id": "",
+        "logical_start_at": "2026-01-05T00:00:00.000Z",
+        "logical_end_at": "2026-01-06T00:00:00.000Z",
+        "simulator_scenario_path": "/absolute/path/to/simulation-engine/smoke/runtime-insomnia/scenario.json",
+        "simulator_bootstrap_path": "/absolute/path/to/simulation-engine/smoke/runtime-insomnia/bootstrap.json",
+        "simulator_checkpoint_path": "/absolute/path/to/simulation-engine/smoke/runtime-insomnia/checkpoint.json",
+        "simulator_report_path": "/absolute/path/to/simulation-engine/smoke/runtime-insomnia/report.json",
+        "simulator_driver_tokens_json": "",
+        "scenario_json": "",
+        "draft_bootstrap_json": "",
+        "bootstrap_json": "",
+        "simulator_env": "",
+        "BACKEND_URL": "http://localhost:8000",
+        "SIMULATION_SCENARIO_PATH": "/absolute/path/to/simulation-engine/smoke/runtime-insomnia/scenario.json",
+        "SIMULATION_BOOTSTRAP_PATH": "/absolute/path/to/simulation-engine/smoke/runtime-insomnia/bootstrap.json",
+        "SIMULATION_CHECKPOINT_PATH": "/absolute/path/to/simulation-engine/smoke/runtime-insomnia/checkpoint.json",
+        "SIMULATION_REPORT_PATH": "/absolute/path/to/simulation-engine/smoke/runtime-insomnia/report.json",
+        "SIMULATION_RUN_TOKEN": "",
+        "SIMULATION_DRIVER_TOKENS_JSON": ""
+      }
+    },
+    {
+      "_id": "jar_scep_spec013",
+      "_type": "cookie_jar",
+      "parentId": "wrk_scep_spec013",
+      "name": "Default Jar",
+      "cookies": []
+    },
+    {
+      "_id": "fld_spec013_prepare",
+      "_type": "request_group",
+      "parentId": "wrk_scep_spec013",
+      "name": "SPEC-013 1 - Prepare External Simulator",
+      "description": "Run requests 01 through 12 in order. Request 10 starts the run and captures the one-time token. Request 11 is the RUNNING bootstrap that must be saved as the configured bootstrap path. Do not run the post-simulator folder yet."
+    },
+    {
+      "_id": "fld_spec013_verify",
+      "_type": "request_group",
+      "parentId": "wrk_scep_spec013",
+      "name": "SPEC-013 2 - Verify and Complete After Simulator",
+      "description": "Run only after uv run python -m app.main finishes with a FINISHED report. Requests verify the still-RUNNING backend run, generated Reservation, completed Charging Session and Telemetry before the administrator completes the SimulationRun."
+    },
+    {
+      "_id": "req_spec013_01_admin_login",
+      "_type": "request",
+      "parentId": "fld_spec013_prepare",
+      "name": "01 - Login Bootstrap Administrator and Initialize",
+      "method": "POST",
+      "url": "{{ _.base_url }}/auth/login",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "X-Request-ID", "value": "spec013-{{ _.run_id }}-admin-login" }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"email\": \"{{ _.admin_email }}\",\n  \"password\": \"{{ _.admin_password }}\"\n}"
+      },
+      "authentication": {},
+      "preRequestScript": "const runId = Date.now().toString();\nconst clear = ['admin_token','driver_token','driver_id','facility_id','station_id','connector_id','vehicle_id','simulation_run_id','simulation_run_token','reservation_id','session_id','simulator_driver_tokens_json','scenario_json','draft_bootstrap_json','bootstrap_json','simulator_env','SIMULATION_RUN_TOKEN','SIMULATION_DRIVER_TOKENS_JSON'];\ninsomnia.baseEnvironment.set('run_id', runId);\nclear.forEach(name => insomnia.baseEnvironment.set(name, ''));\ninsomnia.baseEnvironment.set('logical_start_at', '2026-01-05T00:00:00.000Z');\ninsomnia.baseEnvironment.set('logical_end_at', '2026-01-06T00:00:00.000Z');\n",
+      "afterResponseScript": "insomnia.test('administrator login returns 200', () => insomnia.expect(insomnia.response.code, '401: update admin_email/admin_password to the persisted local administrator credentials').to.eql(200));\nif (insomnia.response.code === 200) insomnia.baseEnvironment.set('admin_token', insomnia.response.json().access_token);\n",
+      "metaSortKey": 1000
+    },
+    {
+      "_id": "req_spec013_02_facility",
+      "_type": "request",
+      "parentId": "fld_spec013_prepare",
+      "name": "02 - Create Dedicated UTC Facility",
+      "method": "POST",
+      "url": "{{ _.base_url }}/facilities",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "X-Request-ID", "value": "spec013-{{ _.run_id }}-facility" }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"name\": \"SPEC-013 Insomnia Smoke {{ _.run_id }}\",\n  \"facility_type\": \"University\",\n  \"timezone\": \"UTC\",\n  \"country\": \"Brazil\",\n  \"city\": \"Juiz de Fora\",\n  \"address\": \"Dedicated SPEC-013 synthetic validation\",\n  \"operating_hours\": null,\n  \"status\": \"Active\"\n}"
+      },
+      "authentication": { "type": "bearer", "token": "{{ _.admin_token }}" },
+      "afterResponseScript": "const body = insomnia.response.json();\ninsomnia.test('dedicated Facility creation returns 201', () => { insomnia.expect(insomnia.response.code).to.eql(201); insomnia.expect(body.timezone).to.eql('UTC'); insomnia.expect(body.status).to.eql('Active'); });\nif (insomnia.response.code === 201) insomnia.baseEnvironment.set('facility_id', body.id);\n",
+      "metaSortKey": 2000
+    },
+    {
+      "_id": "req_spec013_03_station",
+      "_type": "request",
+      "parentId": "fld_spec013_prepare",
+      "name": "03 - Create Station and Connector",
+      "method": "POST",
+      "url": "{{ _.base_url }}/facilities/{{ _.facility_id }}/stations",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "X-Request-ID", "value": "spec013-{{ _.run_id }}-station" }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"name\": \"SPEC-013 Insomnia Station\",\n  \"description\": \"Dedicated external simulator validation\",\n  \"serial_number\": \"SPEC013-{{ _.run_id }}\",\n  \"manufacturer\": \"SCEP\",\n  \"model\": \"Smoke-22\",\n  \"maximum_power_kw\": 22,\n  \"status\": \"Active\",\n  \"connectors\": [\n    {\"connector_type\": \"Type2\", \"maximum_power_kw\": 22, \"status\": \"Available\"}\n  ]\n}"
+      },
+      "authentication": { "type": "bearer", "token": "{{ _.admin_token }}" },
+      "afterResponseScript": "const body = insomnia.response.json();\ninsomnia.test('Station with one available Connector returns 201', () => { insomnia.expect(insomnia.response.code).to.eql(201); insomnia.expect(body.facility_id).to.eql(insomnia.baseEnvironment.get('facility_id')); insomnia.expect(body.status).to.eql('Active'); insomnia.expect(body.connectors).to.have.length(1); insomnia.expect(body.connectors[0].status).to.eql('Available'); });\nif (insomnia.response.code === 201) { insomnia.baseEnvironment.set('station_id', body.id); insomnia.baseEnvironment.set('connector_id', body.connectors[0].id); }\n",
+      "metaSortKey": 3000
+    },
+    {
+      "_id": "req_spec013_04_driver",
+      "_type": "request",
+      "parentId": "fld_spec013_prepare",
+      "name": "04 - Create Dedicated EVDriver",
+      "method": "POST",
+      "url": "{{ _.base_url }}/users",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "X-Request-ID", "value": "spec013-{{ _.run_id }}-driver" }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"email\": \"spec013.insomnia.{{ _.run_id }}@example.com\",\n  \"display_name\": \"SPEC-013 Insomnia Driver\",\n  \"password\": \"{{ _.driver_password }}\",\n  \"account_type\": \"Human\",\n  \"status\": \"Active\",\n  \"roles\": [\"EVDriver\"],\n  \"facility_ids\": []\n}"
+      },
+      "authentication": { "type": "bearer", "token": "{{ _.admin_token }}" },
+      "afterResponseScript": "const body = insomnia.response.json();\ninsomnia.test('dedicated EVDriver creation returns 201', () => { insomnia.expect(insomnia.response.code).to.eql(201); insomnia.expect(body.roles).to.include('EVDriver'); insomnia.expect(body.status).to.eql('Active'); });\nif (insomnia.response.code === 201) insomnia.baseEnvironment.set('driver_id', body.id);\n",
+      "metaSortKey": 4000
+    },
+    {
+      "_id": "req_spec013_05_driver_login",
+      "_type": "request",
+      "parentId": "fld_spec013_prepare",
+      "name": "05 - Login EVDriver and Capture JWT",
+      "method": "POST",
+      "url": "{{ _.base_url }}/auth/login",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "X-Request-ID", "value": "spec013-{{ _.run_id }}-driver-login" }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"email\": \"spec013.insomnia.{{ _.run_id }}@example.com\",\n  \"password\": \"{{ _.driver_password }}\"\n}"
+      },
+      "authentication": {},
+      "afterResponseScript": "insomnia.test('EVDriver login returns 200', () => insomnia.expect(insomnia.response.code).to.eql(200));\nif (insomnia.response.code === 200) insomnia.baseEnvironment.set('driver_token', insomnia.response.json().access_token);\n",
+      "metaSortKey": 5000
+    },
+    {
+      "_id": "req_spec013_06_vehicle",
+      "_type": "request",
+      "parentId": "fld_spec013_prepare",
+      "name": "06 - Create EVDriver Vehicle",
+      "method": "POST",
+      "url": "{{ _.base_url }}/vehicles",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "X-Request-ID", "value": "spec013-{{ _.run_id }}-vehicle" }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"display_name\": \"SPEC-013 Insomnia Vehicle\"\n}"
+      },
+      "authentication": { "type": "bearer", "token": "{{ _.driver_token }}" },
+      "afterResponseScript": "const body = insomnia.response.json();\ninsomnia.test('EVDriver Vehicle creation returns 201', () => { insomnia.expect(insomnia.response.code).to.eql(201); insomnia.expect(body.owner_id).to.eql(insomnia.baseEnvironment.get('driver_id')); insomnia.expect(body.status).to.eql('ACTIVE'); });\nif (insomnia.response.code === 201) insomnia.baseEnvironment.set('vehicle_id', body.id);\n",
+      "metaSortKey": 6000
+    },
+    {
+      "_id": "req_spec013_07_create_run",
+      "_type": "request",
+      "parentId": "fld_spec013_prepare",
+      "name": "07 - Create DRAFT SimulationRun",
+      "method": "POST",
+      "url": "{{ _.base_url }}/simulation-runs",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "X-Request-ID", "value": "spec013-{{ _.run_id }}-create-run" }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"logical_start_at\": \"{{ _.logical_start_at }}\",\n  \"logical_end_at\": \"{{ _.logical_end_at }}\",\n  \"facility_ids\": [\"{{ _.facility_id }}\"],\n  \"evdriver_ids\": [\"{{ _.driver_id }}\"],\n  \"external_scenario_id\": \"spec-013-insomnia-smoke\",\n  \"external_scenario_version\": \"1\",\n  \"simulator_version\": \"1.0.0\"\n}"
+      },
+      "authentication": { "type": "bearer", "token": "{{ _.admin_token }}" },
+      "afterResponseScript": "const body = insomnia.response.json();\ninsomnia.test('SimulationRun is created as DRAFT', () => { insomnia.expect(insomnia.response.code).to.eql(201); insomnia.expect(body.status).to.eql('DRAFT'); insomnia.expect(body.facility_ids).to.eql([insomnia.baseEnvironment.get('facility_id')]); insomnia.expect(body.evdriver_ids).to.eql([insomnia.baseEnvironment.get('driver_id')]); insomnia.expect(body.scenario_sha256).to.eql(null); });\nif (insomnia.response.code === 201) insomnia.baseEnvironment.set('simulation_run_id', body.id);\n",
+      "metaSortKey": 7000
+    },
+    {
+      "_id": "req_spec013_08_draft_run",
+      "_type": "request",
+      "parentId": "fld_spec013_prepare",
+      "name": "08 - Inspect DRAFT SimulationRun",
+      "method": "GET",
+      "url": "{{ _.base_url }}/simulation-runs/{{ _.simulation_run_id }}",
+      "headers": [{ "name": "X-Request-ID", "value": "spec013-{{ _.run_id }}-draft-run" }],
+      "parameters": [],
+      "body": {},
+      "authentication": { "type": "bearer", "token": "{{ _.admin_token }}" },
+      "afterResponseScript": "const body = insomnia.response.json();\ninsomnia.test('prepared run remains DRAFT with no accepted logical time', () => { insomnia.expect(insomnia.response.code).to.eql(200); insomnia.expect(body.status).to.eql('DRAFT'); insomnia.expect(body.last_accepted_simulated_at).to.eql(null); });\n",
+      "metaSortKey": 8000
+    },
+    {
+      "_id": "req_spec013_09_draft_bootstrap",
+      "_type": "request",
+      "parentId": "fld_spec013_prepare",
+      "name": "09 - Export DRAFT Bootstrap for Inspection",
+      "method": "GET",
+      "url": "{{ _.base_url }}/simulation-runs/{{ _.simulation_run_id }}/bootstrap",
+      "headers": [{ "name": "X-Request-ID", "value": "spec013-{{ _.run_id }}-draft-bootstrap" }],
+      "parameters": [],
+      "body": {},
+      "authentication": { "type": "bearer", "token": "{{ _.admin_token }}" },
+      "afterResponseScript": "const body = insomnia.response.json();\ninsomnia.test('DRAFT bootstrap contains only authorized identifiers and no credential', () => { insomnia.expect(insomnia.response.code).to.eql(200); insomnia.expect(body.simulation_run.status).to.eql('DRAFT'); insomnia.expect(body.authorized_facility_ids).to.eql([insomnia.baseEnvironment.get('facility_id')]); insomnia.expect(body.authorized_evdriver_ids).to.eql([insomnia.baseEnvironment.get('driver_id')]); insomnia.expect(JSON.stringify(body)).not.to.include('token'); });\nif (insomnia.response.code === 200) insomnia.baseEnvironment.set('draft_bootstrap_json', JSON.stringify(body, null, 2));\n",
+      "metaSortKey": 9000
+    },
+    {
+      "_id": "req_spec013_10_start",
+      "_type": "request",
+      "parentId": "fld_spec013_prepare",
+      "name": "10 - START Run and Build Simulator Environment",
+      "method": "POST",
+      "url": "{{ _.base_url }}/simulation-runs/{{ _.simulation_run_id }}/start",
+      "headers": [{ "name": "X-Request-ID", "value": "spec013-{{ _.run_id }}-start" }],
+      "parameters": [],
+      "body": {},
+      "authentication": { "type": "bearer", "token": "{{ _.admin_token }}" },
+      "afterResponseScript": "const body = insomnia.response.json();\nconst env = insomnia.baseEnvironment;\ninsomnia.test('run starts and returns the one-time token', () => { insomnia.expect(insomnia.response.code).to.eql(200); insomnia.expect(body.simulation_run.status).to.eql('RUNNING'); insomnia.expect(body.simulation_token).to.be.a('string'); insomnia.expect(body.simulation_token.length).to.be.greaterThan(20); });\nif (insomnia.response.code === 200) {\n  const driverId = env.get('driver_id');\n  const facilityId = env.get('facility_id');\n  const driverTokens = JSON.stringify({[driverId]: env.get('driver_token')});\n  const scenario = {schema_version:'1.0', scenario_id:'spec-013-insomnia-smoke', scenario_version:'1', random_seed:13013, logical_start_at:env.get('logical_start_at'), logical_end_at:env.get('logical_end_at'), telemetry_defaults:{enabled:true,sampling_interval_minutes:15,batch_size:100,bounded_power_noise:0}, drivers:[{driver_id:driverId,sessions_per_week:{min:1,max:1},weekday_weights:{'0':1},hour_weights:{'12':1},start_time_jitter_minutes:0,facility_weights:{[facilityId]:1},preferred_connector_types:['Type2'],selection_strategy:'FIRST_ELIGIBLE',reservation_probability:1,cancellation_probability:0,no_show_probability:0,lead_time_minutes:{min:60,max:60},session_duration_minutes:{min:60,max:60},power_utilization_factor:{min:0.5,max:0.5},telemetry:{enabled:true,sampling_interval_minutes:15,batch_size:100,bounded_power_noise:0},failure_handling:{try_another_connector:false,try_another_station:false,try_another_facility:false,maximum_alternative_attempts:0,rescheduling_delay_minutes:{min:15,max:15},maximum_rescheduling_attempts:0}}]};\n  env.set('simulation_run_token', body.simulation_token);\n  env.set('simulator_driver_tokens_json', driverTokens);\n  env.set('scenario_json', JSON.stringify(scenario, null, 2));\n  env.set('simulator_env', [\n    `BACKEND_URL=${env.get('base_url')}`,\n    `SIMULATION_SCENARIO_PATH=${env.get('simulator_scenario_path')}`,\n    `SIMULATION_BOOTSTRAP_PATH=${env.get('simulator_bootstrap_path')}`,\n    `SIMULATION_CHECKPOINT_PATH=${env.get('simulator_checkpoint_path')}`,\n    `SIMULATION_REPORT_PATH=${env.get('simulator_report_path')}`,\n    `SIMULATION_RUN_TOKEN=${body.simulation_token}`,\n    `SIMULATION_DRIVER_TOKENS_JSON='${driverTokens}'`\n  ].join('\\n'));\n}\n",
+      "metaSortKey": 10000
+    },
+    {
+      "_id": "req_spec013_11_running_bootstrap",
+      "_type": "request",
+      "parentId": "fld_spec013_prepare",
+      "name": "11 - Export RUNNING Bootstrap - Save This Response",
+      "method": "GET",
+      "url": "{{ _.base_url }}/simulation-runs/{{ _.simulation_run_id }}/bootstrap",
+      "headers": [{ "name": "X-Request-ID", "value": "spec013-{{ _.run_id }}-running-bootstrap" }],
+      "parameters": [],
+      "body": {},
+      "authentication": { "type": "bearer", "token": "{{ _.admin_token }}" },
+      "preRequestScript": "const env = insomnia.baseEnvironment;\nenv.set('BACKEND_URL', env.get('base_url'));\nenv.set('SIMULATION_SCENARIO_PATH', env.get('simulator_scenario_path'));\nenv.set('SIMULATION_BOOTSTRAP_PATH', env.get('simulator_bootstrap_path'));\nenv.set('SIMULATION_CHECKPOINT_PATH', env.get('simulator_checkpoint_path'));\nenv.set('SIMULATION_REPORT_PATH', env.get('simulator_report_path'));\nenv.set('SIMULATION_RUN_TOKEN', env.get('simulation_run_token'));\nenv.set('SIMULATION_DRIVER_TOKENS_JSON', env.get('simulator_driver_tokens_json'));\n",
+      "afterResponseScript": "const body = insomnia.response.json();\ninsomnia.test('RUNNING bootstrap matches scenario authorization and window', () => { insomnia.expect(insomnia.response.code).to.eql(200); insomnia.expect(body.bootstrap_version).to.eql('1.0'); insomnia.expect(body.api_version).to.eql('1'); insomnia.expect(body.simulation_run.status).to.eql('RUNNING'); insomnia.expect(new Date(body.simulation_run.logical_start_at).toISOString()).to.eql(new Date(insomnia.baseEnvironment.get('logical_start_at')).toISOString()); insomnia.expect(new Date(body.simulation_run.logical_end_at).toISOString()).to.eql(new Date(insomnia.baseEnvironment.get('logical_end_at')).toISOString()); insomnia.expect(body.authorized_facility_ids).to.eql([insomnia.baseEnvironment.get('facility_id')]); insomnia.expect(body.authorized_evdriver_ids).to.eql([insomnia.baseEnvironment.get('driver_id')]); });\nif (insomnia.response.code === 200) insomnia.baseEnvironment.set('bootstrap_json', JSON.stringify(body, null, 2));\n",
+      "metaSortKey": 11000
+    },
+    {
+      "_id": "req_spec013_12_ready",
+      "_type": "request",
+      "parentId": "fld_spec013_prepare",
+      "name": "12 - Verify Run Ready for External Simulator",
+      "method": "GET",
+      "url": "{{ _.base_url }}/simulation-runs/{{ _.simulation_run_id }}",
+      "headers": [{ "name": "X-Request-ID", "value": "spec013-{{ _.run_id }}-ready" }],
+      "parameters": [],
+      "body": {},
+      "authentication": { "type": "bearer", "token": "{{ _.admin_token }}" },
+      "afterResponseScript": "const body = insomnia.response.json();\ninsomnia.test('run is ready and simulator values were captured', () => { insomnia.expect(insomnia.response.code).to.eql(200); insomnia.expect(body.status).to.eql('RUNNING'); insomnia.expect(body.last_accepted_simulated_at).to.eql(null); insomnia.expect(insomnia.baseEnvironment.get('simulation_run_token').length).to.be.greaterThan(20); insomnia.expect(insomnia.baseEnvironment.get('driver_token').length).to.be.greaterThan(20); insomnia.expect(insomnia.baseEnvironment.get('scenario_json')).to.include('spec-013-insomnia-smoke'); insomnia.expect(insomnia.baseEnvironment.get('bootstrap_json')).to.include('RUNNING'); insomnia.expect(insomnia.baseEnvironment.get('simulator_env')).to.include('SIMULATION_RUN_TOKEN='); insomnia.expect(insomnia.baseEnvironment.get('SIMULATION_RUN_TOKEN').length).to.be.greaterThan(20); insomnia.expect(insomnia.baseEnvironment.get('SIMULATION_DRIVER_TOKENS_JSON')).to.include(insomnia.baseEnvironment.get('driver_id')); });\n",
+      "metaSortKey": 12000
+    },
+    {
+      "_id": "req_spec013_13_run_advanced",
+      "_type": "request",
+      "parentId": "fld_spec013_verify",
+      "name": "13 - Verify Simulator Finished While Run Remains RUNNING",
+      "method": "GET",
+      "url": "{{ _.base_url }}/simulation-runs/{{ _.simulation_run_id }}",
+      "headers": [{ "name": "X-Request-ID", "value": "spec013-{{ _.run_id }}-advanced" }],
+      "parameters": [],
+      "body": {},
+      "authentication": { "type": "bearer", "token": "{{ _.admin_token }}" },
+      "afterResponseScript": "const body = insomnia.response.json();\ninsomnia.test('external simulator advanced logical time without completing backend run', () => { insomnia.expect(insomnia.response.code).to.eql(200); insomnia.expect(body.status).to.eql('RUNNING'); insomnia.expect(body.last_accepted_simulated_at).to.be.a('string'); });\n",
+      "metaSortKey": 13000
+    },
+    {
+      "_id": "req_spec013_14_reservations",
+      "_type": "request",
+      "parentId": "fld_spec013_verify",
+      "name": "14 - Verify Simulated Reservation",
+      "method": "GET",
+      "url": "{{ _.base_url }}/connectors/{{ _.connector_id }}/reservations?limit=200",
+      "headers": [{ "name": "X-Request-ID", "value": "spec013-{{ _.run_id }}-reservations" }],
+      "parameters": [],
+      "body": {},
+      "authentication": { "type": "bearer", "token": "{{ _.admin_token }}" },
+      "afterResponseScript": "const body = insomnia.response.json();\nconst driverId = insomnia.baseEnvironment.get('driver_id');\nconst vehicleId = insomnia.baseEnvironment.get('vehicle_id');\nconst matches = body.filter(item => item.owner_id === driverId && item.vehicle_id === vehicleId && item.status === 'COMPLETED');\ninsomnia.test('completed simulator Reservation is publicly visible', () => { insomnia.expect(insomnia.response.code).to.eql(200); insomnia.expect(matches.length).to.be.greaterThan(0); });\nif (matches.length) insomnia.baseEnvironment.set('reservation_id', matches[0].id);\n",
+      "metaSortKey": 14000
+    },
+    {
+      "_id": "req_spec013_15_sessions",
+      "_type": "request",
+      "parentId": "fld_spec013_verify",
+      "name": "15 - Verify Completed Charging Session",
+      "method": "GET",
+      "url": "{{ _.base_url }}/charging-sessions?owner_id={{ _.driver_id }}&connector_id={{ _.connector_id }}&status=COMPLETED&limit=200",
+      "headers": [{ "name": "X-Request-ID", "value": "spec013-{{ _.run_id }}-sessions" }],
+      "parameters": [],
+      "body": {},
+      "authentication": { "type": "bearer", "token": "{{ _.admin_token }}" },
+      "afterResponseScript": "const body = insomnia.response.json();\nconst reservationId = insomnia.baseEnvironment.get('reservation_id');\nconst matches = body.filter(item => item.reservation_id === reservationId && item.status === 'COMPLETED');\ninsomnia.test('completed simulated Charging Session is publicly visible', () => { insomnia.expect(insomnia.response.code).to.eql(200); insomnia.expect(matches.length).to.be.greaterThan(0); });\nif (matches.length) insomnia.baseEnvironment.set('session_id', matches[0].id);\n",
+      "metaSortKey": 15000
+    },
+    {
+      "_id": "req_spec013_16_telemetry",
+      "_type": "request",
+      "parentId": "fld_spec013_verify",
+      "name": "16 - Verify Simulator Telemetry",
+      "method": "GET",
+      "url": "{{ _.base_url }}/charging-sessions/{{ _.session_id }}/telemetry?source=SIMULATOR&limit=200",
+      "headers": [{ "name": "X-Request-ID", "value": "spec013-{{ _.run_id }}-telemetry" }],
+      "parameters": [],
+      "body": {},
+      "authentication": { "type": "bearer", "token": "{{ _.admin_token }}" },
+      "afterResponseScript": "const body = insomnia.response.json();\ninsomnia.test('simulated Session exposes Telemetry samples', () => { insomnia.expect(insomnia.response.code).to.eql(200); insomnia.expect(body.length).to.be.greaterThan(0); insomnia.expect(body.every(item => item.source === 'SIMULATOR')).to.eql(true); });\n",
+      "metaSortKey": 16000
+    },
+    {
+      "_id": "req_spec013_17_complete",
+      "_type": "request",
+      "parentId": "fld_spec013_verify",
+      "name": "17 - COMPLETE SimulationRun as Administrator",
+      "method": "POST",
+      "url": "{{ _.base_url }}/simulation-runs/{{ _.simulation_run_id }}/complete",
+      "headers": [{ "name": "X-Request-ID", "value": "spec013-{{ _.run_id }}-complete" }],
+      "parameters": [],
+      "body": {},
+      "authentication": { "type": "bearer", "token": "{{ _.admin_token }}" },
+      "afterResponseScript": "const body = insomnia.response.json();\ninsomnia.test('administrator completes the SimulationRun', () => { insomnia.expect(insomnia.response.code).to.eql(200); insomnia.expect(body.status).to.eql('COMPLETED'); insomnia.expect(body.completed_at).to.be.a('string'); });\n",
+      "metaSortKey": 17000
+    }
+  ]
+}

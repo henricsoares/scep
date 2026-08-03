@@ -916,7 +916,9 @@ No Vehicle or Reservation endpoint in this specification shall use DELETE.
 
 # 21. Testing Requirements
 
-Tests are required but are not implemented by this documentation change.
+The original documentation change did not implement tests. The current SPEC-006 runtime includes
+the required unit, integration, PostgreSQL concurrency, migration, authorization and OpenAPI
+coverage; the requirements below remain the regression contract.
 
 ## Vehicle Domain and Persistence
 
@@ -982,54 +984,55 @@ deferred to SPEC-007.
 
 ## Vehicle
 
-- [ ] Human and Technical Client identities can create multiple owned Vehicles.
-- [ ] Owners can list, retrieve and update visible Vehicles.
-- [ ] Platform Administrators can manage all Vehicles.
-- [ ] Vehicle ownership is immutable and unauthorized resources are concealed.
-- [ ] Vehicle can transition between ACTIVE and INACTIVE.
-- [ ] INACTIVE Vehicles cannot receive new or rescheduled Reservations.
-- [ ] Vehicle history is preserved without physical deletion.
+- [x] Human and Technical Client identities can create multiple owned Vehicles.
+- [x] Owners can list, retrieve and update visible Vehicles.
+- [x] Platform Administrators can manage all Vehicles.
+- [x] Vehicle ownership is immutable and unauthorized resources are concealed.
+- [x] Vehicle can transition between ACTIVE and INACTIVE.
+- [x] INACTIVE Vehicles cannot receive new or rescheduled Reservations.
+- [x] Vehicle history is preserved without physical deletion.
 
 ## Reservation Domain
 
-- [ ] Reservation targets one Connector and one owned ACTIVE Vehicle.
-- [ ] Intervals use `[start_at, end_at)` semantics.
-- [ ] Blocking Connector and Vehicle overlaps return `409 Conflict`.
-- [ ] Back-to-back Reservations are accepted.
-- [ ] Duration boundaries of 15 minutes and 24 hours are inclusive.
-- [ ] Normal cancellation produces CANCELLED.
-- [ ] Late cancellation produces LATE_CANCELLED and always remains available before activation.
-- [ ] Cancellation releases Connector and Vehicle calendars immediately.
-- [ ] No-Show processing is automatic and deterministic.
-- [ ] Early Start and Grace Period boundaries are enforced.
-- [ ] Early Start does not automatically extend the Reservation.
-- [ ] Eligible CONFIRMED Reservations can be explicitly rescheduled.
-- [ ] Rescheduling revalidates all temporal, ownership, eligibility and overlap rules.
-- [ ] ACTIVE and terminal Reservations are immutable.
-- [ ] Only CONFIRMED and ACTIVE block calendars.
+- [x] Reservation targets one Connector and one owned ACTIVE Vehicle.
+- [x] Intervals use `[start_at, end_at)` semantics.
+- [x] Blocking Connector and Vehicle overlaps return `409 Conflict`.
+- [x] Back-to-back Reservations are accepted.
+- [x] Duration boundaries of 15 minutes and 24 hours are inclusive.
+- [x] Normal cancellation produces CANCELLED.
+- [x] Late cancellation produces LATE_CANCELLED and always remains available before activation.
+- [x] Cancellation releases Connector and Vehicle calendars immediately.
+- [x] No-Show processing is automatic and deterministic.
+- [x] Early Start and Grace Period boundaries are enforced.
+- [x] Early Start does not automatically extend the Reservation.
+- [x] Eligible CONFIRMED Reservations can be explicitly rescheduled.
+- [x] Rescheduling revalidates all temporal, ownership, eligibility and overlap rules.
+- [x] ACTIVE and terminal Reservations are immutable.
+- [x] Only CONFIRMED and ACTIVE block calendars.
 
 ## Authorization
 
-- [ ] Human and Technical Client identities can manage only owned workflows.
-- [ ] Platform Administrators can manage all Reservations.
-- [ ] Facility Operators have read-only visibility for managed Facilities.
-- [ ] Researcher and Data Scientist Roles do not grant Reservation mutation rights.
+- [x] Human and Technical Client identities can manage only owned workflows.
+- [x] Platform Administrators can manage all Reservations.
+- [x] Facility Operators have read-only visibility for managed Facilities.
+- [x] Researcher and Data Scientist Roles do not grant Reservation mutation rights.
 
 ## Persistence
 
-- [ ] Vehicle and Reservation persistence models and constraints are implemented.
-- [ ] Reservation owner equals Vehicle owner.
-- [ ] timestamps persist as timezone-aware UTC values.
-- [ ] historical Vehicle and Reservation references are preserved.
-- [ ] terminal Reservations do not block availability queries.
-- [ ] concurrent requests cannot create Connector or Vehicle overlaps.
+- [x] Vehicle and Reservation persistence models and constraints are implemented.
+- [x] Reservation owner equals Vehicle owner.
+- [x] timestamps persist as timezone-aware UTC values.
+- [x] historical Vehicle and Reservation references are preserved.
+- [x] terminal Reservations do not block availability queries.
+- [x] concurrent requests cannot create Connector or Vehicle overlaps.
 
 ## API and Future Integration
 
-- [ ] Vehicle and Reservation REST contracts and OpenAPI schemas are implemented.
-- [ ] synchronous warnings are distinct from future notifications.
-- [ ] Reservation exposes domain operations for future activation and completion.
-- [ ] SPEC-006 completion does not require Charging Session endpoints or HTTP integration.
+- [x] Vehicle and Reservation REST contracts and OpenAPI schemas are implemented.
+- [x] synchronous warnings are distinct from future notifications.
+- [x] Reservation exposes domain operations used by SPEC-007 activation and completion.
+- [x] SPEC-006 completion did not require Charging Session endpoints or HTTP integration; those are
+  implemented separately by SPEC-007.
 
 ---
 

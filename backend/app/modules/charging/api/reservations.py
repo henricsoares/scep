@@ -29,6 +29,12 @@ from app.modules.charging.infrastructure.station_repository import (
 )
 from app.modules.identity.api.dependencies import current_user
 from app.modules.identity.domain.user import User
+from app.modules.simulation.context import SimulationRequestContext, optional_simulation_context
+from app.modules.simulation.coordinator import (
+    SimulationMutationCoordinator,
+    SimulationMutationResult,
+)
+from app.modules.simulation.operations import facility_for_connector, reservation_scope
 from app.shared.clock import SystemClock
 
 router = APIRouter(tags=["Reservations"])
@@ -138,14 +144,55 @@ def map_error(exc: Exception) -> HTTPException:
     "/reservations",
     response_model=ReservationEnvelope,
     status_code=status.HTTP_201_CREATED,
-    responses={409: {"description": "Connector or Vehicle scheduling conflict"}},
+    responses={
+        400: {"description": "Incomplete or unsupported simulation context"},
+        401: {"description": "Invalid authentication or simulation credential"},
+        403: {"description": "EVDriver or Facility is outside the SimulationRun"},
+        409: {"description": "Scheduling, logical-time or simulation idempotency conflict"},
+    },
 )
 def create_reservation(
     payload: ReservationCreatePayload,
     service: Annotated[ReservationService, Depends(get_reservation_service)],
     user: Annotated[User, Depends(current_user)],
+    db: Annotated[Session, Depends(get_db)],
+    simulation: Annotated[
+        SimulationRequestContext | None, Depends(optional_simulation_context)
+    ] = None,
 ) -> ReservationEnvelope:
     try:
+        if simulation is not None:
+            simulated_service = ReservationService(
+                SqlAlchemyReservationRepository(db, auto_commit=False),
+                SqlAlchemyVehicleRepository(db),
+                SqlAlchemyChargingStationRepository(db),
+                SqlAlchemyFacilityRepository(db),
+                simulation.clock,
+                simulation_run_id=simulation.simulation_run_id,
+            )
+            facility_id = facility_for_connector(db, payload.connector_id)
+
+            def action() -> SimulationMutationResult:
+                item, adjacent = simulated_service.create(actor=user, **payload.model_dump())
+                body = envelope(item, "BACK_TO_BACK_RESERVATION" if adjacent else None).model_dump(
+                    mode="json"
+                )
+                return SimulationMutationResult(
+                    201,
+                    body,
+                    "Reservation",
+                    item.id,
+                    reconciled_no_show_count=simulated_service.pending_no_show_reconciliations,
+                )
+
+            result = SimulationMutationCoordinator(db).execute(
+                context=simulation,
+                operation="RESERVATION_CREATE",
+                canonical_content={"payload": payload.model_dump(mode="json")},
+                facility_id=facility_id,
+                action=action,
+            )
+            return ReservationEnvelope.model_validate(result.response_snapshot)
         item, adjacent = service.create(actor=user, **payload.model_dump())
         return envelope(item, "BACK_TO_BACK_RESERVATION" if adjacent else None)
     except (
@@ -242,13 +289,59 @@ def patch_reservation(
         raise map_error(exc) from exc
 
 
-@router.post("/reservations/{reservationId}/cancel", response_model=ReservationEnvelope)
+@router.post(
+    "/reservations/{reservationId}/cancel",
+    response_model=ReservationEnvelope,
+    responses={
+        400: {"description": "Incomplete or unsupported simulation context"},
+        401: {"description": "Invalid authentication or simulation credential"},
+        403: {"description": "EVDriver or Facility is outside the SimulationRun"},
+        409: {"description": "Logical-time or simulation idempotency conflict"},
+    },
+)
 def cancel_reservation(
     reservationId: UUID,
     service: Annotated[ReservationService, Depends(get_reservation_service)],
     user: Annotated[User, Depends(current_user)],
+    db: Annotated[Session, Depends(get_db)],
+    simulation: Annotated[
+        SimulationRequestContext | None, Depends(optional_simulation_context)
+    ] = None,
 ) -> ReservationEnvelope:
     try:
+        if simulation is not None:
+            facility_id, _ = reservation_scope(db, reservationId, simulation.simulation_run_id)
+            simulated_service = ReservationService(
+                SqlAlchemyReservationRepository(db, auto_commit=False),
+                SqlAlchemyVehicleRepository(db),
+                SqlAlchemyChargingStationRepository(db),
+                SqlAlchemyFacilityRepository(db),
+                simulation.clock,
+                simulation_run_id=simulation.simulation_run_id,
+            )
+
+            def action() -> SimulationMutationResult:
+                item = simulated_service.cancel(reservationId, actor=user)
+                warning = (
+                    "LATE_CANCELLATION" if item.status == ReservationStatus.LATE_CANCELLED else None
+                )
+                body = envelope(item, warning).model_dump(mode="json")
+                return SimulationMutationResult(
+                    200,
+                    body,
+                    "Reservation",
+                    item.id,
+                    reconciled_no_show_count=simulated_service.pending_no_show_reconciliations,
+                )
+
+            result = SimulationMutationCoordinator(db).execute(
+                context=simulation,
+                operation="RESERVATION_CANCEL",
+                canonical_content={"reservation_id": str(reservationId)},
+                facility_id=facility_id,
+                action=action,
+            )
+            return ReservationEnvelope.model_validate(result.response_snapshot)
         item = service.cancel(reservationId, actor=user)
         warning = "LATE_CANCELLATION" if item.status == ReservationStatus.LATE_CANCELLED else None
         return envelope(item, warning)

@@ -67,8 +67,9 @@ class TelemetryConflictError(Exception):
 
 
 class SqlAlchemyTelemetryRepository:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, *, auto_commit: bool = True) -> None:
         self.session = session
+        self.auto_commit = auto_commit
 
     def get(self, telemetry_id: UUID) -> TelemetrySample | None:
         model = self.session.get(TelemetrySampleModel, telemetry_id)
@@ -123,7 +124,10 @@ class SqlAlchemyTelemetryRepository:
                 self.session.flush()
                 canonical.append(sample)
                 new_count += 1
-            self.session.commit()
+            if self.auto_commit:
+                self.session.commit()
+            else:
+                self.session.flush()
             return canonical, new_count, duplicate_count
         except TelemetryConflictError:
             self.session.rollback()

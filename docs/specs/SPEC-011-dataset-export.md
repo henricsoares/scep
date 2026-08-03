@@ -1330,8 +1330,8 @@ historical state.
 ## 18.5 Simulation Reproducibility
 
 Simulation Reproducibility means that a simulation can be rerun from its scenario, version,
-parameters and seed. It belongs to the future Digital Twin Simulation Engine specification and is
-not guaranteed by Dataset Export.
+parameters and seed. It belongs to the external Digital Twin Simulation Engine implemented by
+SPEC-013 and is not guaranteed by Dataset Export.
 
 Version 1 guarantees Artifact Integrity, Provenance and Deterministic Generation under the
 conditions above. It does not guarantee that a historical artifact can be regenerated after source

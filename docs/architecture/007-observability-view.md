@@ -342,8 +342,13 @@ Produces:
 
 * simulation lifecycle;
 * generated events;
-* simulation execution time;
-* simulation failures.
+* logical and real execution time;
+* idempotent replay, rejection and failure outcomes;
+* checkpoint and final-report outcomes.
+
+Backend telemetry uses bounded operation, outcome and error-code labels. Run, event and EVDriver
+identifiers belong in structured logs and traces, not metric labels. Bearer tokens, run credentials
+and complete Telemetry batches shall not be logged.
 
 ---
 
@@ -450,6 +455,10 @@ Examples:
 
 ## Simulation Dashboard
 
+Status: conceptual dashboard; a dedicated provisioned Grafana dashboard is not part of the current
+Version 1 repository. Simulation progress and outcomes are currently available through Simulation
+Run APIs, structured logs, metrics and traces.
+
 Audience:
 
 * Researcher.
@@ -458,12 +467,15 @@ Examples:
 
 * simulation progress;
 * generated events;
-* synthetic users;
+* participating EVDrivers and scenario profiles;
 * scenario duration.
 
 ---
 
 ## AI Dashboard
+
+Status: planned with SPEC-012 and later AI experimentation work; no dedicated AI dashboard is
+currently provisioned.
 
 Audience:
 

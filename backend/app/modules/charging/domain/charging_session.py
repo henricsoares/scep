@@ -25,6 +25,7 @@ class ChargingSession:
     ended_at: datetime | None
     created_at: datetime
     updated_at: datetime
+    simulation_run_id: UUID | None = None
 
     @classmethod
     def activate(
@@ -35,6 +36,7 @@ class ChargingSession:
         vehicle_id: UUID,
         connector_id: UUID,
         now: datetime,
+        simulation_run_id: UUID | None = None,
     ) -> ChargingSession:
         current = normalize_utc(now)
         return cls(
@@ -48,6 +50,7 @@ class ChargingSession:
             ended_at=None,
             created_at=current,
             updated_at=current,
+            simulation_run_id=simulation_run_id,
         )
 
     def complete(self, *, now: datetime) -> ChargingSession:

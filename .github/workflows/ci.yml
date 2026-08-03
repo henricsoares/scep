@@ -20,6 +20,9 @@ jobs:
       - name: Install backend dependencies
         working-directory: backend
         run: uv sync --all-groups
+      - name: Install simulation engine dependencies
+        working-directory: simulation-engine
+        run: uv sync --all-groups
       - name: Run backend CI validation
         run: make ci
       - name: Build Docker images

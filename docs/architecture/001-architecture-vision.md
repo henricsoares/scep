@@ -1190,9 +1190,12 @@ Current progress: SPEC-009 is implemented with transactional event persistence a
 Deliverables:
 
 - configurable scenarios;
-- synthetic users;
-- synthetic vehicles;
-- synthetic telemetry.
+- administratively provisioned synthetic identities, Vehicles and infrastructure;
+- deterministic Reservation, Charging Session and Telemetry behavior;
+- run-scoped authorization, logical time, checkpoints and execution reports.
+
+Current progress: SPEC-013 Version 1 is implemented as an external simulator plus a restricted,
+authorized simulation context in the Backend API.
 
 ---
 
@@ -1205,8 +1208,8 @@ Deliverables:
 
 Current progress: SPEC-010 is approved and implemented with read-only, on-demand Analytics.
 
-SPEC-011 is approved and implemented. SPEC-012 is Draft / Under Review and Planned, with
-implementation recommended after SPEC-013. SPEC-013 remains Planned and not implemented.
+SPEC-011 and SPEC-013 are approved and implemented. SPEC-012 is Draft / Under Review and Planned,
+with implementation recommended after SPEC-013.
 SPEC-012 has no mandatory runtime dependency on SPEC-013; the order allows reference validation
 with representative synthetic data and the first external occupancy experiment.
 

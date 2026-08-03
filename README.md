@@ -109,6 +109,13 @@ Key documents:
 * Identity and Access specification: `docs/specs/SPEC-005-identity-and-access.md`
 * Reservations specification: `docs/specs/SPEC-006-reservations.md`
 * Charging Sessions specification: `docs/specs/SPEC-007-charging-sessions.md`
+* Telemetry specification: `docs/specs/SPEC-008-telemetry.md`
+* Domain Events specification: `docs/specs/SPEC-009-domain-events.md`
+* Analytics specification: `docs/specs/SPEC-010-analytics.md`
+* Dataset Export specification: `docs/specs/SPEC-011-dataset-export.md`
+* Weekly Occupancy Predictions specification: `docs/specs/SPEC-012-predictions.md`
+* Digital Twin Simulation Engine specification: `docs/specs/SPEC-013-simulation-engine.md`
+* External Simulation Engine decision: `docs/architecture/decisions/ADR-005-external-simulation-engine.md`
 
 ---
 
@@ -282,8 +289,9 @@ However, migrations are normally executed automatically when the backend contain
 ## Implemented Business Capabilities
 
 The current domain includes Identity, Facilities, Charging Stations, Connectors, Vehicles,
-Reservations, Charging Sessions, Telemetry, Domain Events and Analytics. SPEC-010 is approved and
-implemented with authenticated, read-only overview and time-series projections.
+Reservations, Charging Sessions, Telemetry, Domain Events, Analytics, Dataset Export and the
+backend-visible SimulationRun context. SPEC-013 is implemented by an external deterministic
+simulator that uses only public APIs and preserves normal non-simulated behavior.
 
 ### Identity and Access
 
@@ -335,6 +343,20 @@ Reservation; direct or unreserved Charging Sessions remain out of scope.
 The platform supports immutable TelemetrySamples for active or completed Charging Sessions,
 including single and atomic batch ingestion, idempotency and authorized retrieval.
 
+### Domain Events, Analytics and Dataset Export
+
+The platform transactionally persists Domain Events, exposes authenticated read-only Analytics
+over operational data, and produces CSV or Parquet Dataset Export artifacts with snapshot,
+integrity, provenance and retention metadata.
+
+### Digital Twin Simulation Engine
+
+SPEC-013 Version 1 provides an independently executable external simulator plus a restricted
+backend `SimulationRun` lifecycle. Administrators provision dedicated Users, Vehicles and
+infrastructure; the simulator generates deterministic Reservation, Charging Session and Telemetry
+behavior with logical time, run-scoped authorization, provenance, idempotency, checkpointing and
+execution reports. The engine never imports backend modules or connects directly to PostgreSQL.
+
 ---
 
 ## Research Focus
@@ -354,7 +376,7 @@ Current research topics include:
 
 Current Phase:
 
-**Business Domain Implementation**
+**SPEC-013 Version 1 complete; SPEC-012 planning and reference experimentation next**
 
 Completed:
 
@@ -371,12 +393,14 @@ Completed:
 * ✅ SPEC-008 — Telemetry
 * ✅ SPEC-009 — Domain Events
 * ✅ SPEC-010 — Analytics
+* ✅ SPEC-011 — Dataset Export: Approved and implemented
+* ✅ SPEC-013 — Digital Twin Simulation Engine: Approved and implemented
 
 Next Steps:
 
-* ✅ SPEC-011 — Dataset Export: Approved and implemented
-* SPEC-012 — Weekly Occupancy Predictions: Draft / Under Review, planned after SPEC-013
-* SPEC-013 — Digital Twin Simulation Engine: Planned, not implemented
+* SPEC-012 — Weekly Occupancy Predictions: Draft / Under Review and planned; its recommended
+  predecessor, SPEC-013, is implemented, but runtime identity debt and the reference occupancy
+  experiment remain prerequisites for implementation validation.
 
 ---
 
