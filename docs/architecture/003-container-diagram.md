@@ -59,11 +59,11 @@ C4Container
         Container(notificationMock, "Notification Mock", "Python / Logging", "Simulates external notifications during development and experimentation.")
     }
 
-    System_Ext(simulator, "Digital Twin Simulation Engine", "External synthetic environment that generates users, vehicles, reservations, telemetry and failure events.")
+    System_Ext(simulator, "Digital Twin Simulation Engine", "External deterministic environment that uses provisioned resources to generate reservations, charging sessions and telemetry.")
     System_Ext(aiEnv, "AI Research Environment", "Python notebooks and ML scripts used for dataset analysis, training and evaluation.")
     System_Ext(observability, "Observability Stack", "Prometheus, Grafana, Loki, Tempo and OpenTelemetry Collector.")
 
-    Rel(researcher, webApp, "Uses", "HTTPS")
+    Rel(researcher, webApp, "Defines scenarios and analyzes outputs", "HTTPS")
     Rel(dataScientist, webApp, "Uses dashboards and dataset exports", "HTTPS")
     Rel(evDriver, webApp, "Creates reservations and charging sessions", "HTTPS")
     Rel(facilityOperator, webApp, "Monitors dashboards", "HTTPS")
@@ -198,16 +198,15 @@ It is intentionally placed outside the SCEP system boundary.
 
 Responsibilities:
 
-* simulate EV Drivers;
-* simulate vehicles;
-* simulate charger usage;
-* simulate reservation creation and cancellation;
-* simulate charging sessions;
-* simulate telemetry;
-* simulate failures;
-* simulate maintenance windows;
-* simulate demand peaks;
+* consume pre-created EVDriver, Vehicle and infrastructure resources;
+* plan deterministic independent EVDriver streams;
+* generate Reservation creation/cancellation, Charging Session and Telemetry operations;
+* coordinate global logical-time barriers;
+* handle bounded alternatives, rescheduling and technical retries;
+* checkpoint progress and emit external execution reports;
 * execute reproducible scenarios.
+
+Equipment failures, maintenance windows and demand-peak models remain future extensions.
 
 Communication:
 
@@ -382,7 +381,10 @@ Datasets and Metrics
 
 Description:
 
-The Simulation Engine executes a scenario and interacts with SCEP through public APIs. The Backend API treats simulated input as regular operational input.
+The Simulation Engine executes a scenario and interacts with SCEP through public APIs. The Backend
+API applies the existing operational domain rules while additionally validating the typed
+`SimulationRun` context, run credential, logical time, scope, provenance and event idempotency.
+Requests without simulation context preserve the normal operational behavior.
 
 ---
 
@@ -493,6 +495,11 @@ External systems may only interact through:
 The PostgreSQL Database is not an integration point.
 
 The Simulation Engine does not own operational data after sending it to SCEP.
+
+In Version 1, Platform Administrators provision Simulation Runs through the Backend API. The
+Simulation Engine uses the resulting run credential together with each participating EVDriver JWT.
+Direct Researcher runtime permissions remain deferred to the cross-specification identity decision
+tracked in GitHub issue #46.
 
 The AI Research Environment may produce models and predictions, but SCEP remains responsible for storing published prediction outputs.
 

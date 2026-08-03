@@ -76,6 +76,7 @@ C4Component
         Component(auth, "Identity & Access Component", "Application Module", "Handles authentication, authorization, users and roles.")
         Component(charging, "Smart Charging Component", "Application Module", "Manages charging stations, Vehicles, reservations, sessions and occupancy rules.")
         Component(telemetry, "Telemetry Component", "Application Module", "Ingests and normalizes operational telemetry.")
+        Component(simulation, "Simulation Coordination Component", "Application Module", "Owns SimulationRun lifecycle, request context, logical time, provenance and successful-event receipts.")
         Component(events, "Domain Event Component", "Event Store / Internal Event Dispatcher", "Transactionally persists events and dispatches them after commit.")
         Component(analytics, "Analytics Component", "Application Module", "Computes read-only indicators on demand from persisted operational data.")
         Component(datasets, "Dataset Export Component", "Application Module", "Generates research datasets from operational read contracts and Analytics projections.")
@@ -96,11 +97,14 @@ C4Component
     Rel(apiLayer, auth, "Validates access")
     Rel(apiLayer, charging, "Executes charging workflows")
     Rel(apiLayer, telemetry, "Ingests telemetry")
+    Rel(apiLayer, simulation, "Manages runs and validates simulation context")
     Rel(apiLayer, datasets, "Requests dataset exports")
     Rel(apiLayer, prediction, "Reads or publishes predictions")
 
     Rel(charging, events, "Publishes domain events")
     Rel(telemetry, events, "Publishes telemetry events")
+    Rel(simulation, charging, "Coordinates allowed simulated operations")
+    Rel(simulation, telemetry, "Coordinates simulated Telemetry ingestion")
     Rel(events, analytics, "May provide future projection input")
     Rel(datasets, events, "Publishes DatasetExportCompleted")
     Rel(datasets, charging, "Reads operational projections through module-owned ports")
@@ -112,6 +116,7 @@ C4Component
     Rel(auth, persistence, "Reads and writes")
     Rel(charging, persistence, "Reads and writes")
     Rel(telemetry, persistence, "Reads and writes")
+    Rel(simulation, persistence, "Persists runs, scopes, receipts and provenance")
     Rel(events, persistence, "Persists events")
     Rel(analytics, persistence, "Reads operational data")
     Rel(datasets, persistence, "Persists export metadata")
@@ -229,7 +234,29 @@ The component must not depend on a specific physical charger protocol.
 
 ---
 
-## 5.5 Domain Event Component
+## 5.5 Simulation Coordination Component
+
+The Simulation Coordination Component is the backend-visible control plane required by SPEC-013.
+It does not contain scenario behavior or a simulation planner.
+
+Responsibilities:
+
+* manage the `SimulationRun` lifecycle and scoped Facility/EVDriver associations;
+* issue and verify a hash-only one-time run credential;
+* export the minimal versioned bootstrap;
+* validate the all-or-none simulation request context;
+* enforce run status, scope and monotonic logical time transactionally;
+* inject the request-scoped fixed `Clock` into allowed domain operations;
+* persist successful-event receipts and canonical request digests for idempotency;
+* coordinate atomic domain mutation, provenance, Domain Events, receipts and clock advancement;
+* preserve normal behavior when simulation headers are absent.
+
+The external Simulation Engine owns scenario schemas, probability distributions, event planning,
+fallback policy, checkpointing and execution reports. It interacts only with the API Layer.
+
+---
+
+## 5.6 Domain Event Component
 
 The Domain Event Component provides event publication, persistence and dispatching.
 
@@ -252,7 +279,7 @@ They must not be used to request business validation from other modules.
 
 ---
 
-## 5.6 Analytics Component
+## 5.7 Analytics Component
 
 The Analytics Component transforms persisted operational records into indicators.
 
@@ -281,7 +308,7 @@ from any one analytical domain, and version 1 does not require Domain Events.
 
 ---
 
-## 5.7 Dataset Export Component
+## 5.8 Dataset Export Component
 
 The Dataset Export Component produces research datasets from operational data and Analytics
 projections.
@@ -308,7 +335,7 @@ The component supports AI experimentation but does not train models itself.
 
 ---
 
-## 5.8 Prediction Component
+## 5.9 Prediction Component
 
 The planned Prediction Component validates, stores and exposes externally generated Weekly
 Occupancy Prediction publications.
@@ -331,7 +358,7 @@ Environment.
 
 ---
 
-## 5.9 Notification Component
+## 5.10 Notification Component
 
 The Notification Component abstracts communication with notification providers.
 
@@ -352,7 +379,7 @@ Initial notifications may include:
 
 ---
 
-## 5.10 Observability Component
+## 5.11 Observability Component
 
 The Observability Component centralizes technical telemetry emission.
 
@@ -372,7 +399,7 @@ It must not contain business logic.
 
 ---
 
-## 5.11 Persistence Component
+## 5.12 Persistence Component
 
 The Persistence Component provides controlled access to PostgreSQL.
 
@@ -402,6 +429,8 @@ The Backend API must respect the following dependency rules.
 * Analytics reads persisted operational data in version 1 and may consume event history in a future version.
 * Dataset Export reads operational data through module-owned read contracts and may call the
   Analytics read-only projection port.
+* Simulation Coordination may invoke only the explicitly allowed Smart Charging and Telemetry
+  application operations through the coordinated transaction boundary.
 * Prediction may store AI outputs.
 * Observability may be used by any component.
 
@@ -411,7 +440,8 @@ The Backend API must respect the following dependency rules.
 * Business components must not access another component's database tables directly.
 * Analytics must not change transactional business state.
 * Prediction must not train models inside transactional workflows.
-* Simulation Engine must not access internal components directly.
+* The external Simulation Engine must not access internal components directly.
+* Simulation Coordination must not implement scenario planning or behavioral probabilities.
 * External systems must not connect directly to PostgreSQL.
 * Components must not bypass authentication or authorization.
 

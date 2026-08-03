@@ -108,3 +108,7 @@ The reproducible one-Facility, one-EVDriver validation workflow is documented in
 [`smoke/README.md`](smoke/README.md). It prepares a DRAFT run, retains credentials and generated
 artifacts only in ignored local files, executes this existing entrypoint, verifies the resulting
 resources through public APIs and leaves final run completion to the administrator.
+
+The follow-up weekly validation in [`smoke/MULTI_DRIVER.md`](smoke/MULTI_DRIVER.md) provisions five
+independent EVDriver profiles, multiple Stations and Connectors, then verifies week-long logical
+time, deterministic stream ordering, Reservation-rooted Sessions, Telemetry and the final report.

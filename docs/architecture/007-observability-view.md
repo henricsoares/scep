@@ -455,6 +455,10 @@ Examples:
 
 ## Simulation Dashboard
 
+Status: conceptual dashboard; a dedicated provisioned Grafana dashboard is not part of the current
+Version 1 repository. Simulation progress and outcomes are currently available through Simulation
+Run APIs, structured logs, metrics and traces.
+
 Audience:
 
 * Researcher.
@@ -463,12 +467,15 @@ Examples:
 
 * simulation progress;
 * generated events;
-* synthetic users;
+* participating EVDrivers and scenario profiles;
 * scenario duration.
 
 ---
 
 ## AI Dashboard
+
+Status: planned with SPEC-012 and later AI experimentation work; no dedicated AI dashboard is
+currently provisioned.
 
 Audience:
 

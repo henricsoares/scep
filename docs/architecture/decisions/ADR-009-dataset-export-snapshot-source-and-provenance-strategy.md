@@ -97,8 +97,8 @@ Version 1 does not guarantee:
 * historical reproducibility after source data or application revisions are unavailable;
 * simulation reproducibility.
 
-Simulation reproducibility belongs to the Digital Twin Simulation Engine and its future functional
-specification.
+Simulation reproducibility belongs to the external Digital Twin Simulation Engine implemented by
+SPEC-013, not to Dataset Export.
 
 ## Universal and Conditional Metadata
 
@@ -186,7 +186,8 @@ simulation run, and feature descriptions are produced by external AI workflows.
 * source changes committed while an export is `PENDING` may appear in the artifact;
 * a database snapshot cannot be resumed after the process and transaction are lost;
 * regenerating an old artifact is not guaranteed after source state changes;
-* future simulation lineage requires additional domain contracts.
+* Dataset Export Version 1 does not capture the Simulation Run lineage introduced by SPEC-013;
+  adding that relationship requires an explicit future Dataset Export contract.
 
 ---
 

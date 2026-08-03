@@ -1229,7 +1229,9 @@ In particular:
 
 Telemetry is an observational data model.
 
-Responsibilities introduced by future specifications—including Domain Events, Analytics, AI and Digital Twin execution—shall consume TelemetrySamples without changing the ingestion semantics defined by this specification.
+Responsibilities introduced by subsequent specifications—including implemented Domain Events,
+Analytics and Digital Twin execution, plus planned AI capabilities—shall consume TelemetrySamples
+without changing the ingestion semantics defined by this specification.
 
 ---
 
@@ -1275,7 +1277,9 @@ ChargingSession COMPLETED
 
 Telemetry intentionally records observations without interpreting them.
 
-Subsequent specifications build upon these immutable records to introduce Domain Events, Analytics, Machine Learning, Digital Twin execution and intelligent decision support while preserving the integrity of the original operational data.
+Subsequent specifications build upon these immutable records. Domain Events, Analytics and Digital
+Twin execution are implemented; Machine Learning and intelligent decision support remain planned.
+All preserve the integrity of the original operational data.
 
 ---
 

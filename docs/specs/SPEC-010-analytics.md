@@ -69,7 +69,8 @@ This specification shall:
 - provide consistent filters across analytical endpoints;
 - reuse the existing authorization model;
 - remain extensible for future business domains;
-- support future Dataset Export and Predictions specifications.
+- provide stable metric semantics for the implemented Dataset Export contract and the planned
+  Predictions contract.
 
 ---
 
@@ -1149,7 +1150,9 @@ SPEC-011 may export operational or analytical data, but Dataset Export remains a
 
 SPEC-012 may consume persisted operational data or analytical results, but prediction behavior remains outside this specification.
 
-A future Digital Twin Simulation Engine shall generate synthetic users, vehicles, Reservations, Charging Sessions and Telemetry independently from historical Analytics data.
+The SPEC-013 Digital Twin Simulation Engine uses administratively provisioned synthetic Users,
+Vehicles and dedicated infrastructure to generate Reservations, Charging Sessions and Telemetry
+independently from historical Analytics data.
 
 The relationship shall be:
 

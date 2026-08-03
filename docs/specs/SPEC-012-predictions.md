@@ -55,23 +55,22 @@ The Backend API shall not train models and shall not execute model inference.
 
 # 2. Status and Implementation Sequence
 
-SPEC-012 may be approved before SPEC-013 is implemented. It has no mandatory runtime dependency on
-the Digital Twin Simulation Engine.
+SPEC-013 is approved and implemented. SPEC-012 still has no mandatory runtime dependency on the
+Digital Twin Simulation Engine.
 
 Implementation and reference validation are intentionally deferred until:
 
 - the research-role and non-human actor authorization debt is resolved;
-- SPEC-013 can produce representative synthetic operational data; and
+- the implemented SPEC-013 produces representative synthetic operational data; and
 - the first external occupancy experiment can validate the publication integration.
 
 The recommended sequence is:
 
 1. approve SPEC-012;
-2. define and implement SPEC-013;
-3. generate representative synthetic operational data;
-4. export a reference dataset;
-5. execute the first external occupancy prediction experiment;
-6. implement and validate SPEC-012.
+2. use the implemented SPEC-013 to generate representative synthetic operational data;
+3. export a reference dataset;
+4. execute the first external occupancy prediction experiment;
+5. implement and validate SPEC-012.
 
 This sequence is a delivery and validation decision, not a runtime dependency from Predictions to
 the Simulation Engine.

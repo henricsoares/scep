@@ -79,6 +79,11 @@ Responsibilities:
 
 The Researcher represents the primary motivation for the platform.
 
+In the current Version 1 runtime, a Platform Administrator provisions and manages Simulation Runs.
+The external Simulation Engine executes Researcher-defined scenarios by using those run-scoped
+contracts. Direct Researcher runtime permissions remain part of the identity decision tracked in
+GitHub issue #46.
+
 ---
 
 ## 4.2 Data Scientist
@@ -160,15 +165,15 @@ It interacts with SCEP through public APIs, just as real external devices or cli
 
 Responsibilities:
 
-* simulate EV drivers;
-* simulate vehicles;
-* simulate reservations;
-* simulate charging sessions;
-* simulate telemetry events;
-* simulate charger failures;
-* simulate maintenance windows;
-* simulate peak demand;
-* generate reproducible experimental scenarios.
+* consume administratively provisioned EVDriver, Vehicle and infrastructure identifiers;
+* generate deterministic Reservation, Charging Session and Telemetry behavior;
+* control scenario time through the authorized `SimulationRun` contract;
+* execute bounded operational fallback, rescheduling and technical retry;
+* persist local checkpoints and produce external execution reports;
+* generate reproducible experimental scenarios without direct database access.
+
+Equipment-failure, maintenance-window and electrical-demand models remain future extensions rather
+than Version 1 behavior.
 
 The Simulation Engine is intentionally external to SCEP.
 
@@ -255,12 +260,12 @@ C4Context
 
     System(scep, "Smart Charging Experimentation Platform", "Research-oriented platform for Smart Charging experimentation, simulation, analytics and AI support.")
 
-    System_Ext(simulator, "Digital Twin Simulation Engine", "External simulator that generates synthetic users, vehicles, reservations, charging sessions and telemetry.")
+    System_Ext(simulator, "Digital Twin Simulation Engine", "External simulator that uses provisioned identities and infrastructure to generate deterministic reservations, charging sessions and telemetry.")
     System_Ext(aiEnv, "AI Research Environment", "Notebooks and ML pipelines that consume datasets and produce predictive models.")
     System_Ext(notificationProvider, "Notification Provider", "External provider for e-mail, SMS or push notifications.")
     System_Ext(observability, "Observability Stack", "Collects logs, metrics and traces for operational and architectural analysis.")
 
-    Rel(researcher, scep, "Configures and executes experiments")
+    Rel(researcher, scep, "Defines scenarios and analyzes experiment results")
     Rel(dataScientist, scep, "Consumes datasets and prediction outputs")
     Rel(evDriver, scep, "Creates reservations and charging sessions")
     Rel(facilityOperator, scep, "Monitors dashboards and operational metrics")
@@ -305,7 +310,11 @@ Research Evaluation
 
 Description:
 
-The Researcher defines an experiment scenario. The Digital Twin Simulation Engine executes the scenario and interacts with SCEP through public APIs. SCEP persists domain events, updates metrics and produces datasets for later analysis.
+The Researcher defines an experiment scenario. A Platform Administrator provisions the required
+identities, infrastructure and Simulation Run in SCEP. The Digital Twin Simulation Engine executes
+the scenario and interacts with SCEP through public APIs and run-scoped contracts. SCEP persists
+the resulting operational state, domain events, simulation provenance and metrics, and can produce
+datasets for later analysis.
 
 ---
 

@@ -347,10 +347,10 @@ Defines the external simulation platform.
 Topics include:
 
 * simulation scenarios;
-* synthetic users;
-* synthetic vehicles;
+* administratively provisioned synthetic Users and Vehicles;
 * synthetic charging infrastructure usage;
-* deterministic experiments.
+* deterministic event streams, checkpoints and reports;
+* restricted `SimulationRun` context, provenance and logical time.
 
 ---
 

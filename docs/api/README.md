@@ -172,6 +172,12 @@ and `simulator_env` exist only in the imported Insomnia workspace. If request 01
 the credentials of the administrator already persisted in the local database. Do not rerun request
 10 after losing its one-time response; start a fresh flow at request 01 instead.
 
+For the follow-up weekly validation with five independent EVDriver profiles, multiple JWTs and a
+three-Connector inventory, import `scep-spec013-multi-driver-insomnia.json` and follow
+[`../../simulation-engine/smoke/MULTI_DRIVER.md`](../../simulation-engine/smoke/MULTI_DRIVER.md).
+This is a separate isolated run; do not reuse the one-time token or resources from the single-driver
+smoke.
+
 ## SPEC-006 visual acceptance
 
 Start the complete local stack before running the collection:
