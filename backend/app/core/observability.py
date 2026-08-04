@@ -32,6 +32,7 @@ def request_id(value: str | None) -> str:
 class RequestCorrelationMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         current_request_id = request_id(request.headers.get("x-request-id"))
+        request.state.request_id = current_request_id
         method = request.method
         path = request.url.path
         started = time.perf_counter()
