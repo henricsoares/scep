@@ -29,6 +29,9 @@ from app.modules.prediction.infrastructure import (
     WeeklyOccupancyPredictionPublicationModel,
 )
 from app.modules.prediction.metrics import (
+    authorization_failures_total,
+    bucket_validation_failures_total,
+    publication_duration_seconds,
     publication_outcomes_total,
     queries_total,
     recommendations_total,
@@ -514,6 +517,98 @@ def test_authorization_uses_final_capabilities_and_authenticated_publisher(
     assert _publish(context, external_run_id="additive-role")["publisher_subject_id"] == str(
         additive.id
     )
+
+
+@pytest.mark.parametrize("actor", ["researcher", "operator", "driver", "technical"])
+def test_publication_authorization_precedes_domain_bucket_validation(
+    context: PredictionContext, actor: str
+) -> None:
+    context.use(actor)
+
+    valid = context.client.post(
+        "/predictions/weekly-occupancy-publications",
+        json=_payload(context, external_run_id=f"unauthorized-valid-{actor}"),
+    )
+    assert valid.status_code == 403
+    assert valid.json()["detail"]["code"] == "PREDICTION_FORBIDDEN"
+
+    duplicate_buckets = _buckets()
+    duplicate_buckets[-1] = duplicate_buckets[0]
+    duplicate = context.client.post(
+        "/predictions/weekly-occupancy-publications",
+        json=_payload(
+            context,
+            external_run_id=f"unauthorized-duplicate-{actor}",
+            buckets=duplicate_buckets,
+        ),
+    )
+    assert duplicate.status_code == 403
+    assert duplicate.json()["detail"]["code"] == "PREDICTION_FORBIDDEN"
+
+
+def test_request_model_validation_remains_a_framework_boundary(
+    context: PredictionContext,
+) -> None:
+    context.use("driver")
+    incomplete = context.client.post(
+        "/predictions/weekly-occupancy-publications",
+        json=_payload(context, buckets=_buckets()[:-1]),
+    )
+    assert incomplete.status_code == 422
+    assert incomplete.json()["detail"][0]["type"] == "too_short"
+
+
+def test_publication_rejection_metrics_are_counted_once(context: PredictionContext) -> None:
+    def rejected_duration_count() -> float:
+        child = publication_duration_seconds.labels("rejected")
+        metric = next(iter(child.collect()))
+        return float(
+            next(sample.value for sample in metric.samples if sample.name.endswith("_count"))
+        )
+
+    scope_type = "CONNECTOR"
+    forbidden_before = authorization_failures_total.labels("publish")._value.get()
+    rejected_before = publication_outcomes_total.labels("rejected", scope_type)._value.get()
+    duplicate_before = bucket_validation_failures_total.labels(
+        "PREDICTION_BUCKET_DUPLICATE"
+    )._value.get()
+    duration_before = rejected_duration_count()
+
+    duplicate_buckets = _buckets()
+    duplicate_buckets[-1] = duplicate_buckets[0]
+    context.use("driver")
+    forbidden = context.client.post(
+        "/predictions/weekly-occupancy-publications",
+        json=_payload(context, buckets=duplicate_buckets),
+    )
+    assert forbidden.status_code == 403
+    assert authorization_failures_total.labels("publish")._value.get() == forbidden_before + 1
+    assert (
+        publication_outcomes_total.labels("rejected", scope_type)._value.get()
+        == rejected_before + 1
+    )
+    assert (
+        bucket_validation_failures_total.labels("PREDICTION_BUCKET_DUPLICATE")._value.get()
+        == duplicate_before
+    )
+    assert rejected_duration_count() == duration_before + 1
+
+    context.use("scientist")
+    invalid = context.client.post(
+        "/predictions/weekly-occupancy-publications",
+        json=_payload(context, buckets=duplicate_buckets),
+    )
+    assert invalid.status_code == 422
+    assert authorization_failures_total.labels("publish")._value.get() == forbidden_before + 1
+    assert (
+        publication_outcomes_total.labels("rejected", scope_type)._value.get()
+        == rejected_before + 2
+    )
+    assert (
+        bucket_validation_failures_total.labels("PREDICTION_BUCKET_DUPLICATE")._value.get()
+        == duplicate_before + 1
+    )
+    assert rejected_duration_count() == duration_before + 1
 
 
 def _dataset(

@@ -360,6 +360,7 @@ def publish_weekly_occupancy(
     publisher: Annotated[User, Depends(current_user)],
 ) -> PublicationSummaryResponse:
     try:
+        service.authorize_publication(publisher=publisher, scope_type=payload.scope_type)
         content = payload.content()
         result = service.publish(content=content, publisher=publisher)
     except (

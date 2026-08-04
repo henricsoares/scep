@@ -167,6 +167,23 @@ class PredictionService:
         return has_capability(user, Capability.READ_TECHNICAL_PREDICTIONS)
 
     @staticmethod
+    def authorize_publication(*, publisher: User, scope_type: PredictionScopeType) -> UUID:
+        """Authorize a publisher before publication-domain validation.
+
+        ``publish`` repeats this check so non-HTTP callers retain the same authorization
+        boundary. Successful pre-authorization has no metric side effects; a denied
+        request is accounted for exactly once because it never reaches ``publish``.
+        """
+        started = monotonic()
+        try:
+            return prediction_publisher_subject_id(publisher)
+        except PermissionError as exc:
+            authorization_failures_total.labels("publish").inc()
+            publication_outcomes_total.labels("rejected", scope_type.value).inc()
+            publication_duration_seconds.labels("rejected").observe(monotonic() - started)
+            raise PredictionAuthorizationError("Prediction publication is forbidden.") from exc
+
+    @staticmethod
     def _operator_facilities(user: User) -> tuple[UUID, ...] | None:
         if PredictionService.can_read_technical(user):
             return None
@@ -246,13 +263,10 @@ class PredictionService:
         outcome = "rejected"
         with tracer.start_as_current_span("predictions.publish") as span:
             span.set_attribute("prediction.scope_type", scope_type)
-            try:
-                publisher_subject_id = prediction_publisher_subject_id(publisher)
-            except PermissionError as exc:
-                authorization_failures_total.labels("publish").inc()
-                publication_outcomes_total.labels("rejected", scope_type).inc()
-                publication_duration_seconds.labels("rejected").observe(monotonic() - started)
-                raise PredictionAuthorizationError("Prediction publication is forbidden.") from exc
+            publisher_subject_id = self.authorize_publication(
+                publisher=publisher,
+                scope_type=content.scope.scope_type,
+            )
             try:
                 resolved = self._resolve_scope(content.scope, require_publication_eligibility=True)
                 if content.timezone != resolved.facility_timezone:
