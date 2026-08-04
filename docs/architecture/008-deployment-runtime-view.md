@@ -97,7 +97,7 @@ The reference runtime environment is illustrated below.
 The AI Research Environment executes independently and connects through exported datasets and public APIs.
 
 SPEC-012 does not add a model-serving runtime to the Backend API. Training and inference execute in
-the independent AI Research Environment. The planned Prediction Component is part of the Backend
+the independent AI Research Environment. The Prediction Component is part of the Backend
 API deployment and stores only accepted publication metadata and buckets in PostgreSQL.
 
 ---

@@ -379,7 +379,7 @@ Current research topics include:
 
 Current Phase:
 
-**SPEC-013 Version 1 complete; SPEC-012 planning and reference experimentation next**
+**SPEC-012 Version 1 Weekly Occupancy Predictions complete**
 
 Completed:
 
@@ -397,13 +397,12 @@ Completed:
 * ✅ SPEC-009 — Domain Events
 * ✅ SPEC-010 — Analytics
 * ✅ SPEC-011 — Dataset Export: Approved and implemented
+* ✅ SPEC-012 — Weekly Occupancy Predictions: Approved and implemented
 * ✅ SPEC-013 — Digital Twin Simulation Engine: Approved and implemented
 
-Next Steps:
-
-* SPEC-012 — Weekly Occupancy Predictions: Draft / Under Review and planned; its recommended
-  predecessor, SPEC-013, and required runtime identity mapping are implemented. The reference
-  occupancy experiment remains a prerequisite for implementation validation.
+The external reference baseline used the completed 10-week `ANALYTICAL_OCCUPANCY` training export
+and two-week holdout while keeping feature engineering, evaluation and inference outside the
+Backend API.
 
 ---
 

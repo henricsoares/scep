@@ -1208,8 +1208,7 @@ Deliverables:
 
 Current progress: SPEC-010 is approved and implemented with read-only, on-demand Analytics.
 
-SPEC-011 and SPEC-013 are approved and implemented. SPEC-012 is Draft / Under Review and Planned,
-with implementation recommended after SPEC-013.
+SPEC-011, SPEC-013 and SPEC-012 are approved and implemented in their recommended sequence.
 SPEC-012 has no mandatory runtime dependency on SPEC-013; the order allows reference validation
 with representative synthetic data and the first external occupancy experiment.
 

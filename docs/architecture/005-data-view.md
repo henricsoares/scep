@@ -154,7 +154,7 @@ external Simulation Engine and are not stored as backend aggregates.
 
 ## AI
 
-Planned SCEP ownership under SPEC-012:
+SCEP ownership implemented under SPEC-012:
 
 * immutable Weekly Occupancy Prediction publications and buckets inside SCEP
 * limited model, external-run and Dataset Export provenance references inside SCEP
@@ -207,7 +207,7 @@ Operational Data / KPIs
 
             ▼
 
-Planned Weekly Occupancy Prediction Publications
+Weekly Occupancy Prediction Publications
 
             │
 

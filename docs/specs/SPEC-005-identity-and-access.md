@@ -322,7 +322,7 @@ The Data Scientist represents a user who works with datasets, predictions and AI
 
 Data Scientists may create, list, retrieve and download their own `RESEARCH`-profile Dataset
 Exports under SPEC-011. They are the Human Role authorized to publish and technically inspect
-future SPEC-012 predictions. They do not manage `SimulationRun` resources by default.
+SPEC-012 predictions. They do not manage `SimulationRun` resources by default.
 
 Technical Clients are not represented by a Role. Their permissions are statically derived from an
 explicit Technical Client profile, never merely from `account_type`.

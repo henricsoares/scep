@@ -932,7 +932,8 @@ This specification serves as the foundation for:
 * **SPEC-009 — Domain Events**, which records operational changes associated with Facilities.
 * **SPEC-010 — Analytics**, which aggregates operational metrics by Facility.
 * **SPEC-011 — Dataset Export**, which will use Facilities as a primary analytical dimension.
-* **SPEC-012 — Predictions**, which will forecast charging infrastructure utilization within Facilities.
+* **SPEC-012 — Predictions**, which stores recurring weekly charging-infrastructure occupancy
+  profiles scoped through Facilities.
 * **SPEC-013 — Digital Twin Simulation Engine**, whose scenarios will be centered around Facilities.
 
 Every subsequent specification shall treat the Facility as the root operational context of the platform.
