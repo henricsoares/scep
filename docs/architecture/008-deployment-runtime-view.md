@@ -215,8 +215,8 @@ Direct database access by external systems is prohibited.
 The AI Research Environment authenticates as a Data Scientist or as a Technical Client explicitly
 profiled for AI research. It downloads only authorized `RESEARCH` Dataset Export artifacts and may
 publish complete Weekly Occupancy Prediction profiles through HTTPS. Technical Client account type
-alone grants no access. The environment shall not mount Dataset Export storage or connect directly
-to PostgreSQL.
+alone grants no Dataset Export or prediction access beyond the baseline reads defined by SPEC-005.
+The environment shall not mount Dataset Export storage or connect directly to PostgreSQL.
 
 ---
 

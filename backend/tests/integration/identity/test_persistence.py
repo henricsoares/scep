@@ -97,16 +97,25 @@ def test_valid_account_types_and_statuses_are_persisted(
     assert technical.technical_profile == TechnicalClientProfile.AI_RESEARCH_ENVIRONMENT
 
 
-def test_database_rejects_profile_on_human_account(identity_context: IdentityContext) -> None:
+@pytest.mark.parametrize(
+    ("account_type", "technical_profile"),
+    [
+        ("Human", "AIResearchEnvironment"),
+        ("TechnicalClient", "UnsupportedProfile"),
+    ],
+)
+def test_database_rejects_invalid_technical_profile_combinations(
+    identity_context: IdentityContext, account_type: str, technical_profile: str
+) -> None:
     with identity_context.sessions() as session:
         session.add(
             UserModel(
                 id=uuid4(),
-                email="invalid-profile@example.com",
+                email=f"{account_type}-{technical_profile}@example.com".lower(),
                 display_name="Invalid profile",
                 password_hash="hash",
-                account_type="Human",
-                technical_profile="AIResearchEnvironment",
+                account_type=account_type,
+                technical_profile=technical_profile,
                 status="Inactive",
             )
         )

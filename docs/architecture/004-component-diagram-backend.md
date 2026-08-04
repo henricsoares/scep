@@ -181,7 +181,8 @@ Identity distinguishes Human business Roles, non-human account type/profile, sta
 and execution-scoped credentials. Researchers and Platform Administrators manage Simulation Runs;
 Data Scientists and explicitly profiled AI Research Technical Clients receive limited research
 data and prediction capabilities. SPEC-013 mutations still require both the normal EVDriver bearer
-identity and a run-scoped credential; `TechnicalClient` grants no implicit authority.
+identity and a run-scoped credential; `TechnicalClient` grants no implicit research,
+administrative or simulation authority beyond its documented baseline reads.
 
 ---
 

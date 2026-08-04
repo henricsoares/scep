@@ -83,7 +83,8 @@ An actor may be:
 Human users interact with the platform according to their assigned roles.
 
 Technical clients represent authenticated external automated components. The account type alone
-does not grant business authorization.
+grants only the baseline read access explicitly defined by the permission matrix; it grants no
+research, administrative or other privileged business capability.
 
 Every protected operation must answer two questions:
 
@@ -128,13 +129,14 @@ A Technical Client:
 - does not represent a person;
 - does not receive Human Roles;
 - cannot receive the `PlatformAdministrator` or `FacilityOperator` Roles;
-- may access only capabilities explicitly granted to its closed Technical Client profile by the
-  corresponding functional specifications.
+- receives the baseline active-infrastructure reads defined by the permission matrix;
+- may access research or privileged capabilities only when explicitly granted to its closed
+  Technical Client profile by the corresponding functional specifications.
 
 For the first version, Technical Clients are stored using the same persistence model as Human Users and are differentiated by account type.
 
-`TechnicalClient` is an account type, not a Role or a generic trusted-service designation. The
-account type grants no capability by itself.
+`TechnicalClient` is an account type, not a Role or a generic trusted-service designation. Beyond
+the baseline reads in the permission matrix, the account type grants no capability by itself.
 
 ### 4.2.1 Technical Client Profile
 
@@ -227,7 +229,8 @@ Represents a person who interacts with the platform.
 Represents an automated external system.
 
 Technical Clients may use a closed profile defined by this specification. Account type alone
-grants no business capability.
+grants no research, administrative or privileged business capability beyond the baseline reads in
+the permission matrix.
 
 ---
 
@@ -363,7 +366,8 @@ A Technical Client:
 - shall not manage Users;
 - shall not manage Facilities, Charging Stations or Connectors;
 - shall access only capabilities explicitly permitted to Technical Clients.
-- shall receive no business capability when its Technical Client profile is absent.
+- shall receive no research, administrative or privileged business capability when its Technical
+  Client profile is absent, while retaining the baseline reads in the permission matrix.
 
 ---
 
@@ -1386,7 +1390,8 @@ This specification is complete when:
 * existing Facilities endpoints are protected;
 * existing Charging Stations and Connectors endpoints are protected;
 * Technical Clients authenticate as technical accounts;
-* Technical Client account type grants no capability by itself;
+* Technical Client account type grants only its documented baseline reads and no research,
+  administrative or privileged capability by itself;
 * Researchers manage Simulation Runs without receiving Dataset Export or prediction permissions;
 * Data Scientists use only their own Research-profile Dataset Exports and future prediction
   publication capabilities;

@@ -214,9 +214,9 @@ with a later `generated_at`, or it may have remained historical at acceptance be
 
 An authenticated `PlatformAdministrator` or `DataScientist`, or a non-human `TechnicalClient`
 whose closed profile is `AIResearchEnvironment`. Authorization is the SPEC-005 static
-`predictions:publish` capability; `TechnicalClient` account type alone grants nothing. The
-publication's publisher subject identifier shall be derived from authentication and shall never
-be accepted from request content.
+`predictions:publish` capability; `TechnicalClient` account type alone grants no research or
+prediction capability. The publication's publisher subject identifier shall be derived from
+authentication and shall never be accepted from request content.
 
 ## 6.8 Expected Occupancy Rate
 

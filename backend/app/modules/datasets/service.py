@@ -210,14 +210,20 @@ class DatasetExportService:
             return False
         if HumanRole.PLATFORM_ADMINISTRATOR in user.roles:
             return True
-        if has_capability(user, Capability.RESEARCH_DATASET_EXPORT):
-            return (
-                item.requested_by == user.id and item.export_profile == ExportProfile.RESEARCH.value
-            )
-        if HumanRole.FACILITY_OPERATOR not in user.roles or item.requested_by != user.id:
-            return False
-        facility = item.filters.get("facility_id")
-        return facility is not None and UUID(str(facility)) in user.facility_ids
+        if (
+            has_capability(user, Capability.RESEARCH_DATASET_EXPORT)
+            and item.requested_by == user.id
+            and item.export_profile == ExportProfile.RESEARCH.value
+        ):
+            return True
+        if (
+            user.account_type == AccountType.HUMAN
+            and HumanRole.FACILITY_OPERATOR in user.roles
+            and item.requested_by == user.id
+        ):
+            facility = item.filters.get("facility_id")
+            return facility is not None and UUID(str(facility)) in user.facility_ids
+        return False
 
     def cleanup_expired(self, now: datetime | None = None) -> int:
         now = now or datetime.now(UTC)

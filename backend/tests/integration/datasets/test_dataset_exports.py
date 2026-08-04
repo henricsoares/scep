@@ -841,6 +841,88 @@ def test_api_authorization_inference_visibility_and_download(tmp_path: Path) -> 
         assert client.get(f"/dataset-exports/{research_export_id}").status_code == 404
 
 
+def test_facility_operator_and_data_scientist_permissions_are_additive(tmp_path: Path) -> None:
+    sessions, db = database(tmp_path / "additive-roles.db")
+    operator, facility_id = seed(db, HumanRole.FACILITY_OPERATOR)
+    _administrator, other_facility_id = seed(db)
+    multi_role = SqlAlchemyUserRepository(db).update(
+        operator.with_roles([HumanRole.FACILITY_OPERATOR, HumanRole.DATA_SCIENTIST])
+    )
+    configured = settings(tmp_path / "additive-roles-artifacts")
+    app = FastAPI()
+    app.include_router(router)
+
+    def db_dependency() -> Generator[Session]:
+        with sessions() as session:
+            yield session
+
+    def request(profile: str, facility: UUID) -> dict[str, object]:
+        return {
+            "dataset_type": "OPERATIONAL_CHARGING_SESSIONS",
+            "export_profile": profile,
+            "format": "CSV",
+            "filters": {
+                "from": "2026-07-20T00:00:00Z",
+                "to": "2026-07-21T00:00:00Z",
+                "facility_id": str(facility),
+            },
+        }
+
+    app.dependency_overrides[get_db] = db_dependency
+    app.dependency_overrides[get_settings] = lambda: configured
+    app.dependency_overrides[current_user] = lambda: multi_role
+    with TestClient(app) as client:
+        administrative = client.post(
+            "/dataset-exports", json=request("ADMINISTRATIVE", facility_id)
+        )
+        research = client.post("/dataset-exports", json=request("RESEARCH", facility_id))
+        assert administrative.status_code == 202
+        assert research.status_code == 202
+        own_ids = {administrative.json()["id"], research.json()["id"]}
+
+        listed = client.get("/dataset-exports")
+        assert listed.status_code == 200
+        assert {item["id"] for item in listed.json()["items"]} == own_ids
+        for export_id in own_ids:
+            assert client.get(f"/dataset-exports/{export_id}").status_code == 200
+            assert client.get(f"/dataset-exports/{export_id}/download").status_code == 200
+
+        outside_scope = client.post(
+            "/dataset-exports", json=request("ADMINISTRATIVE", other_facility_id)
+        )
+        assert outside_scope.status_code == 403
+
+        data_scientist = SqlAlchemyUserRepository(db).add(
+            User.create(
+                email=f"{uuid4()}@example.com",
+                display_name="Other data scientist",
+                password_hash="hash",
+                account_type=AccountType.HUMAN,
+                status=AccountStatus.ACTIVE,
+                roles=[HumanRole.DATA_SCIENTIST],
+                facility_ids=[],
+            )
+        )
+        app.dependency_overrides[current_user] = lambda: data_scientist
+        other_research = client.post("/dataset-exports", json=request("RESEARCH", facility_id))
+        assert other_research.status_code == 202
+        other_id = other_research.json()["id"]
+        assert client.get(f"/dataset-exports/{other_id}").status_code == 200
+        assert client.get(f"/dataset-exports/{other_id}/download").status_code == 200
+        assert (
+            client.post("/dataset-exports", json=request("ADMINISTRATIVE", facility_id)).status_code
+            == 403
+        )
+
+        app.dependency_overrides[current_user] = lambda: multi_role
+        assert client.get(f"/dataset-exports/{other_id}").status_code == 404
+        assert {item["id"] for item in client.get("/dataset-exports").json()["items"]} == own_ids
+
+        app.dependency_overrides[current_user] = lambda: operator
+        assert client.get(f"/dataset-exports/{administrative.json()['id']}").status_code == 200
+        assert client.get(f"/dataset-exports/{research.json()['id']}").status_code == 200
+
+
 def test_analytics_projection_uses_explicit_processing_time(tmp_path: Path) -> None:
     _sessions, db = database(tmp_path / "analytics-cutoff.db")
     admin, facility_id = seed(db)
