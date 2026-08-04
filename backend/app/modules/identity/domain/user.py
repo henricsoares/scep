@@ -25,6 +25,10 @@ class HumanRole(StrEnum):
     DATA_SCIENTIST = "DataScientist"
 
 
+class TechnicalClientProfile(StrEnum):
+    AI_RESEARCH_ENVIRONMENT = "AIResearchEnvironment"
+
+
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
@@ -63,6 +67,7 @@ class User:
     created_at: datetime
     updated_at: datetime
     last_login_at: datetime | None = None
+    technical_profile: TechnicalClientProfile | None = None
 
     @classmethod
     def create(
@@ -75,6 +80,7 @@ class User:
         status: AccountStatus,
         roles: list[HumanRole],
         facility_ids: list[UUID],
+        technical_profile: TechnicalClientProfile | None = None,
     ) -> User:
         now = datetime.now(UTC)
         user = cls(
@@ -88,6 +94,7 @@ class User:
             tuple(dict.fromkeys(facility_ids)),
             now,
             now,
+            technical_profile=technical_profile,
         )
         user.validate()
         return user
@@ -98,6 +105,8 @@ class User:
         if not self.password_hash:
             raise ValueError("password hash is required")
         if self.account_type == AccountType.HUMAN:
+            if self.technical_profile is not None:
+                raise ValueError("Human accounts must not have a Technical Client profile")
             if self.status == AccountStatus.ACTIVE and not self.roles:
                 raise ValueError("Active Human accounts must have at least one Role")
             if self.facility_ids and HumanRole.FACILITY_OPERATOR not in self.roles:

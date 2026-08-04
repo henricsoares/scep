@@ -6,7 +6,13 @@ import pytest
 from app.infrastructure.database import Base, get_db
 from app.main import create_app
 from app.modules.identity.application.security import create_access_token, hash_password
-from app.modules.identity.domain.user import AccountStatus, AccountType, HumanRole, User
+from app.modules.identity.domain.user import (
+    AccountStatus,
+    AccountType,
+    HumanRole,
+    TechnicalClientProfile,
+    User,
+)
 from app.modules.identity.infrastructure.user_repository import SqlAlchemyUserRepository
 from fastapi.testclient import TestClient
 from pytest import MonkeyPatch
@@ -28,6 +34,7 @@ class IdentityContext:
         account_type: AccountType = AccountType.HUMAN,
         status: AccountStatus = AccountStatus.ACTIVE,
         facility_ids: list[UUID] | None = None,
+        technical_profile: TechnicalClientProfile | None = None,
     ) -> User:
         user = User.create(
             email=email,
@@ -37,6 +44,7 @@ class IdentityContext:
             status=status,
             roles=roles or [],
             facility_ids=facility_ids or [],
+            technical_profile=technical_profile,
         )
         with self.sessions() as session:
             return SqlAlchemyUserRepository(session).add(user)

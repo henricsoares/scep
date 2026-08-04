@@ -312,7 +312,7 @@ A run shall not be reopened. `COMPLETED` and `CANCELLED` are terminal.
 
 ## 7.2 DRAFT
 
-While `DRAFT`, an authorized administrator may change:
+While `DRAFT`, an authorized simulation manager may change:
 
 - the logical window;
 - authorized Facilities;
@@ -390,9 +390,15 @@ Final route naming shall follow repository conventions.
 The lifecycle APIs shall use optimistic request validation plus transactional locking to prevent
 invalid concurrent transitions.
 
-The final authorization mapping shall follow SPEC-005. Version 1 conceptually requires an
-administrative subject such as `PlatformAdministrator`; a future Researcher Role may be added by a
-separate identity decision.
+The finalized SPEC-005 mapping permits `PlatformAdministrator` and `Researcher` Human subjects to
+create, configure, inspect, start, complete and cancel `SimulationRun` resources. `DataScientist`,
+`FacilityOperator`, `EVDriver` and Technical Clients do not receive simulation-management
+permission.
+
+The external simulator is a non-human process, but Version 1 simulated mutations do not derive
+authority from a `TechnicalClient` account. They continue to require the participating EVDriver
+JWT plus the execution-scoped `SimulationRun` token. The token is not a general SCEP credential,
+does not identify a business Role and grants no authority outside its run.
 
 ---
 
@@ -627,7 +633,10 @@ The following mutations are outside the allowlist:
 - Analytics or Prediction publication;
 - unrelated administrative operations.
 
-Vehicles, Users and infrastructure shall be created before the run by an administrator.
+Vehicles, Users and infrastructure shall be created before the run through their existing domain
+APIs by an actor already authorized for those resources. A `Researcher` may manage the
+`SimulationRun`, but gains no implicit ownership or management permission over Facilities,
+Stations, Connectors, Users or Vehicles merely because they are associated with that run.
 
 Reservation rescheduling is deferred unless required by a later approved scenario. Version 1 may
 represent a behavioral retry by creating a new Reservation attempt after a rejected request.
@@ -1504,7 +1513,8 @@ shall continue to pass without simulation headers.
 
 Version 1 is accepted when:
 
-1. an administrator can create, configure, start, inspect, complete and cancel a run;
+1. a `PlatformAdministrator` or `Researcher` can create, configure, start, inspect, complete and
+   cancel a run;
 2. the bootstrap exports only the approved minimal identifiers and metadata;
 3. an EVDriver cannot use simulation headers without the valid run credential;
 4. a valid simulated request receives the configured logical time through the existing `Clock`;

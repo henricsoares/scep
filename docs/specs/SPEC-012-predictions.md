@@ -58,9 +58,9 @@ The Backend API shall not train models and shall not execute model inference.
 SPEC-013 is approved and implemented. SPEC-012 still has no mandatory runtime dependency on the
 Digital Twin Simulation Engine.
 
-Implementation and reference validation are intentionally deferred until:
+The research-role and non-human publisher decision is resolved by SPEC-005 and GitHub issue #46.
+Implementation and reference validation remain intentionally deferred until:
 
-- the research-role and non-human actor authorization debt is resolved;
 - the implemented SPEC-013 produces representative synthetic operational data; and
 - the first external occupancy experiment can validate the publication integration.
 
@@ -109,7 +109,7 @@ This specification includes:
 - validation, canonicalization and idempotency;
 - immutable history and automatic current selection;
 - authenticated REST APIs;
-- provisional authorization boundaries;
+- final authorization boundaries;
 - persistence and migration requirements;
 - OpenAPI, observability and testing requirements.
 
@@ -212,9 +212,11 @@ with a later `generated_at`, or it may have remained historical at acceptance be
 
 ## 6.7 Authorized Prediction Publisher
 
-An authenticated Human or non-human subject that a future SPEC-005-aligned permission mapping
-authorizes to publish predictions. This normative concept is intentionally independent from the
-current `TechnicalClient` account type.
+An authenticated `PlatformAdministrator` or `DataScientist`, or a non-human `TechnicalClient`
+whose closed profile is `AIResearchEnvironment`. Authorization is the SPEC-005 static
+`predictions:publish` capability; `TechnicalClient` account type alone grants nothing. The
+publication's publisher subject identifier shall be derived from authentication and shall never
+be accepted from request content.
 
 ## 6.8 Expected Occupancy Rate
 
@@ -642,8 +644,9 @@ delete or detach an accepted prediction publication. The publication retains the
 identifier and available immutable metadata; it shall not copy or reconstruct expired artifact
 content.
 
-Current SPEC-011 authorization remains unchanged. In particular, `Researcher`, `DataScientist` and
-`TechnicalClient` receive no Dataset Export access merely because SPEC-012 is drafted or approved.
+SPEC-011 authorizes a `DataScientist` and an `AIResearchEnvironment` Technical Client to create and
+access only their own single-Facility `RESEARCH` exports. Prediction provenance access shall reuse
+that ownership rule; SPEC-012 grants no additional Dataset Export access.
 
 The Backend API shall not reconstruct external feature engineering or bypass Dataset Export
 contracts.
@@ -1107,12 +1110,10 @@ actor's visible scope, consistent with platform policy.
 
 ---
 
-# 28. Authorization and Identity Debt
+# 28. Authorization
 
-SPEC-012 introduces no Role, account type, credential type or runtime permission by itself. Final
-enforcement shall reuse SPEC-005 after the cross-specification identity decision is approved.
-
-Expected business direction is:
+SPEC-012 introduces no Role, account type or credential type. Enforcement shall reuse the closed,
+static SPEC-005 capability mapping resolved by GitHub issue #46.
 
 ## 28.1 PlatformAdministrator
 
@@ -1132,33 +1133,32 @@ publisher or integrity metadata.
 
 ## 28.4 DataScientist
 
-Is the preferred future business Role for:
+Is the Human business Role for:
 
 - consuming anonymized `RESEARCH`-profile Dataset Exports;
 - publishing prediction buckets; and
 - inspecting technical prediction metadata within an authorized research scope.
 
-These are expected future responsibilities, not current SPEC-005 or SPEC-011 permissions.
+At publication, the Backend API shall derive `publisher_subject_id` from the authenticated
+authorized subject; any publisher identifier in request content shall be rejected as an unknown
+field.
 
 ## 28.5 Researcher
 
-Is the preferred future business Role for synthetic scenario and simulation management under
-SPEC-013. SPEC-012 does not grant prediction publication merely from this Role.
+Is the business Role for synthetic scenario and `SimulationRun` management under SPEC-013.
+`Researcher` does not receive prediction publication or Dataset Export permission.
 
 ## 28.6 Non-Human AI and Simulation Processes
 
-A later cross-specification decision shall separate business Roles from credential or account
-types, define least-privilege scopes, responsible Human ownership, rotation, expiration and audit,
-and decide the future of `TechnicalClient`.
+Business Roles remain separate from account and credential types. A non-human external AI process
+may authenticate through a `TechnicalClient` account only when its administrator-selected profile
+is `AIResearchEnvironment`; that profile statically grants prediction publication, technical
+prediction inspection and the limited SPEC-011 Research export capability. The account type alone
+does not authorize publication. Its authenticated subject identifier is the publisher identity.
 
-[GitHub issue #46](https://github.com/henricsoares/scep/issues/46) tracks this debt for SPEC-005,
-SPEC-011, SPEC-012 and SPEC-013.
-
-The debt does not block documentation approval. It shall be resolved before SPEC-012 implementation
-and final runtime permission mapping. SPEC-012 shall not permanently hard-code `TechnicalClient` as
-the prediction publisher and shall not redefine SPEC-005 independently.
-
-Current SPEC-011 authorization remains unchanged until explicitly revised.
+Dynamic service-account management, credential rotation, responsible-Human or project ownership,
+and fine-grained per-project scopes remain deferred. None blocks Version 1 prediction
+implementation because publisher eligibility and identity derivation are now unambiguous.
 
 ---
 
@@ -1353,7 +1353,7 @@ Tests shall cover:
 - denial outside assigned Facilities;
 - EVDriver eligible and ineligible infrastructure;
 - omission of technical metadata from EVDriver responses;
-- current SPEC-011 authorization remaining unchanged;
+- final SPEC-011 research-export ownership and profile limits;
 - inactive-account and invalid-credential denial.
 
 ## 32.5 Query and Recommendation Tests
@@ -1409,7 +1409,7 @@ SPEC-012 Version 1 is ready for approval when:
 - Dataset Export provenance and expiration behavior are explicit;
 - administrative, point and recommendation APIs are fully defined;
 - eligibility and operational availability remain owned by existing domains;
-- identity debt is recorded without changing current runtime permissions;
+- publisher authorization is final and derives identity from the authenticated subject;
 - Backend API training and inference are prohibited;
 - persistence, migration, OpenAPI, observability and testing contracts are testable;
 - SPEC-013 is documented as a recommended implementation predecessor, not a runtime dependency;

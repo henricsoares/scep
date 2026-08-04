@@ -37,6 +37,7 @@ def test_user_management_lifecycle(identity_context: IdentityContext, admin: Use
     assert human.json()["email"] == "human@example.com"
     assert technical.status_code == 201
     assert technical.json()["roles"] == []
+    assert technical.json()["technical_profile"] is None
     assert "password" not in human.json()
     assert "password_hash" not in human.json()
 
@@ -47,6 +48,35 @@ def test_user_management_lifecycle(identity_context: IdentityContext, admin: Use
     assert users.status_code == 200
     assert len(users.json()) == 3
     assert client.get(f"/users/{human.json()['id']}", headers=headers).status_code == 200
+
+
+def test_ai_research_technical_profile_is_explicit_and_closed(
+    identity_context: IdentityContext, admin: User
+) -> None:
+    headers = identity_context.headers(admin)
+    payload = user_payload(
+        "ai-research@example.com",
+        account_type="TechnicalClient",
+        roles=[],
+        display_name="AI Research Environment",
+        technical_profile="AIResearchEnvironment",
+    )
+    created = identity_context.client.post("/users", json=payload, headers=headers)
+    assert created.status_code == 201
+    assert created.json()["technical_profile"] == "AIResearchEnvironment"
+
+    human_profile = identity_context.client.post(
+        "/users",
+        json=user_payload("invalid-human@example.com", technical_profile="AIResearchEnvironment"),
+        headers=headers,
+    )
+    unknown_profile = identity_context.client.post(
+        "/users",
+        json={**payload, "email": "unknown-profile@example.com", "technical_profile": "Generic"},
+        headers=headers,
+    )
+    assert human_profile.status_code == 422
+    assert unknown_profile.status_code == 422
 
 
 def test_user_patch_supports_each_partial_shape(

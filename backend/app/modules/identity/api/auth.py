@@ -12,7 +12,13 @@ from app.modules.identity.application.user_service import (
     InactiveAccountError,
     UserService,
 )
-from app.modules.identity.domain.user import AccountStatus, AccountType, HumanRole, User
+from app.modules.identity.domain.user import (
+    AccountStatus,
+    AccountType,
+    HumanRole,
+    TechnicalClientProfile,
+    User,
+)
 from app.modules.identity.infrastructure.user_repository import SqlAlchemyUserRepository
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -37,6 +43,7 @@ class MeResponse(BaseModel):
     status: AccountStatus
     roles: list[HumanRole]
     facility_ids: list[UUID]
+    technical_profile: TechnicalClientProfile | None
 
 
 def me_resp(u: User) -> MeResponse:
@@ -48,6 +55,7 @@ def me_resp(u: User) -> MeResponse:
         status=u.status,
         roles=list(u.roles),
         facility_ids=list(u.facility_ids),
+        technical_profile=u.technical_profile,
     )
 
 

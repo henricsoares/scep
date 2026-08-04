@@ -3,7 +3,12 @@ from datetime import UTC, datetime, timedelta
 import jwt
 from app.core.config import get_settings
 from app.modules.identity.application.security import create_access_token
-from app.modules.identity.domain.user import AccountStatus, AccountType, HumanRole
+from app.modules.identity.domain.user import (
+    AccountStatus,
+    AccountType,
+    HumanRole,
+    TechnicalClientProfile,
+)
 from app.modules.identity.infrastructure.user_repository import SqlAlchemyUserRepository
 
 from tests.integration.identity.conftest import IdentityContext
@@ -59,13 +64,16 @@ def test_technical_client_current_identity_is_validated(
     identity_context: IdentityContext,
 ) -> None:
     technical = identity_context.create_user(
-        email="simulation@example.com", account_type=AccountType.TECHNICAL_CLIENT
+        email="simulation@example.com",
+        account_type=AccountType.TECHNICAL_CLIENT,
+        technical_profile=TechnicalClientProfile.AI_RESEARCH_ENVIRONMENT,
     )
     response = identity_context.client.get("/auth/me", headers=identity_context.headers(technical))
 
     assert response.status_code == 200
     assert response.json()["account_type"] == "TechnicalClient"
     assert response.json()["roles"] == []
+    assert response.json()["technical_profile"] == "AIResearchEnvironment"
 
     token, _ = create_access_token(technical)
     claims = jwt.decode(

@@ -416,8 +416,10 @@ Administrative exports shall not include:
 
 ## 8.2 RESEARCH
 
-The `RESEARCH` profile is intended for controlled transfer to Researchers and Data Scientists. It
-does not by itself grant those Roles Dataset Export API access.
+The `RESEARCH` profile is intended for controlled transfer to Data Scientists and explicitly
+permitted non-human AI Research Environment subjects. The profile does not grant access by itself;
+SPEC-005 capabilities and resource ownership are still enforced. Researchers do not receive this
+capability by virtue of their Role.
 
 Research exports shall:
 
@@ -1696,14 +1698,14 @@ This specification introduces no new Role and no new account type.
 
 Version 1 permissions are:
 
-| Capability | `PlatformAdministrator` | `FacilityOperator` | `Researcher` | `DataScientist` |
-|---|---|---|---|---|
-| Create `ADMINISTRATIVE` export | Any scope | Assigned Facility only | No | No |
-| Create `RESEARCH` export | Any scope | Assigned Facility only | No | No |
-| Cross-Facility export | Yes | No | No | No |
-| List exports | All | Own only | No | No |
-| Retrieve exports | All | Own only | No | No |
-| Download artifacts | All | Own only | No | No |
+| Capability | `PlatformAdministrator` | `FacilityOperator` | `Researcher` | `DataScientist` | AI Research Technical Client |
+|---|---|---|---|---|---|
+| Create `ADMINISTRATIVE` export | Any scope | Assigned Facility only | No | No | No |
+| Create `RESEARCH` export | Any scope | Assigned Facility only | No | Explicit Facility | Explicit Facility |
+| Cross-Facility export | Yes | No | No | No | No |
+| List exports | All | Own only | No | Own Research only | Own Research only |
+| Retrieve exports | All | Own only | No | Own Research only | Own Research only |
+| Download artifacts | All | Own only | No | Own Research only | Own Research only |
 
 ## 25.1 Platform Administrator
 
@@ -1747,15 +1749,20 @@ export configuration.
 
 The `Researcher` Role shall not grant Dataset Export access in Version 1.
 
-Researcher Facility scope, export sharing and export approval are deferred until a future
-specification defines an explicit authorization model.
+Researcher Dataset Export access remains outside Version 1. Simulation responsibilities under
+SPEC-013 do not imply access to exported datasets.
 
 ## 25.4 Data Scientist
 
-The `DataScientist` Role shall not grant Dataset Export access in Version 1.
+The `DataScientist` Role grants creation of `RESEARCH` exports for exactly one explicitly supplied
+Facility and access to only those `RESEARCH` exports requested by the same authenticated subject.
+It does not grant `ADMINISTRATIVE` exports, cross-Facility export, another subject's export or
+direct operational-data access. Current Research-profile pseudonymization remains mandatory.
 
-A future specification may define explicit Dataset Export scope or sharing without changing the
-meaning of the `RESEARCH` Export Profile.
+The same limits apply to a `TechnicalClient` whose closed profile is
+`AIResearchEnvironment`. A Technical Client without that profile receives no Dataset Export
+permission. The authenticated subject identifier becomes `requested_by`; clients cannot supply or
+override it.
 
 ## 25.5 Other Actors
 
@@ -1763,8 +1770,7 @@ The following actors shall not access Dataset Export in Version 1:
 
 - `EVDriver`;
 - `Researcher`;
-- `DataScientist`;
-- `TechnicalClient`;
+- `TechnicalClient` without the `AIResearchEnvironment` profile;
 - inactive accounts;
 - Human Users without one of the roles explicitly permitted above.
 
@@ -1775,8 +1781,14 @@ Platform Administrators may view all Dataset Export resources.
 Facility Operators may view only Dataset Export resources they requested and for which they retain
 the required Facility Assignment.
 
+Data Scientists and permitted AI Research Technical Clients may view and download only their own
+`RESEARCH` exports. Their explicit Facility filter constrains request scope but does not create a
+Facility Assignment or grant operational ownership.
+
 For a Human User with multiple Roles, `PlatformAdministrator` permissions shall take precedence.
-`Researcher` and `DataScientist` Roles shall not expand `FacilityOperator` permissions.
+Human Role permissions are additive. `Researcher` adds no Dataset Export permission;
+`DataScientist` adds only the Research-profile capability above and does not broaden a Facility
+Operator's administrative Facility scope.
 
 Authorization shall be checked:
 
@@ -1793,7 +1805,7 @@ Inaccessible Dataset Export resources shall use the repository's concealed `404 
 convention.
 
 The `RESEARCH` Export Profile remains available to Platform Administrators and Facility Operators
-for controlled offline research transfer.
+for controlled offline research transfer and to the least-privilege research actors above.
 
 ---
 
@@ -2107,8 +2119,9 @@ Contract tests shall validate:
 - Facility Operator scope is enforced.
 - Every Facility Operator export persists exactly one resolved assigned Facility.
 - Researcher access is denied in Version 1.
-- Data Scientist access is denied in Version 1.
-- EV Drivers and Technical Clients are denied.
+- Data Scientists and AI Research Technical Clients may create and access only their own
+  single-Facility `RESEARCH` exports.
+- EV Drivers and Technical Clients without the explicit AI Research profile are denied.
 - Non-administrators see only their own Dataset Export resources.
 
 ## Documentation and Quality

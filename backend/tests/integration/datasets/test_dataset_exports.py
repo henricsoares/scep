@@ -44,7 +44,13 @@ from app.modules.datasets.storage import (
 )
 from app.modules.events.infrastructure import DomainEventModel
 from app.modules.identity.api.dependencies import current_user
-from app.modules.identity.domain.user import AccountStatus, AccountType, HumanRole, User
+from app.modules.identity.domain.user import (
+    AccountStatus,
+    AccountType,
+    HumanRole,
+    TechnicalClientProfile,
+    User,
+)
 from app.modules.identity.infrastructure.dataset_export_reader import IdentityDatasetReader
 from app.modules.identity.infrastructure.user_repository import SqlAlchemyUserRepository
 from app.modules.telemetry.dataset_export_reader import TelemetryDatasetReader
@@ -763,10 +769,55 @@ def test_api_authorization_inference_visibility_and_download(tmp_path: Path) -> 
         app.dependency_overrides[current_user] = lambda: denied
         assert client.get("/dataset-exports").status_code == 403
         assert client.get(f"/dataset-exports/{export_id}").status_code == 404
-        for role in (HumanRole.DATA_SCIENTIST, HumanRole.EV_DRIVER):
-            denied_role = replace(denied, id=uuid4(), roles=(role,))
-            app.dependency_overrides[current_user] = lambda user=denied_role: user
-            assert client.get("/dataset-exports").status_code == 403
+        evdriver = replace(denied, id=uuid4(), roles=(HumanRole.EV_DRIVER,))
+        app.dependency_overrides[current_user] = lambda: evdriver
+        assert client.get("/dataset-exports").status_code == 403
+
+        data_scientist = SqlAlchemyUserRepository(db).add(
+            User.create(
+                email=f"{uuid4()}@example.com",
+                display_name="Data scientist",
+                password_hash="hash",
+                account_type=AccountType.HUMAN,
+                status=AccountStatus.ACTIVE,
+                roles=[HumanRole.DATA_SCIENTIST],
+                facility_ids=[],
+            )
+        )
+        app.dependency_overrides[current_user] = lambda: data_scientist
+        research_request = {
+            "dataset_type": "OPERATIONAL_CHARGING_SESSIONS",
+            "export_profile": "RESEARCH",
+            "format": "CSV",
+            "filters": {
+                "from": "2026-07-20T00:00:00Z",
+                "to": "2026-07-21T00:00:00Z",
+                "facility_id": str(facility_id),
+            },
+        }
+        research_export = client.post("/dataset-exports", json=research_request)
+        assert research_export.status_code == 202
+        research_export_id = research_export.json()["id"]
+        listed = client.get("/dataset-exports")
+        assert listed.status_code == 200
+        assert {item["id"] for item in listed.json()["items"]} == {research_export_id}
+        assert client.get(f"/dataset-exports/{research_export_id}").status_code == 200
+        assert client.get(f"/dataset-exports/{research_export_id}/download").status_code == 200
+        assert client.get(f"/dataset-exports/{export_id}").status_code == 404
+        administrative_request = {
+            **research_request,
+            "export_profile": "ADMINISTRATIVE",
+        }
+        assert client.post("/dataset-exports", json=administrative_request).status_code == 403
+        no_facility = {
+            **research_request,
+            "filters": {
+                "from": "2026-07-20T00:00:00Z",
+                "to": "2026-07-21T00:00:00Z",
+            },
+        }
+        assert client.post("/dataset-exports", json=no_facility).status_code == 400
+
         technical = replace(
             denied,
             id=uuid4(),
@@ -775,6 +826,19 @@ def test_api_authorization_inference_visibility_and_download(tmp_path: Path) -> 
         )
         app.dependency_overrides[current_user] = lambda: technical
         assert client.get("/dataset-exports").status_code == 403
+
+        ai_client = SqlAlchemyUserRepository(db).add(
+            replace(
+                technical,
+                email=f"{uuid4()}@example.com",
+                technical_profile=TechnicalClientProfile.AI_RESEARCH_ENVIRONMENT,
+            )
+        )
+        app.dependency_overrides[current_user] = lambda: ai_client
+        ai_export = client.post("/dataset-exports", json=research_request)
+        assert ai_export.status_code == 202
+        assert client.get(f"/dataset-exports/{ai_export.json()['id']}").status_code == 200
+        assert client.get(f"/dataset-exports/{research_export_id}").status_code == 404
 
 
 def test_analytics_projection_uses_explicit_processing_time(tmp_path: Path) -> None:

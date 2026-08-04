@@ -9,7 +9,13 @@ from app.modules.identity.domain.repositories import (
     UserRepository,
     UserRepositoryError,
 )
-from app.modules.identity.domain.user import AccountStatus, AccountType, HumanRole, User
+from app.modules.identity.domain.user import (
+    AccountStatus,
+    AccountType,
+    HumanRole,
+    TechnicalClientProfile,
+    User,
+)
 from app.modules.identity.infrastructure.user_model import RoleModel, UserFacilityModel, UserModel
 
 FIXED_ROLES = [r.value for r in HumanRole]
@@ -121,6 +127,7 @@ class SqlAlchemyUserRepository(UserRepository):
             created_at=user.created_at,
             updated_at=user.updated_at,
             last_login_at=user.last_login_at,
+            technical_profile=(user.technical_profile.value if user.technical_profile else None),
             roles=[role_map[r.value] for r in user.roles],
             facilities=[
                 UserFacilityModel(user_id=user.id, facility_id=f) for f in user.facility_ids
@@ -140,4 +147,7 @@ class SqlAlchemyUserRepository(UserRepository):
             created_at=m.created_at,
             updated_at=m.updated_at,
             last_login_at=m.last_login_at,
+            technical_profile=(
+                TechnicalClientProfile(m.technical_profile) if m.technical_profile else None
+            ),
         )

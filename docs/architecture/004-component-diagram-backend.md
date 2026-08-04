@@ -167,19 +167,21 @@ Responsibilities:
 * token validation;
 * access control enforcement.
 
-Initial roles include:
+Human Roles include:
 
 * Researcher;
 * Data Scientist;
 * EV Driver;
 * Facility Operator;
 * Platform Administrator;
-* Technical Client account type.
 
-SPEC-013 Version 1 does not permanently bind the Simulation Engine to the Technical Client account
-type. Allowed mutations require both the normal EVDriver bearer identity and a run-scoped
-credential. The permanent non-human actor mapping remains the cross-specification identity debt in
-issue #46; SPEC-005 is not redefined by the simulation implementation.
+`TechnicalClient` is a separate non-human account type, not a Role.
+
+Identity distinguishes Human business Roles, non-human account type/profile, static capabilities
+and execution-scoped credentials. Researchers and Platform Administrators manage Simulation Runs;
+Data Scientists and explicitly profiled AI Research Technical Clients receive limited research
+data and prediction capabilities. SPEC-013 mutations still require both the normal EVDriver bearer
+identity and a run-scoped credential; `TechnicalClient` grants no implicit authority.
 
 ---
 
