@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 from app.infrastructure.database import get_db
-from app.modules.identity.api.dependencies import require_admin
+from app.modules.identity.api.dependencies import require_simulation_manager
 from app.modules.identity.domain.user import User
 from app.modules.simulation.domain import SimulationRun, SimulationRunStatus
 from app.modules.simulation.service import (
@@ -88,7 +88,7 @@ class SimulationBootstrapResponse(BaseModel):
 
 ERRORS: dict[int | str, dict[str, Any]] = {
     401: {"description": "Authentication required"},
-    403: {"description": "PlatformAdministrator Role required"},
+    403: {"description": "Simulation management permission required"},
     404: {"description": "SimulationRun not found"},
     409: {"description": "Invalid SimulationRun lifecycle transition"},
     422: {"description": "Invalid SimulationRun configuration"},
@@ -151,10 +151,10 @@ def _error(exc: Exception) -> HTTPException:
 def create_simulation_run(
     payload: SimulationRunCreateRequest,
     service: Annotated[SimulationRunService, Depends(get_simulation_run_service)],
-    admin: Annotated[User, Depends(require_admin)],
+    manager: Annotated[User, Depends(require_simulation_manager)],
 ) -> SimulationRunResponse:
     try:
-        return _response(service.create(created_by=admin.id, **payload.model_dump()))
+        return _response(service.create(created_by=manager.id, **payload.model_dump()))
     except ValueError as exc:
         raise _error(exc) from exc
 
@@ -167,7 +167,7 @@ def create_simulation_run(
 def get_simulation_run(
     simulationRunId: UUID,
     service: Annotated[SimulationRunService, Depends(get_simulation_run_service)],
-    _admin: Annotated[User, Depends(require_admin)],
+    _manager: Annotated[User, Depends(require_simulation_manager)],
 ) -> SimulationRunResponse:
     try:
         return _response(service.get(simulationRunId))
@@ -184,7 +184,7 @@ def update_simulation_run(
     simulationRunId: UUID,
     payload: SimulationRunUpdateRequest,
     service: Annotated[SimulationRunService, Depends(get_simulation_run_service)],
-    _admin: Annotated[User, Depends(require_admin)],
+    _manager: Annotated[User, Depends(require_simulation_manager)],
 ) -> SimulationRunResponse:
     try:
         current = service.get(simulationRunId)
@@ -230,7 +230,7 @@ def update_simulation_run(
 def start_simulation_run(
     simulationRunId: UUID,
     service: Annotated[SimulationRunService, Depends(get_simulation_run_service)],
-    _admin: Annotated[User, Depends(require_admin)],
+    _manager: Annotated[User, Depends(require_simulation_manager)],
 ) -> SimulationRunStartResponse:
     try:
         item, token = service.start(simulationRunId)
@@ -247,7 +247,7 @@ def start_simulation_run(
 def complete_simulation_run(
     simulationRunId: UUID,
     service: Annotated[SimulationRunService, Depends(get_simulation_run_service)],
-    _admin: Annotated[User, Depends(require_admin)],
+    _manager: Annotated[User, Depends(require_simulation_manager)],
 ) -> SimulationRunResponse:
     try:
         return _response(service.complete(simulationRunId))
@@ -263,7 +263,7 @@ def complete_simulation_run(
 def cancel_simulation_run(
     simulationRunId: UUID,
     service: Annotated[SimulationRunService, Depends(get_simulation_run_service)],
-    _admin: Annotated[User, Depends(require_admin)],
+    _manager: Annotated[User, Depends(require_simulation_manager)],
 ) -> SimulationRunResponse:
     try:
         return _response(service.cancel(simulationRunId))
@@ -279,7 +279,7 @@ def cancel_simulation_run(
 def get_simulation_bootstrap(
     simulationRunId: UUID,
     service: Annotated[SimulationRunService, Depends(get_simulation_run_service)],
-    _admin: Annotated[User, Depends(require_admin)],
+    _manager: Annotated[User, Depends(require_simulation_manager)],
 ) -> SimulationBootstrapResponse:
     try:
         item = service.get(simulationRunId)

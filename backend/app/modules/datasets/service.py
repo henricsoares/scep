@@ -49,6 +49,7 @@ from app.modules.datasets.schemas import build_artifact, transform_research
 from app.modules.datasets.storage import ArtifactStorageError, DatasetArtifactStorage
 from app.modules.events.contracts import dataset_export_completed_event
 from app.modules.events.infrastructure import EventPublisher
+from app.modules.identity.application.authorization import Capability, has_capability
 from app.modules.identity.application.dataset_export import DatasetExportIdentityReadPort
 from app.modules.identity.domain.user import AccountStatus, AccountType, HumanRole, User
 from app.modules.telemetry.application.dataset_export import TelemetryDatasetReadPort
@@ -87,7 +88,7 @@ class DatasetExportService:
     ) -> DatasetExportModel:
         export_requests_total.labels(dataset_type.value, profile.value, format.value).inc()
         try:
-            resolved = self._validate(dataset_type, format, filters, user)
+            resolved = self._validate(dataset_type, profile, format, filters, user)
             self.cleanup_expired()
             if self.repository.count_pending() >= self.settings.dataset_export_max_queued_jobs:
                 raise DatasetQueueFullError("dataset export queue is full")
@@ -116,16 +117,22 @@ class DatasetExportService:
     def _validate(
         self,
         dataset_type: DatasetType,
+        profile: ExportProfile,
         format: ExportFormat,
         filters: ExportFilters,
         user: User,
     ) -> ExportFilters:
-        if user.status != AccountStatus.ACTIVE or user.account_type != AccountType.HUMAN:
+        if user.status != AccountStatus.ACTIVE:
             raise DatasetAuthorizationError("insufficient permission")
         admin = HumanRole.PLATFORM_ADMINISTRATOR in user.roles
-        operator = HumanRole.FACILITY_OPERATOR in user.roles
-        if not admin and not operator:
+        operator = (
+            user.account_type == AccountType.HUMAN and HumanRole.FACILITY_OPERATOR in user.roles
+        )
+        research_actor = has_capability(user, Capability.RESEARCH_DATASET_EXPORT)
+        if not admin and not operator and not research_actor:
             raise DatasetAuthorizationError("insufficient permission")
+        if research_actor and not admin and not operator and profile != ExportProfile.RESEARCH:
+            raise DatasetAuthorizationError("research actors may request only RESEARCH exports")
         if filters.from_.tzinfo is None or filters.to.tzinfo is None:
             raise DatasetValidationError("from and to must include an explicit timezone offset")
         if filters.from_.astimezone(UTC) >= filters.to.astimezone(UTC):
@@ -165,6 +172,8 @@ class DatasetExportService:
                 facility_id = user.facility_ids[0]
             if facility_id not in user.facility_ids:
                 raise DatasetAuthorizationError("facility is outside authorized scope")
+        if research_actor and not admin and not operator and facility_id is None:
+            raise DatasetValidationError("facility_id is required for research actors")
         if (
             admin
             and dataset_type == DatasetType.ANALYTICAL_OCCUPANCY
@@ -197,14 +206,24 @@ class DatasetExportService:
 
     @staticmethod
     def can_access(item: DatasetExportModel, user: User) -> bool:
-        if user.status != AccountStatus.ACTIVE or user.account_type != AccountType.HUMAN:
+        if user.status != AccountStatus.ACTIVE:
             return False
         if HumanRole.PLATFORM_ADMINISTRATOR in user.roles:
             return True
-        if HumanRole.FACILITY_OPERATOR not in user.roles or item.requested_by != user.id:
-            return False
-        facility = item.filters.get("facility_id")
-        return facility is not None and UUID(str(facility)) in user.facility_ids
+        if (
+            has_capability(user, Capability.RESEARCH_DATASET_EXPORT)
+            and item.requested_by == user.id
+            and item.export_profile == ExportProfile.RESEARCH.value
+        ):
+            return True
+        if (
+            user.account_type == AccountType.HUMAN
+            and HumanRole.FACILITY_OPERATOR in user.roles
+            and item.requested_by == user.id
+        ):
+            facility = item.filters.get("facility_id")
+            return facility is not None and UUID(str(facility)) in user.facility_ids
+        return False
 
     def cleanup_expired(self, now: datetime | None = None) -> int:
         now = now or datetime.now(UTC)

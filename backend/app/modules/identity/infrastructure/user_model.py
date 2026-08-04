@@ -53,6 +53,12 @@ class UserModel(Base):
             "account_type IN ('Human', 'TechnicalClient')", name="ck_users_account_type"
         ),
         CheckConstraint("status IN ('Active', 'Inactive')", name="ck_users_status"),
+        CheckConstraint(
+            "(account_type = 'Human' AND technical_profile IS NULL) OR "
+            "(account_type = 'TechnicalClient' AND "
+            "(technical_profile IS NULL OR technical_profile = 'AIResearchEnvironment'))",
+            name="ck_users_technical_profile",
+        ),
         Index("ix_users_status", "status"),
         Index("ix_users_account_type", "account_type"),
     )
@@ -69,6 +75,7 @@ class UserModel(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    technical_profile: Mapped[str | None] = mapped_column(String(64), nullable=True)
     roles: Mapped[list[RoleModel]] = relationship(secondary="user_roles", lazy="selectin")
     facilities: Mapped[list[UserFacilityModel]] = relationship(
         lazy="selectin", cascade="all, delete-orphan"

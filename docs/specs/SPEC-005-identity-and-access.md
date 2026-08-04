@@ -82,7 +82,9 @@ An actor may be:
 
 Human users interact with the platform according to their assigned roles.
 
-Technical clients represent external automated components, such as the Digital Twin Simulation Engine.
+Technical clients represent authenticated external automated components. The account type alone
+grants only the baseline read access explicitly defined by the permission matrix; it grants no
+research, administrative or other privileged business capability.
 
 Every protected operation must answer two questions:
 
@@ -99,7 +101,7 @@ Authorization determines whether the authenticated identity may execute a capabi
 
 ## 4.1 User
 
-A User represents a human identity that may access SCEP.
+A User is the persisted authenticated subject record for a Human or Technical Client account.
 
 A User:
 
@@ -108,7 +110,7 @@ A User:
 * has a display name;
 * has a password credential;
 * has an account status;
-* may have one or more Roles;
+* may have one or more Roles when Human;
 * may be associated with one or more Facilities;
 * has creation and update timestamps.
 
@@ -118,12 +120,7 @@ A User:
 
 A Technical Client represents a non-human identity used by an external automated system.
 
-The initial Technical Client is the Digital Twin Simulation Engine.
-
-Current implementation note: SPEC-013 Version 1 does not grant simulation mutation authority to a
-`TechnicalClient` account. Each simulated mutation requires the normal EVDriver bearer identity
-plus a run-scoped credential. The permanent non-human actor mapping remains the cross-specification
-identity debt tracked by issue #46; SPEC-013 does not otherwise redefine this specification.
+The first explicitly authorized Technical Client profile is the external AI Research Environment.
 
 A Technical Client:
 
@@ -132,11 +129,30 @@ A Technical Client:
 - does not represent a person;
 - does not receive Human Roles;
 - cannot receive the `PlatformAdministrator` or `FacilityOperator` Roles;
-- may access only capabilities explicitly granted to Technical Clients by the corresponding functional specifications.
+- receives the baseline active-infrastructure reads defined by the permission matrix;
+- may access research or privileged capabilities only when explicitly granted to its closed
+  Technical Client profile by the corresponding functional specifications.
 
 For the first version, Technical Clients are stored using the same persistence model as Human Users and are differentiated by account type.
 
-Technical Client permissions are derived from the account type rather than from a dedicated Role.
+`TechnicalClient` is an account type, not a Role or a generic trusted-service designation. Beyond
+the baseline reads in the permission matrix, the account type grants no capability by itself.
+
+### 4.2.1 Technical Client Profile
+
+A Technical Client Profile is a closed, administrator-selected purpose for a non-human subject.
+It is not a Human Role and is not a user-configurable permission set.
+
+Version 1 supports:
+
+```text
+AIResearchEnvironment
+```
+
+An omitted profile preserves existing Technical Client accounts and grants no research
+capability. `AIResearchEnvironment` statically grants only Research-profile Dataset Export and
+future prediction publication and technical-inspection capabilities. The profile is fixed at
+account creation in Version 1.
 
 ---
 
@@ -186,6 +202,7 @@ A User shall contain:
 * account status;
 * roles;
 * Facility Assignments;
+* optional Technical Client profile;
 * created timestamp;
 * updated timestamp;
 * last login timestamp.
@@ -211,7 +228,9 @@ Represents a person who interacts with the platform.
 
 Represents an automated external system.
 
-The first supported Technical Client is the Digital Twin Simulation Engine.
+Technical Clients may use a closed profile defined by this specification. Account type alone
+grants no research, administrative or privileged business capability beyond the baseline reads in
+the permission matrix.
 
 ---
 
@@ -291,9 +310,9 @@ SPEC-007.
 
 The Researcher represents a user who performs experiments and analyzes platform behavior.
 
-Research permissions will be defined by future Analytics, Dataset Export and Simulation specifications.
-
-In this specification, Researchers may authenticate and inspect their own identity.
+Researchers may manage the `SimulationRun` lifecycle defined by SPEC-013. They do not thereby gain
+Dataset Export or prediction-publication permission and do not own operational resources used by a
+run.
 
 ---
 
@@ -301,11 +320,12 @@ In this specification, Researchers may authenticate and inspect their own identi
 
 The Data Scientist represents a user who works with datasets, predictions and AI experiments.
 
-Dataset and prediction permissions will be defined in SPEC-011 and SPEC-012.
+Data Scientists may create, list, retrieve and download their own `RESEARCH`-profile Dataset
+Exports under SPEC-011. They are the Human Role authorized to publish and technically inspect
+future SPEC-012 predictions. They do not manage `SimulationRun` resources by default.
 
-In this specification, Data Scientists may authenticate and inspect their own identity.
-
-Technical Clients are not represented by a Role. Their permissions are defined directly from the `TechnicalClient` account type.
+Technical Clients are not represented by a Role. Their permissions are statically derived from an
+explicit Technical Client profile, never merely from `account_type`.
 
 ---
 
@@ -346,8 +366,8 @@ A Technical Client:
 - shall not manage Users;
 - shall not manage Facilities, Charging Stations or Connectors;
 - shall access only capabilities explicitly permitted to Technical Clients.
-
-Future specifications may extend Technical Client permissions for simulation, telemetry, reservations and charging sessions.
+- shall receive no research, administrative or privileged business capability when its Technical
+  Client profile is absent, while retaining the baseline reads in the permission matrix.
 
 ---
 
@@ -393,14 +413,21 @@ The platform shall not allow the last Active Platform Administrator to be deacti
 | Update Station | Yes | Assigned only | No | No | No | No |
 | Add Connector | Yes | Assigned only | No | No | No | No |
 | Update Connector Status | Yes | Assigned only | No | No | No | No |
+| Create/list/retrieve/download `RESEARCH` Dataset Export | Yes | Assigned only | No | No | Own, explicit Facility | AI Research profile: own, explicit Facility |
+| Publish/inspect technical Predictions | Yes | No | No | No | Yes | AI Research profile only |
+| Manage `SimulationRun` | Yes | No | No | Yes | No | No |
 
 "Assigned only" means that the target resource belongs to a Facility assigned to the authenticated Facility Operator.
 
 "Active only" means that only resources belonging to Active Facilities are visible.
 
-Technical Client permissions are based on `account_type`, not on a Role.
+Human Role and Technical Client profile capabilities use a static application mapping. They are
+not dynamically assignable. Multiple Human Roles remain additive; the entries above state what
+each Role grants by itself.
 
-Future specifications may expand Technical Client permissions for simulation and telemetry workflows.
+The `SimulationRun` token is an execution-scoped credential, not an account, Role or general API
+token. It grants no authority without the participating EVDriver JWT and remains governed by
+SPEC-013.
 
 ---
 
@@ -648,6 +675,7 @@ Response:
   "email": "admin@scep.local",
   "display_name": "SCEP Administrator",
   "account_type": "Human",
+  "technical_profile": null,
   "status": "Active",
   "roles": [
     "PlatformAdministrator"
@@ -683,6 +711,7 @@ Request:
   "display_name": "Facility Operator",
   "password": "SecurePassword123!",
   "account_type": "Human",
+  "technical_profile": null,
   "status": "Active",
   "roles": [
     "FacilityOperator"
@@ -701,6 +730,7 @@ Response:
   "email": "operator@scep.local",
   "display_name": "Facility Operator",
   "account_type": "Human",
+  "technical_profile": null,
   "status": "Active",
   "roles": [
     "FacilityOperator"
@@ -1041,6 +1071,7 @@ email
 display_name
 password_hash
 account_type
+technical_profile
 status
 created_at
 updated_at
@@ -1054,6 +1085,8 @@ Constraints:
 * required password hash;
 * valid account type;
 * valid account status.
+* `technical_profile` is null for Human accounts;
+* a Technical Client profile is null or `AIResearchEnvironment`.
 
 ---
 
@@ -1214,6 +1247,8 @@ Tests shall cover:
 * account status;
 * multiple Roles;
 * Technical Client restrictions;
+* closed Technical Client profile validation;
+* static research capability mapping;
 * last Active Platform Administrator protection;
 * Facility Assignment rules.
 
@@ -1237,6 +1272,8 @@ Tests shall cover:
 * Facility Operator unassigned access rejection;
 * read-only role access;
 * Technical Client restrictions;
+* Researcher and DataScientist separation;
+* explicit AI Research Environment capability requirement;
 * insufficient Role rejection;
 * deactivated account token rejection.
 
@@ -1268,6 +1305,7 @@ Tests shall cover:
 * Role relations;
 * Facility Assignment relations;
 * account updates;
+* reversible Technical Client profile migration;
 * Alembic migration upgrade and downgrade;
 * bootstrap administrator idempotency.
 
@@ -1324,6 +1362,11 @@ The following capabilities are deferred:
 * API keys;
 * dynamic Roles;
 * custom Permissions;
+* user-configurable or dynamically assigned capabilities;
+* service-account credential lifecycle and rotation;
+* responsible-Human, project, workspace or organization ownership linkage;
+* general synthetic-resource ownership;
+* fine-grained per-project research scopes;
 * frontend authentication;
 * session management across devices.
 
@@ -1347,6 +1390,11 @@ This specification is complete when:
 * existing Facilities endpoints are protected;
 * existing Charging Stations and Connectors endpoints are protected;
 * Technical Clients authenticate as technical accounts;
+* Technical Client account type grants only its documented baseline reads and no research,
+  administrative or privileged capability by itself;
+* Researchers manage Simulation Runs without receiving Dataset Export or prediction permissions;
+* Data Scientists use only their own Research-profile Dataset Exports and future prediction
+  publication capabilities;
 * the first Platform Administrator can be bootstrapped safely;
 * the last Active Platform Administrator is protected;
 * sensitive credential data is never returned or logged;

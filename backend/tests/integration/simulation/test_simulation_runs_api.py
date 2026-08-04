@@ -1,5 +1,7 @@
 from collections.abc import Iterator
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from typing import cast
 from uuid import UUID, uuid4
 
 import pytest
@@ -163,3 +165,33 @@ def test_only_draft_runs_may_be_updated_and_invalid_associations_are_rejected(
     rejected = client.post("/simulation-runs", json=invalid)
     assert rejected.status_code == 422
     assert rejected.json()["detail"]["code"] == "SIMULATION_RUN_INVALID"
+
+
+def test_researcher_can_manage_runs_but_data_scientist_cannot(
+    simulation_client: tuple[TestClient, sessionmaker[Session], User, User, str],
+) -> None:
+    client, _sessions, _admin, driver, facility_id = simulation_client
+    researcher = User.create(
+        email=f"researcher-{uuid4()}@example.com",
+        display_name="Simulation Researcher",
+        password_hash="hash",
+        account_type=AccountType.HUMAN,
+        status=AccountStatus.ACTIVE,
+        roles=[HumanRole.RESEARCHER],
+        facility_ids=[],
+    )
+    payload = {
+        "logical_start_at": "2026-01-01T00:00:00Z",
+        "logical_end_at": "2026-01-02T00:00:00Z",
+        "facility_ids": [facility_id],
+        "evdriver_ids": [str(driver.id)],
+    }
+    app = cast(FastAPI, client.app)
+    app.dependency_overrides[current_user] = lambda: researcher
+    created = client.post("/simulation-runs", json=payload)
+    assert created.status_code == 201
+    assert created.json()["created_by"] == str(researcher.id)
+
+    data_scientist = replace(researcher, roles=(HumanRole.DATA_SCIENTIST,))
+    app.dependency_overrides[current_user] = lambda: data_scientist
+    assert client.get(f"/simulation-runs/{created.json()['id']}").status_code == 403

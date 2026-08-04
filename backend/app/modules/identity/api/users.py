@@ -16,7 +16,13 @@ from app.modules.identity.application.user_service import (
     UserNotFoundError,
     UserService,
 )
-from app.modules.identity.domain.user import AccountStatus, AccountType, HumanRole, User
+from app.modules.identity.domain.user import (
+    AccountStatus,
+    AccountType,
+    HumanRole,
+    TechnicalClientProfile,
+    User,
+)
 from app.modules.identity.infrastructure.user_repository import SqlAlchemyUserRepository
 
 router = APIRouter(prefix="/users", tags=["Identity"])
@@ -30,6 +36,7 @@ class UserCreate(BaseModel):
     status: AccountStatus = AccountStatus.ACTIVE
     roles: list[HumanRole] = []
     facility_ids: list[UUID] = []
+    technical_profile: TechnicalClientProfile | None = None
 
 
 class UserPatch(BaseModel):
@@ -57,6 +64,7 @@ class UserResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     last_login_at: datetime | None
+    technical_profile: TechnicalClientProfile | None
 
 
 def svc(db: Session) -> UserService:
@@ -75,6 +83,7 @@ def resp(u: User) -> UserResponse:
         created_at=u.created_at,
         updated_at=u.updated_at,
         last_login_at=u.last_login_at,
+        technical_profile=u.technical_profile,
     )
 
 

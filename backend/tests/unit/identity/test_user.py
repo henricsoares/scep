@@ -5,6 +5,7 @@ from app.modules.identity.domain.user import (
     AccountStatus,
     AccountType,
     HumanRole,
+    TechnicalClientProfile,
     User,
     normalize_email,
     validate_password,
@@ -79,6 +80,17 @@ def test_technical_client_rejects_roles_and_facilities() -> None:
         make_user(account_type=AccountType.TECHNICAL_CLIENT, roles=[HumanRole.RESEARCHER])
     with pytest.raises(ValueError, match="must not have Facility assignments"):
         make_user(account_type=AccountType.TECHNICAL_CLIENT, roles=[], facility_ids=[uuid4()])
+
+
+def test_technical_client_profile_is_closed_and_human_accounts_cannot_use_it() -> None:
+    technical = make_user(
+        account_type=AccountType.TECHNICAL_CLIENT,
+        roles=[],
+        technical_profile=TechnicalClientProfile.AI_RESEARCH_ENVIRONMENT,
+    )
+    assert technical.technical_profile == TechnicalClientProfile.AI_RESEARCH_ENVIRONMENT
+    with pytest.raises(ValueError, match="Human accounts must not"):
+        make_user(technical_profile=TechnicalClientProfile.AI_RESEARCH_ENVIRONMENT)
 
 
 def test_profile_roles_facilities_and_last_login_updates() -> None:

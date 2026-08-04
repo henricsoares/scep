@@ -39,6 +39,7 @@ from app.modules.datasets.storage import (
     LocalDatasetArtifactStorage,
 )
 from app.modules.identity.api.dependencies import current_user
+from app.modules.identity.application.authorization import Capability, has_capability
 from app.modules.identity.application.metrics import authorization_denied_total
 from app.modules.identity.domain.user import AccountStatus, AccountType, HumanRole, User
 from app.modules.identity.infrastructure.dataset_export_reader import IdentityDatasetReader
@@ -167,13 +168,18 @@ def _components(
 
 
 def _require_role(user: User) -> None:
-    if (
-        user.status != AccountStatus.ACTIVE
-        or user.account_type != AccountType.HUMAN
-        or not any(
-            role in user.roles
-            for role in (HumanRole.PLATFORM_ADMINISTRATOR, HumanRole.FACILITY_OPERATOR)
+    if user.status != AccountStatus.ACTIVE or (
+        not (
+            user.account_type == AccountType.HUMAN
+            and any(
+                role in user.roles
+                for role in (
+                    HumanRole.PLATFORM_ADMINISTRATOR,
+                    HumanRole.FACILITY_OPERATOR,
+                )
+            )
         )
+        and not has_capability(user, Capability.RESEARCH_DATASET_EXPORT)
     ):
         authorization_denied_total.inc()
         logger.warning("dataset_export_authorization_failed")
@@ -248,7 +254,9 @@ def _detail(
     summary="Create an asynchronous Dataset Export",
     description=(
         "Persists a PENDING export and returns immediately. Windows use [from, to). "
-        "Facility Operators are restricted to exactly one assigned Facility."
+        "Facility Operators are restricted to exactly one assigned Facility. Data Scientists "
+        "and AI Research technical subjects may request only their own single-Facility "
+        "RESEARCH exports."
     ),
 )
 def create_dataset_export(

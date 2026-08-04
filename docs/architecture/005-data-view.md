@@ -87,7 +87,8 @@ Owns:
 
 * Users
 * Roles
-* Permissions
+* closed Technical Client profiles
+* static capability mappings
 * Authentication
 
 ---

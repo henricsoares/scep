@@ -18,6 +18,7 @@ from app.modules.identity.domain.user import (
     AccountStatus,
     AccountType,
     HumanRole,
+    TechnicalClientProfile,
     User,
     normalize_email,
     validate_password,
@@ -63,6 +64,7 @@ class UserService:
         status: AccountStatus,
         roles: builtin_list[HumanRole],
         facility_ids: builtin_list[UUID],
+        technical_profile: TechnicalClientProfile | None = None,
     ) -> User:
         normalized = normalize_email(email)
         validate_password(password, normalized)
@@ -75,6 +77,7 @@ class UserService:
             status=status,
             roles=roles,
             facility_ids=facility_ids,
+            technical_profile=technical_profile,
         )
         try:
             created = self.users.add(user)

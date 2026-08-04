@@ -7,6 +7,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.infrastructure.database import get_db
+from app.modules.identity.application.authorization import Capability, has_capability
 from app.modules.identity.application.metrics import authorization_denied_total
 from app.modules.identity.application.security import decode_token
 from app.modules.identity.domain.user import AccountStatus, AccountType, HumanRole, User
@@ -51,6 +52,13 @@ def current_user(
 
 def require_admin(user: Annotated[User, Depends(current_user)]) -> User:
     if HumanRole.PLATFORM_ADMINISTRATOR not in user.roles:
+        authorization_denied_total.inc()
+        raise HTTPException(status_code=403, detail="insufficient permission")
+    return user
+
+
+def require_simulation_manager(user: Annotated[User, Depends(current_user)]) -> User:
+    if not has_capability(user, Capability.MANAGE_SIMULATION_RUNS):
         authorization_denied_total.inc()
         raise HTTPException(status_code=403, detail="insufficient permission")
     return user

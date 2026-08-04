@@ -496,10 +496,10 @@ The PostgreSQL Database is not an integration point.
 
 The Simulation Engine does not own operational data after sending it to SCEP.
 
-In Version 1, Platform Administrators provision Simulation Runs through the Backend API. The
-Simulation Engine uses the resulting run credential together with each participating EVDriver JWT.
-Direct Researcher runtime permissions remain deferred to the cross-specification identity decision
-tracked in GitHub issue #46.
+In Version 1, Researchers and Platform Administrators manage Simulation Runs through the Backend
+API. The Simulation Engine uses the resulting run credential together with each participating
+EVDriver JWT. The run credential remains execution-scoped and does not turn the simulator into a
+Human Role or a generally trusted Technical Client.
 
 The AI Research Environment may produce models and predictions, but SCEP remains responsible for storing published prediction outputs.
 

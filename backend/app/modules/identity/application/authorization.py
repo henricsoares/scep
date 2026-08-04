@@ -1,7 +1,60 @@
+from enum import StrEnum
 from uuid import UUID
 
 from app.modules.charging.domain.facility import Facility, FacilityStatus
-from app.modules.identity.domain.user import AccountType, HumanRole, User
+from app.modules.identity.domain.user import (
+    AccountStatus,
+    AccountType,
+    HumanRole,
+    TechnicalClientProfile,
+    User,
+)
+
+
+class Capability(StrEnum):
+    RESEARCH_DATASET_EXPORT = "research:dataset-export"
+    PUBLISH_OCCUPANCY_PREDICTIONS = "predictions:publish"
+    READ_TECHNICAL_PREDICTIONS = "predictions:read-technical"
+    MANAGE_SIMULATION_RUNS = "simulations:manage"
+
+
+ROLE_CAPABILITIES: dict[HumanRole, frozenset[Capability]] = {
+    HumanRole.PLATFORM_ADMINISTRATOR: frozenset(Capability),
+    HumanRole.RESEARCHER: frozenset({Capability.MANAGE_SIMULATION_RUNS}),
+    HumanRole.DATA_SCIENTIST: frozenset(
+        {
+            Capability.RESEARCH_DATASET_EXPORT,
+            Capability.PUBLISH_OCCUPANCY_PREDICTIONS,
+            Capability.READ_TECHNICAL_PREDICTIONS,
+        }
+    ),
+}
+
+TECHNICAL_PROFILE_CAPABILITIES: dict[TechnicalClientProfile, frozenset[Capability]] = {
+    TechnicalClientProfile.AI_RESEARCH_ENVIRONMENT: frozenset(
+        {
+            Capability.RESEARCH_DATASET_EXPORT,
+            Capability.PUBLISH_OCCUPANCY_PREDICTIONS,
+            Capability.READ_TECHNICAL_PREDICTIONS,
+        }
+    )
+}
+
+
+def has_capability(user: User, capability: Capability) -> bool:
+    if user.status != AccountStatus.ACTIVE:
+        return False
+    if user.account_type == AccountType.HUMAN:
+        return any(capability in ROLE_CAPABILITIES.get(role, frozenset()) for role in user.roles)
+    if user.technical_profile is None:
+        return False
+    return capability in TECHNICAL_PROFILE_CAPABILITIES.get(user.technical_profile, frozenset())
+
+
+def prediction_publisher_subject_id(user: User) -> UUID:
+    if not has_capability(user, Capability.PUBLISH_OCCUPANCY_PREDICTIONS):
+        raise PermissionError("subject is not authorized to publish predictions")
+    return user.id
 
 
 def is_admin(u: User) -> bool:

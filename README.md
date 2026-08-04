@@ -296,7 +296,10 @@ simulator that uses only public APIs and preserves normal non-simulated behavior
 ### Identity and Access
 
 The platform currently supports Authenticated Identities for Human and Technical Client accounts,
-role-based authorization, and Facility-scoped access for Facility Operators.
+static Role/profile-to-capability authorization, and Facility-scoped access for Facility
+Operators. `Researcher` manages Simulation Runs; `DataScientist` and explicitly profiled AI
+Research Technical Clients use only their own single-Facility Research Dataset Exports and the
+future prediction-publisher capability.
 
 ### Facilities
 
@@ -399,8 +402,8 @@ Completed:
 Next Steps:
 
 * SPEC-012 — Weekly Occupancy Predictions: Draft / Under Review and planned; its recommended
-  predecessor, SPEC-013, is implemented, but runtime identity debt and the reference occupancy
-  experiment remain prerequisites for implementation validation.
+  predecessor, SPEC-013, and required runtime identity mapping are implemented. The reference
+  occupancy experiment remains a prerequisite for implementation validation.
 
 ---
 

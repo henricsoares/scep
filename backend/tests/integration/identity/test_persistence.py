@@ -5,7 +5,13 @@ from app.modules.charging.domain.facility import Facility, FacilityStatus, Facil
 from app.modules.charging.infrastructure.facility_repository import SqlAlchemyFacilityRepository
 from app.modules.identity.application.security import hash_password
 from app.modules.identity.domain.repositories import DuplicateUserEmailError
-from app.modules.identity.domain.user import AccountStatus, AccountType, HumanRole, User
+from app.modules.identity.domain.user import (
+    AccountStatus,
+    AccountType,
+    HumanRole,
+    TechnicalClientProfile,
+    User,
+)
 from app.modules.identity.infrastructure.user_model import UserModel
 from app.modules.identity.infrastructure.user_repository import SqlAlchemyUserRepository
 from sqlalchemy.exc import IntegrityError
@@ -81,8 +87,37 @@ def test_valid_account_types_and_statuses_are_persisted(
         status=AccountStatus.INACTIVE,
     )
     technical = identity_context.create_user(
-        email="technical@example.com", account_type=AccountType.TECHNICAL_CLIENT
+        email="technical@example.com",
+        account_type=AccountType.TECHNICAL_CLIENT,
+        technical_profile=TechnicalClientProfile.AI_RESEARCH_ENVIRONMENT,
     )
 
     assert human.status == AccountStatus.INACTIVE
     assert technical.account_type == AccountType.TECHNICAL_CLIENT
+    assert technical.technical_profile == TechnicalClientProfile.AI_RESEARCH_ENVIRONMENT
+
+
+@pytest.mark.parametrize(
+    ("account_type", "technical_profile"),
+    [
+        ("Human", "AIResearchEnvironment"),
+        ("TechnicalClient", "UnsupportedProfile"),
+    ],
+)
+def test_database_rejects_invalid_technical_profile_combinations(
+    identity_context: IdentityContext, account_type: str, technical_profile: str
+) -> None:
+    with identity_context.sessions() as session:
+        session.add(
+            UserModel(
+                id=uuid4(),
+                email=f"{account_type}-{technical_profile}@example.com".lower(),
+                display_name="Invalid profile",
+                password_hash="hash",
+                account_type=account_type,
+                technical_profile=technical_profile,
+                status="Inactive",
+            )
+        )
+        with pytest.raises(IntegrityError):
+            session.commit()
