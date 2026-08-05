@@ -90,10 +90,14 @@ def _issue_reference(body: str | None) -> int | None:
 
 def _study_classification(pr_number: int, merged: bool) -> dict[str, Any]:
     if pr_number in PRIMARY_PRS:
+        supersedes = next(
+            (previous for previous, replacement in SUPERSEDED_BY.items() if replacement == pr_number),
+            None,
+        )
         return {
             "analysis_scope": "PRIMARY",
             "attempt_status": "ACCEPTED" if merged else "ABANDONED",
-            "supersedes_pr": None,
+            "supersedes_pr": supersedes,
             "superseded_by_pr": None,
         }
     if pr_number in SUPERSEDED_BY:
@@ -103,14 +107,6 @@ def _study_classification(pr_number: int, merged: bool) -> dict[str, Any]:
             "supersedes_pr": None,
             "superseded_by_pr": SUPERSEDED_BY[pr_number],
         }
-    for previous, replacement in SUPERSEDED_BY.items():
-        if pr_number == replacement:
-            return {
-                "analysis_scope": "PRIMARY",
-                "attempt_status": "ACCEPTED" if merged else "ABANDONED",
-                "supersedes_pr": previous,
-                "superseded_by_pr": None,
-            }
     if pr_number in KNOWN_SECONDARY_PRS:
         return {
             "analysis_scope": "SECONDARY",
@@ -126,12 +122,66 @@ def _study_classification(pr_number: int, merged: bool) -> dict[str, Any]:
     }
 
 
+def _commit_times(commits: list[dict[str, Any]]) -> dict[str, str | None]:
+    author_times = sorted(
+        timestamp
+        for commit in commits
+        if (timestamp := _iso(commit.get("commit", {}).get("author", {}).get("date")))
+    )
+    committer_times = sorted(
+        timestamp
+        for commit in commits
+        if (timestamp := _iso(commit.get("commit", {}).get("committer", {}).get("date")))
+    )
+
+    return {
+        "first_commit_author_at": author_times[0] if author_times else None,
+        "last_commit_author_at": author_times[-1] if author_times else None,
+        "first_commit_committer_at": committer_times[0] if committer_times else None,
+        "last_commit_committer_at": committer_times[-1] if committer_times else None,
+    }
+
+
+def _workflow_runs_for_commits(
+    client: GitHubClient, commits: list[dict[str, Any]]
+) -> tuple[list[dict[str, Any]], int]:
+    """Collect PR-triggered workflow runs for every observable commit in the PR.
+
+    GitHub Actions results are deduplicated by workflow-run id because the same run may be
+    returned by more than one query in unusual histories. This remains an observed-history
+    measure: GitHub may represent reruns as attempts of an existing run rather than as fully
+    independent historical records.
+    """
+
+    runs_by_id: dict[int, dict[str, Any]] = {}
+    checked_shas: set[str] = set()
+
+    for commit in commits:
+        sha = commit.get("sha")
+        if not sha or sha in checked_shas:
+            continue
+        checked_shas.add(sha)
+        encoded_sha = urllib.parse.quote(sha, safe="")
+        payload, _ = client.get(
+            f"{client.api_root}/actions/runs?head_sha={encoded_sha}&event=pull_request&per_page=100"
+        )
+        if not isinstance(payload, dict):
+            continue
+        for run in payload.get("workflow_runs", []):
+            run_id = run.get("id")
+            if isinstance(run_id, int):
+                runs_by_id[run_id] = run
+
+    return list(runs_by_id.values()), len(checked_shas)
+
+
 def _workflow_summary(runs: list[dict[str, Any]], merged_at: str | None) -> dict[str, Any]:
     if not runs:
         return {
-            "workflow_run_count": 0,
-            "failed_workflows_before_merge": 0,
-            "successful_workflows_before_merge": 0,
+            "workflow_commits_checked": 0,
+            "observed_workflow_run_count": 0,
+            "observed_failed_workflows_before_merge": 0,
+            "observed_successful_workflows_before_merge": 0,
             "final_premerge_ci_result": None,
         }
 
@@ -144,14 +194,20 @@ def _workflow_summary(runs: list[dict[str, Any]], merged_at: str | None) -> dict
         if merge_dt is None or datetime.fromisoformat(created) <= merge_dt:
             eligible.append(run)
 
-    eligible.sort(key=lambda item: item.get("created_at") or "")
+    eligible.sort(
+        key=lambda item: (
+            item.get("created_at") or "",
+            int(item.get("run_attempt") or 0),
+            int(item.get("id") or 0),
+        )
+    )
     failures = sum(1 for item in eligible if item.get("conclusion") == "failure")
     successes = sum(1 for item in eligible if item.get("conclusion") == "success")
     final = eligible[-1].get("conclusion") if eligible else None
     return {
-        "workflow_run_count": len(eligible),
-        "failed_workflows_before_merge": failures,
-        "successful_workflows_before_merge": successes,
+        "observed_workflow_run_count": len(eligible),
+        "observed_failed_workflows_before_merge": failures,
+        "observed_successful_workflows_before_merge": successes,
         "final_premerge_ci_result": final,
     }
 
@@ -164,24 +220,18 @@ def _pull_request_row(client: GitHubClient, pr: dict[str, Any]) -> dict[str, Any
     issue_comments = client.paginated(f"{client.api_root}/issues/{number}/comments?per_page=100")
     review_comments = client.paginated(f"{client.api_root}/pulls/{number}/comments?per_page=100")
 
-    commit_times = sorted(
-        timestamp
-        for commit in commits
-        if (timestamp := _iso(commit.get("commit", {}).get("author", {}).get("date")))
-    )
-
-    head_sha = detail.get("head", {}).get("sha")
-    workflow_runs: list[dict[str, Any]] = []
-    if head_sha:
-        encoded_sha = urllib.parse.quote(head_sha, safe="")
-        payload, _ = client.get(
-            f"{client.api_root}/actions/runs?head_sha={encoded_sha}&event=pull_request&per_page=100"
-        )
-        workflow_runs = payload.get("workflow_runs", []) if isinstance(payload, dict) else []
+    commit_times = _commit_times(commits)
+    workflow_runs, workflow_commits_checked = _workflow_runs_for_commits(client, commits)
 
     merged_at = _iso(detail.get("merged_at"))
     classification = _study_classification(number, bool(detail.get("merged")))
     workflow = _workflow_summary(workflow_runs, merged_at)
+    workflow["workflow_commits_checked"] = workflow_commits_checked
+
+    # Committer timestamps are the primary repository-visible timestamps used by the study.
+    # Author timestamps are preserved independently because Git permits them to differ.
+    first_commit_at = commit_times["first_commit_committer_at"]
+    last_commit_at = commit_times["last_commit_committer_at"]
 
     return {
         "pr_number": number,
@@ -191,8 +241,9 @@ def _pull_request_row(client: GitHubClient, pr: dict[str, Any]) -> dict[str, Any
         "draft": bool(detail.get("draft")),
         "issue_number": _issue_reference(detail.get("body")),
         "pr_created_at": _iso(detail.get("created_at")),
-        "first_commit_at": commit_times[0] if commit_times else None,
-        "last_commit_at": commit_times[-1] if commit_times else None,
+        "first_commit_at": first_commit_at,
+        "last_commit_at": last_commit_at,
+        **commit_times,
         "merged_at": merged_at,
         "commit_count": len(commits),
         "files_changed": detail.get("changed_files"),
@@ -250,6 +301,8 @@ def collect(repository: str, output: Path, token: str | None) -> None:
         "pull_request_count": len(rows),
         "primary_prs": sorted(PRIMARY_PRS),
         "primary_count": sum(1 for row in rows if row["analysis_scope"] == "PRIMARY"),
+        "commit_timestamp_basis": "committer.date",
+        "ci_collection": "pull_request workflow runs observed across every commit SHA in each PR, deduplicated by run id",
         "output": str(output),
     }
     metadata_path = output.with_suffix(".metadata.json")
