@@ -193,9 +193,8 @@ The architecture follows the following principles:
 The architecture is considered stable.
 
 SPEC-009 Domain Events, SPEC-010 Analytics and SPEC-011 Dataset Export are approved and
-implemented. SPEC-013 Digital Twin Simulation Engine is approved and implemented. SPEC-012 Weekly
-Occupancy Predictions is Draft / Under Review and Planned, with implementation recommended after
-SPEC-013.
+implemented. SPEC-013 Digital Twin Simulation Engine and SPEC-012 Weekly Occupancy Predictions are
+approved and implemented in their recommended sequence.
 SPEC-012 has no mandatory runtime dependency on SPEC-013.
 
 Future architectural changes should be introduced through new ADRs instead of directly modifying the baseline documents whenever possible.

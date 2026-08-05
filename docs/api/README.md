@@ -127,6 +127,37 @@ If it returns `401`, set `admin_email` and `admin_password` in the Base Environm
 local Platform Administrator credentials. Import updated versions into a fresh workspace so
 Insomnia does not retain old scripts or environment state.
 
+## SPEC-012 Weekly Occupancy Predictions collection
+
+Import `scep-spec012-insomnia.json` into a fresh Insomnia workspace. The collection demonstrates
+the public API boundary used after the external job documented in
+[`../../research/experiments/spec012_weekly_occupancy/README.md`](../../research/experiments/spec012_weekly_occupancy/README.md)
+has converted a SPEC-011 occupancy export into a complete SPEC-012 payload.
+
+Run the collection in order. Request 01 uses the local bootstrap Platform Administrator and
+generates unique local EVDriver credentials. Request 02 creates that EVDriver, request 03
+authenticates it, request 04 creates an active Facility using the configured IANA `timezone`, and
+request 05 creates an active Station with one available Connector. Their response scripts populate
+`driver_id`, `driver_token`, `facility_id`, `station_id` and `connector_id`; these identifiers do not
+need to be copied manually. Paste the generated `prediction.json` content into the
+`publication_payload` Base Environment value before request 06. The collection preserves the
+payload's Facility, Station or Connector scope and validates all 168 buckets before sending it. The
+publication response stores `publication_id`. The remaining requests cover publication detail, full
+profile, history, current selection, point lookup by local weekday/hour and timestamp, and both
+EVDriver recommendation forms. Recommendation requests use a separate `driver_token`; they do not
+expose model metadata or create a Reservation. They may return an empty list when the environment
+has no current Connector-scope publications.
+
+The self-contained EVDriver setup requires the publisher credential to be a Platform Administrator.
+To publish as a DataScientist or `AIResearchEnvironment` Technical Client instead, first complete
+requests 01 through 05 with the administrator, then replace `access_token` with that publisher's JWT
+before running request 06.
+
+The committed collection contains no access token or real Dataset Export identifier. A built-in
+pre-request assertion rejects an empty or abbreviated publication payload instead of silently
+publishing a generated replacement. The Python research job remains the source of truth for the
+baseline and payload.
+
 ## SPEC-013 external simulator bootstrap collection
 
 Import `scep-spec013-insomnia.json` into a fresh Insomnia workspace. The collection prepares the

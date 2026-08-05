@@ -227,7 +227,7 @@ Examples:
 * model execution time.
 
 These experiment and model-quality signals are produced by the external AI Research Environment.
-The planned Backend Prediction Component instead observes publication acceptance and rejection,
+The Backend Prediction Component observes publication acceptance and rejection,
 idempotent retries, content conflicts, bucket validation, query and recommendation outcomes,
 missing current publications, authorization failures and persistence failures. Identifiers and
 model/run references shall not be metric labels, and complete 168-bucket payloads shall not be

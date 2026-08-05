@@ -80,13 +80,13 @@ C4Component
         Component(events, "Domain Event Component", "Event Store / Internal Event Dispatcher", "Transactionally persists events and dispatches them after commit.")
         Component(analytics, "Analytics Component", "Application Module", "Computes read-only indicators on demand from persisted operational data.")
         Component(datasets, "Dataset Export Component", "Application Module", "Generates research datasets from operational read contracts and Analytics projections.")
-        Component(prediction, "Prediction Component (Planned)", "Application Module", "Will validate, store and expose immutable Weekly Occupancy Prediction publications.")
+        Component(prediction, "Prediction Component", "Application Module", "Validates, stores and exposes immutable Weekly Occupancy Prediction publications.")
         Component(notification, "Notification Component", "Application Module", "Sends notification requests to the Notification Mock or future providers.")
         Component(observability, "Observability Component", "Cross-Cutting", "Emits logs, metrics, traces and health information.")
         Component(persistence, "Persistence Component", "SQLAlchemy / Repositories", "Provides controlled access to PostgreSQL.")
     }
 
-    ContainerDb(db, "PostgreSQL Database", "Stores transactional data, domain events, telemetry and Dataset Export metadata; planned capabilities may add prediction publications.")
+    ContainerDb(db, "PostgreSQL Database", "Stores transactional data, domain events, telemetry, Dataset Export metadata and immutable prediction publications.")
     System_Ext(simulator, "Digital Twin Simulation Engine", "Sends synthetic events and telemetry through public APIs.")
     System_Ext(aiEnv, "AI Research Environment", "Consumes datasets and publishes prediction results.")
     System_Ext(obsStack, "Observability Stack", "Prometheus, Grafana, Loki, Tempo, OpenTelemetry Collector.")
@@ -340,7 +340,7 @@ The component supports AI experimentation but does not train models itself.
 
 ## 5.9 Prediction Component
 
-The planned Prediction Component validates, stores and exposes externally generated Weekly
+The Prediction Component validates, stores and exposes externally generated Weekly
 Occupancy Prediction publications.
 
 Responsibilities:

@@ -2,9 +2,9 @@
 
 ## Smart Charging Experimentation Platform (SCEP)
 
-**Document Status:** Draft / Under Review
+**Document Status:** Approved
 
-**Implementation Status:** Planned
+**Implementation Status:** Implemented
 
 **Recommended Implementation Sequence:** After SPEC-013
 
@@ -30,6 +30,7 @@
 - [GitHub issue #46](https://github.com/henricsoares/scep/issues/46) — research Roles and non-human
   actor authorization
 - [GitHub issue #47](https://github.com/henricsoares/scep/issues/47) — this specification
+- [GitHub issue #54](https://github.com/henricsoares/scep/issues/54) — Version 1 implementation
 
 ---
 
@@ -55,22 +56,22 @@ The Backend API shall not train models and shall not execute model inference.
 
 # 2. Status and Implementation Sequence
 
-SPEC-013 is approved and implemented. SPEC-012 still has no mandatory runtime dependency on the
-Digital Twin Simulation Engine.
+SPEC-013 and SPEC-012 are approved and implemented. SPEC-012 has no mandatory runtime dependency on
+the Digital Twin Simulation Engine.
 
 The research-role and non-human publisher decision is resolved by SPEC-005 and GitHub issue #46.
-Implementation and reference validation remain intentionally deferred until:
+The implementation sequence was intentionally deferred until:
 
 - the implemented SPEC-013 produces representative synthetic operational data; and
 - the first external occupancy experiment can validate the publication integration.
 
-The recommended sequence is:
+The completed delivery sequence was:
 
 1. approve SPEC-012;
 2. use the implemented SPEC-013 to generate representative synthetic operational data;
 3. export a reference dataset;
 4. execute the first external occupancy prediction experiment;
-5. implement and validate SPEC-012.
+5. implement and validate SPEC-012, including the external reference baseline.
 
 This sequence is a delivery and validation decision, not a runtime dependency from Predictions to
 the Simulation Engine.
@@ -1394,7 +1395,7 @@ Tests shall cover:
 
 # 33. Acceptance Criteria
 
-SPEC-012 Version 1 is ready for approval when:
+SPEC-012 Version 1 acceptance requires:
 
 - one publication represents exactly one scope and exactly 168 unique buckets;
 - `expected_occupancy_rate` unambiguously predicts SPEC-010 `effective_occupancy_rate`;
@@ -1413,7 +1414,8 @@ SPEC-012 Version 1 is ready for approval when:
 - Backend API training and inference are prohibited;
 - persistence, migration, OpenAPI, observability and testing contracts are testable;
 - SPEC-013 is documented as a recommended implementation predecessor, not a runtime dependency;
-- no implementation is represented as complete.
+- implementation completion is declared only after mandatory automated validation and the external
+  reference baseline succeed.
 
 ---
 
@@ -1428,7 +1430,8 @@ This specification is consistent with:
 - SPEC-010, by predicting `effective_occupancy_rate` and reusing its aggregation semantics;
 - SPEC-011, by using optional completed `RESEARCH` Dataset Export provenance without changing its
   current authorization;
-- SPEC-013 planning, by deferring reference validation until representative synthetic data exists;
+- SPEC-013, whose representative synthetic data supported reference validation without creating a
+  runtime dependency;
 - ADR-008, by keeping feature engineering, training, evaluation and inference in the external AI
   Research Environment and accepting results only through a public authorized contract.
 
