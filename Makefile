@@ -1,4 +1,4 @@
-.PHONY: up down logs backend-test backend-test-unit backend-lint backend-format backend-typecheck backend-security simulation-test simulation-lint simulation-format format lint typecheck test test-unit migrate ci precommit
+.PHONY: up down logs backend-test backend-test-unit backend-lint backend-format backend-typecheck backend-security simulation-test simulation-lint simulation-format research-test research-lint research-format research-typecheck format lint typecheck test test-unit migrate ci precommit
 
 up:
 	docker compose up --build
@@ -33,15 +33,27 @@ simulation-lint:
 simulation-format:
 	cd simulation-engine && uv run ruff check --fix app tests smoke && uv run black app tests smoke
 
-format: backend-format simulation-format
+research-test:
+	PYTHONPATH=. uv run --project backend pytest -q research/tests
 
-lint: backend-lint simulation-lint
+research-lint:
+	uv run --project backend ruff check research && uv run --project backend black --check research
 
-typecheck: backend-typecheck
+research-format:
+	uv run --project backend ruff check --fix research && uv run --project backend black research
 
-test: backend-test simulation-test
+research-typecheck:
+	MYPYPATH=. uv run --project backend mypy --config-file backend/pyproject.toml research
 
-test-unit: backend-test-unit simulation-test
+format: backend-format simulation-format research-format
+
+lint: backend-lint simulation-lint research-lint
+
+typecheck: backend-typecheck research-typecheck
+
+test: backend-test simulation-test research-test
+
+test-unit: backend-test-unit simulation-test research-test
 
 backend-security:
 	cd backend && uv run bandit -c pyproject.toml -r app && uv run pip-audit
@@ -55,4 +67,6 @@ precommit:
 ci: lint backend-typecheck
 	./scripts/run-backend-tests.sh coverage
 	$(MAKE) simulation-test
+	$(MAKE) research-test
+	$(MAKE) research-typecheck
 	cd backend && uv run bandit -c pyproject.toml -r app && uv run pip-audit
