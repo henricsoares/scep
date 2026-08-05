@@ -22,6 +22,7 @@
         "publisher_password": "LocalAdmin123!",
         "driver_email": "",
         "driver_password": "",
+        "driver_id": "",
         "run_id": "",
         "access_token": "",
         "driver_token": "",
@@ -904,7 +905,7 @@
       "_type": "request_group",
       "parentId": "wrk_scep_spec012",
       "name": "SPEC-012 External Publication and Consumption",
-      "description": "Set Facility hierarchy values and EVDriver credentials. Replace publication_payload with prediction.json from the Python job for the research flow, then run requests in order. The bundled 168-bucket payload is only a contract fixture and is not a fitted model result."
+      "description": "The default publisher is the bootstrap PlatformAdministrator, which creates one unique EVDriver before authentication. Set Facility hierarchy values and replace publication_payload with prediction.json from the Python job for the research flow, then run requests in order. The bundled 168-bucket payload is only a contract fixture and is not a fitted model result."
     },
     {
       "_id": "req_spec012_01_publisher_login",
@@ -929,15 +930,45 @@
         "text": "{\n  \"email\": \"{{ _.publisher_email }}\",\n  \"password\": \"{{ _.publisher_password }}\"\n}"
       },
       "authentication": {},
-      "preRequestScript": "const runId = Date.now().toString();\ninsomnia.baseEnvironment.set('run_id', runId);\ninsomnia.baseEnvironment.set('access_token', '');\ninsomnia.baseEnvironment.set('driver_token', '');\ninsomnia.baseEnvironment.set('publication_id', '');\ninsomnia.baseEnvironment.set('publication_scope_query', '');\ninsomnia.baseEnvironment.set('validated_publication_payload', '');\n",
+      "preRequestScript": "const runId = Date.now().toString();\ninsomnia.baseEnvironment.set('run_id', runId);\ninsomnia.baseEnvironment.set('access_token', '');\ninsomnia.baseEnvironment.set('driver_token', '');\ninsomnia.baseEnvironment.set('driver_id', '');\ninsomnia.baseEnvironment.set('driver_email', `spec012.driver.${runId}@example.com`);\ninsomnia.baseEnvironment.set('driver_password', 'Spec012!Local123');\ninsomnia.baseEnvironment.set('publication_id', '');\ninsomnia.baseEnvironment.set('publication_scope_query', '');\ninsomnia.baseEnvironment.set('validated_publication_payload', '');\n",
       "afterResponseScript": "insomnia.test('prediction publisher login returns 200', () => insomnia.expect(insomnia.response.code, 'Use an active PlatformAdministrator, DataScientist or AIResearchEnvironment credential').to.eql(200));\nif (insomnia.response.code === 200) insomnia.baseEnvironment.set('access_token', insomnia.response.json().access_token);\n",
       "metaSortKey": 1000
     },
     {
-      "_id": "req_spec012_02_driver_login",
+      "_id": "req_spec012_02_create_driver",
       "_type": "request",
       "parentId": "fld_spec012_flow",
-      "name": "02 - Authenticate EVDriver",
+      "name": "02 - Create Dedicated EVDriver",
+      "method": "POST",
+      "url": "{{ _.backend_url }}/users",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "X-Request-ID",
+          "value": "spec012-{{ _.run_id }}-driver-create"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"email\": \"{{ _.driver_email }}\",\n  \"display_name\": \"SPEC-012 API Driver\",\n  \"password\": \"{{ _.driver_password }}\",\n  \"account_type\": \"Human\",\n  \"status\": \"Active\",\n  \"roles\": [\"EVDriver\"],\n  \"facility_ids\": []\n}"
+      },
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.access_token }}"
+      },
+      "preRequestScript": "",
+      "afterResponseScript": "const body = insomnia.response.json();\ninsomnia.test('EVDriver creation returns 201', () => { insomnia.expect(insomnia.response.code, 'The self-contained setup requires a PlatformAdministrator publisher').to.eql(201); insomnia.expect(body.roles).to.include('EVDriver'); });\nif (insomnia.response.code === 201) insomnia.baseEnvironment.set('driver_id', body.id);\n",
+      "metaSortKey": 2000
+    },
+    {
+      "_id": "req_spec012_03_driver_login",
+      "_type": "request",
+      "parentId": "fld_spec012_flow",
+      "name": "03 - Authenticate EVDriver",
       "method": "POST",
       "url": "{{ _.backend_url }}/auth/login",
       "headers": [
@@ -947,7 +978,7 @@
         },
         {
           "name": "X-Request-ID",
-          "value": "spec012-{{ _.run_id }}-login"
+          "value": "spec012-{{ _.run_id }}-driver-login"
         }
       ],
       "parameters": [],
@@ -957,14 +988,14 @@
       },
       "authentication": {},
       "preRequestScript": "",
-      "afterResponseScript": "insomnia.test('EVDriver login returns 200', () => insomnia.expect(insomnia.response.code, 'Set driver_email/driver_password for an active EVDriver').to.eql(200));\nif (insomnia.response.code === 200) insomnia.baseEnvironment.set('driver_token', insomnia.response.json().access_token);\n",
-      "metaSortKey": 2000
+      "afterResponseScript": "insomnia.test('new EVDriver login returns 200', () => insomnia.expect(insomnia.response.code).to.eql(200));\nif (insomnia.response.code === 200) insomnia.baseEnvironment.set('driver_token', insomnia.response.json().access_token);\n",
+      "metaSortKey": 3000
     },
     {
       "_id": "req_spec012_03_publish",
       "_type": "request",
       "parentId": "fld_spec012_flow",
-      "name": "03 - Publish Complete Weekly Profile",
+      "name": "04 - Publish Complete Weekly Profile",
       "method": "POST",
       "url": "{{ _.backend_url }}/predictions/weekly-occupancy-publications",
       "headers": [
@@ -988,13 +1019,13 @@
       },
       "preRequestScript": "const raw = insomnia.baseEnvironment.get('publication_payload');\nconst payload = typeof raw === 'string' ? JSON.parse(raw) : raw;\nconst facilityId = insomnia.baseEnvironment.get('facility_id');\nconst timezone = insomnia.baseEnvironment.get('timezone');\nif (!facilityId) throw new Error('facility_id must be set before publication');\nif (!timezone) throw new Error('timezone must be set before publication');\npayload.facility_id = facilityId;\npayload.timezone = timezone;\nlet scopeQuery = `scope_type=${payload.scope_type}&facility_id=${facilityId}`;\nif (payload.scope_type === 'FACILITY') {\n  delete payload.station_id;\n  delete payload.connector_id;\n} else {\n  const stationId = insomnia.baseEnvironment.get('station_id');\n  if (!stationId) throw new Error('station_id must be set for STATION or CONNECTOR publication');\n  payload.station_id = stationId;\n  scopeQuery += `&station_id=${stationId}`;\n  if (payload.scope_type === 'CONNECTOR') {\n    const connectorId = insomnia.baseEnvironment.get('connector_id');\n    if (!connectorId) throw new Error('connector_id must be set for CONNECTOR publication');\n    payload.connector_id = connectorId;\n    scopeQuery += `&connector_id=${connectorId}`;\n  } else {\n    delete payload.connector_id;\n  }\n}\nif (!Array.isArray(payload.buckets) || payload.buckets.length !== 168) throw new Error('publication_payload must contain exactly 168 buckets');\nconst keys = new Set(payload.buckets.map(item => `${item.day_of_week}:${item.hour_of_day}`));\nif (keys.size !== 168) throw new Error('publication_payload buckets must be unique');\ninsomnia.baseEnvironment.set('publication_scope_query', scopeQuery);\ninsomnia.baseEnvironment.set('validated_publication_payload', JSON.stringify(payload));\n",
       "afterResponseScript": "const body = insomnia.response.json();\ninsomnia.test('publication returns 201 or an idempotent 200', () => insomnia.expect([200, 201]).to.include(insomnia.response.code));\nif ([200, 201].includes(insomnia.response.code)) { insomnia.expect(body.bucket_count).to.eql(168); insomnia.baseEnvironment.set('publication_id', body.id); }\n",
-      "metaSortKey": 3000
+      "metaSortKey": 4000
     },
     {
       "_id": "req_spec012_04_get",
       "_type": "request",
       "parentId": "fld_spec012_flow",
-      "name": "04 - Retrieve Publication",
+      "name": "05 - Retrieve Publication",
       "method": "GET",
       "url": "{{ _.backend_url }}/predictions/weekly-occupancy-publications/{{ _.publication_id }}",
       "headers": [
@@ -1015,13 +1046,13 @@
       },
       "preRequestScript": "",
       "afterResponseScript": "const body = insomnia.response.json();\ninsomnia.test('publication detail returns technical metadata', () => { insomnia.expect(insomnia.response.code).to.eql(200); insomnia.expect(body.id).to.eql(insomnia.baseEnvironment.get('publication_id')); insomnia.expect(body.bucket_count).to.eql(168); });\n",
-      "metaSortKey": 4000
+      "metaSortKey": 5000
     },
     {
       "_id": "req_spec012_05_profile",
       "_type": "request",
       "parentId": "fld_spec012_flow",
-      "name": "05 - Retrieve Full 168-Bucket Profile",
+      "name": "06 - Retrieve Full 168-Bucket Profile",
       "method": "GET",
       "url": "{{ _.backend_url }}/predictions/weekly-occupancy-publications/{{ _.publication_id }}/profile",
       "headers": [
@@ -1042,13 +1073,13 @@
       },
       "preRequestScript": "",
       "afterResponseScript": "const body = insomnia.response.json();\ninsomnia.test('profile is complete and recurring', () => { insomnia.expect(insomnia.response.code).to.eql(200); insomnia.expect(body.basis).to.eql('RECURRING_WEEKLY_PATTERN'); insomnia.expect(body.buckets).to.have.length(168); });\n",
-      "metaSortKey": 5000
+      "metaSortKey": 6000
     },
     {
       "_id": "req_spec012_06_history",
       "_type": "request",
       "parentId": "fld_spec012_flow",
-      "name": "06 - List Publication History",
+      "name": "07 - List Publication History",
       "method": "GET",
       "url": "{{ _.backend_url }}/predictions/weekly-occupancy-publications?{{ _.publication_scope_query }}",
       "headers": [
@@ -1078,13 +1109,13 @@
       },
       "preRequestScript": "",
       "afterResponseScript": "const body = insomnia.response.json();\ninsomnia.test('history contains the publication', () => { insomnia.expect(insomnia.response.code).to.eql(200); insomnia.expect(body.items.some(item => item.id === insomnia.baseEnvironment.get('publication_id'))).to.eql(true); });\n",
-      "metaSortKey": 6000
+      "metaSortKey": 7000
     },
     {
       "_id": "req_spec012_07_current",
       "_type": "request",
       "parentId": "fld_spec012_flow",
-      "name": "07 - Retrieve Current Publication",
+      "name": "08 - Retrieve Current Publication",
       "method": "GET",
       "url": "{{ _.backend_url }}/predictions/weekly-occupancy-publications/current?{{ _.publication_scope_query }}",
       "headers": [
@@ -1105,13 +1136,13 @@
       },
       "preRequestScript": "",
       "afterResponseScript": "const body = insomnia.response.json();\ninsomnia.test('current selection returns one current publication', () => { insomnia.expect(insomnia.response.code).to.eql(200); insomnia.expect(body.is_current).to.eql(true); });\n",
-      "metaSortKey": 7000
+      "metaSortKey": 8000
     },
     {
       "_id": "req_spec012_08_point_local",
       "_type": "request",
       "parentId": "fld_spec012_flow",
-      "name": "08 - Point Lookup by Local Weekday and Hour",
+      "name": "09 - Point Lookup by Local Weekday and Hour",
       "method": "GET",
       "url": "{{ _.backend_url }}/predictions/weekly-occupancy/point?{{ _.publication_scope_query }}",
       "headers": [
@@ -1141,13 +1172,13 @@
       },
       "preRequestScript": "",
       "afterResponseScript": "const body = insomnia.response.json();\ninsomnia.test('local point lookup returns a recurring non-guaranteed result', () => { insomnia.expect(insomnia.response.code).to.eql(200); insomnia.expect(body.basis).to.eql('RECURRING_WEEKLY_PATTERN'); insomnia.expect(body.availability_guaranteed).to.eql(false); insomnia.expect(body.publication_id).to.eql(undefined); });\n",
-      "metaSortKey": 8000
+      "metaSortKey": 9000
     },
     {
       "_id": "req_spec012_09_point_timestamp",
       "_type": "request",
       "parentId": "fld_spec012_flow",
-      "name": "09 - Point Lookup by Absolute Timestamp",
+      "name": "10 - Point Lookup by Absolute Timestamp",
       "method": "GET",
       "url": "{{ _.backend_url }}/predictions/weekly-occupancy/point?{{ _.publication_scope_query }}",
       "headers": [
@@ -1173,13 +1204,13 @@
       },
       "preRequestScript": "",
       "afterResponseScript": "const body = insomnia.response.json();\ninsomnia.test('timestamp point lookup resolves Facility local time', () => { insomnia.expect(insomnia.response.code).to.eql(200); insomnia.expect(body.timezone).to.be.a('string'); insomnia.expect(body.availability_guaranteed).to.eql(false); });\n",
-      "metaSortKey": 9000
+      "metaSortKey": 10000
     },
     {
       "_id": "req_spec012_10_station_recommend",
       "_type": "request",
       "parentId": "fld_spec012_flow",
-      "name": "10 - Recommend Connectors at Station",
+      "name": "11 - Recommend Connectors at Station",
       "method": "GET",
       "url": "{{ _.backend_url }}/predictions/weekly-occupancy/recommendations/stations/{{ _.station_id }}/connectors",
       "headers": [
@@ -1209,13 +1240,13 @@
       },
       "preRequestScript": "",
       "afterResponseScript": "const body = insomnia.response.json();\ninsomnia.test('station recommendation is recurring and creates no Reservation', () => { insomnia.expect(insomnia.response.code).to.eql(200); insomnia.expect(body.basis).to.eql('RECURRING_WEEKLY_PATTERN'); insomnia.expect(body.reservation_created).to.eql(false); insomnia.expect(body.availability_guaranteed).to.eql(false); });\n",
-      "metaSortKey": 10000
+      "metaSortKey": 11000
     },
     {
       "_id": "req_spec012_11_general_recommend",
       "_type": "request",
       "parentId": "fld_spec012_flow",
-      "name": "11 - Recommend Connectors Across Infrastructure",
+      "name": "12 - Recommend Connectors Across Infrastructure",
       "method": "GET",
       "url": "{{ _.backend_url }}/predictions/weekly-occupancy/recommendations/connectors",
       "headers": [
@@ -1249,7 +1280,7 @@
       },
       "preRequestScript": "",
       "afterResponseScript": "const body = insomnia.response.json();\ninsomnia.test('broad recommendation keeps resolved time on each item', () => { insomnia.expect(insomnia.response.code).to.eql(200); insomnia.expect(body.reservation_created).to.eql(false); insomnia.expect(body.resolved_time).to.eql(undefined); body.items.forEach(item => insomnia.expect(item.resolved_time.timezone).to.be.a('string')); });\n",
-      "metaSortKey": 11000
+      "metaSortKey": 12000
     }
   ]
 }
