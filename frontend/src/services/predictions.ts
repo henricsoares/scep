@@ -72,12 +72,13 @@ function scopeQuery(scope: PredictionScope): URLSearchParams {
 export function fetchCurrentPublication(
   token: string,
   scope: PredictionScope,
+  signal?: AbortSignal,
 ): Promise<CurrentPublication> {
   const params = scopeQuery(scope);
   params.set('include_profile', 'true');
   return apiRequest<CurrentPublication>(
     `/predictions/weekly-occupancy-publications/current?${params.toString()}`,
-    { token },
+    { token, signal },
   );
 }
 
@@ -86,9 +87,13 @@ export function fetchPointPrediction(
   scope: PredictionScope,
   dayOfWeek: Weekday,
   hourOfDay: number,
+  signal?: AbortSignal,
 ): Promise<PointPrediction> {
   const params = scopeQuery(scope);
   params.set('day_of_week', dayOfWeek);
   params.set('hour_of_day', String(hourOfDay));
-  return apiRequest<PointPrediction>(`/predictions/weekly-occupancy/point?${params}`, { token });
+  return apiRequest<PointPrediction>(`/predictions/weekly-occupancy/point?${params}`, {
+    token,
+    signal,
+  });
 }

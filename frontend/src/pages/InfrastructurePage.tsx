@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { EmptyState, ErrorState, LoadingState } from '../components/AsyncState';
 import { StatusBadge } from '../components/StatusBadge';
 import { readableError } from '../services/api';
@@ -15,6 +15,15 @@ export function InfrastructurePage({ token }: { token: string }) {
   const [stations, setStations] = useState<ChargingStation[] | null>(null);
   const [stationId, setStationId] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const stationsRequestVersion = useRef(0);
+
+  function selectFacility(nextFacilityId: string) {
+    stationsRequestVersion.current += 1;
+    setFacilityId(nextFacilityId);
+    setStations(null);
+    setStationId('');
+    setError(null);
+  }
 
   useEffect(() => {
     fetchFacilities(token)
@@ -26,20 +35,30 @@ export function InfrastructurePage({ token }: { token: string }) {
   }, [token]);
 
   useEffect(() => {
+    const requestVersion = ++stationsRequestVersion.current;
     if (!facilityId) { setStations([]); return; }
+    const controller = new AbortController();
     setStations(null);
     setStationId('');
     setError(null);
-    fetchStations(token, facilityId)
+    fetchStations(token, facilityId, controller.signal)
       .then((items) => {
+        if (requestVersion !== stationsRequestVersion.current) return;
+        const firstStation = items.find((item) => item.facility_id === facilityId);
         setStations(items);
-        setStationId(items[0]?.id || '');
+        setStationId(firstStation?.id || '');
       })
-      .catch((reason) => setError(readableError(reason)));
+      .catch((reason) => {
+        if (requestVersion !== stationsRequestVersion.current || controller.signal.aborted) return;
+        setError(readableError(reason));
+      });
+    return () => controller.abort();
   }, [token, facilityId]);
 
   const facility = facilities?.find((item) => item.id === facilityId);
-  const station = stations?.find((item) => item.id === stationId);
+  const station = stations?.find(
+    (item) => item.id === stationId && item.facility_id === facilityId,
+  );
 
   return <div className="page-stack">
     <header className="page-header"><div><p className="eyebrow">Read-only browser</p><h1>Infrastructure</h1><p>Inspect the hierarchy and current operational states owned by Facilities and Charging Stations.</p></div></header>
@@ -48,7 +67,7 @@ export function InfrastructurePage({ token }: { token: string }) {
     {facilities?.length === 0 && <EmptyState message="No Facilities are visible to this account." />}
     {facilities && facilities.length > 0 && <>
       <section className="control-panel">
-        <label>Facility<select value={facilityId} onChange={(event) => setFacilityId(event.target.value)}>{facilities.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+        <label>Facility<select value={facilityId} onChange={(event) => selectFacility(event.target.value)}>{facilities.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
         {facility && <div className="selection-summary"><div><strong>{facility.name}</strong><span>{facility.facility_type} · {facility.city}, {facility.country}</span></div><div><StatusBadge status={facility.status} /><small>{facility.timezone}</small></div></div>}
       </section>
       {!stations && !error && <LoadingState label="Loading Charging Stations…" />}

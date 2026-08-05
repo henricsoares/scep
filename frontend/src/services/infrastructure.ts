@@ -41,10 +41,14 @@ export type ChargingStation = {
   updated_at: string;
 };
 
-export function fetchFacilities(token: string): Promise<Facility[]> {
-  return apiRequest<Facility[]>('/facilities', { token });
+export function fetchFacilities(token: string, signal?: AbortSignal): Promise<Facility[]> {
+  return apiRequest<Facility[]>('/facilities', { token, signal });
 }
 
-export function fetchStations(token: string, facilityId: string): Promise<ChargingStation[]> {
-  return apiRequest<ChargingStation[]>(`/facilities/${facilityId}/stations`, { token });
+export function fetchStations(
+  token: string,
+  facilityId: string,
+  signal?: AbortSignal,
+): Promise<ChargingStation[]> {
+  return apiRequest<ChargingStation[]>(`/facilities/${facilityId}/stations`, { token, signal });
 }

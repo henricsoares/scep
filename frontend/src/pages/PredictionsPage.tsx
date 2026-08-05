@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { EmptyState, ErrorState, LoadingState } from '../components/AsyncState';
 import { PredictionHeatmap } from '../components/PredictionHeatmap';
 import { ApiError, readableError } from '../services/api';
@@ -37,6 +37,39 @@ export function PredictionsPage({ token }: { token: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [empty, setEmpty] = useState(false);
+  const stationsRequestVersion = useRef(0);
+  const publicationRequestVersion = useRef(0);
+  const pointRequestVersion = useRef(0);
+
+  function clearPredictionState() {
+    publicationRequestVersion.current += 1;
+    pointRequestVersion.current += 1;
+    setPublication(null);
+    setPoint(null);
+    setError(null);
+    setEmpty(false);
+    setLoading(false);
+  }
+
+  function selectFacility(nextFacilityId: string) {
+    stationsRequestVersion.current += 1;
+    setFacilityId(nextFacilityId);
+    setStations([]);
+    setStationId('');
+    setConnectorId('');
+    clearPredictionState();
+  }
+
+  function selectStation(nextStationId: string) {
+    setStationId(nextStationId);
+    setConnectorId('');
+    clearPredictionState();
+  }
+
+  function selectScopeType(nextScopeType: PredictionScopeType) {
+    setScopeType(nextScopeType);
+    clearPredictionState();
+  }
 
   useEffect(() => {
     fetchFacilities(token)
@@ -45,13 +78,31 @@ export function PredictionsPage({ token }: { token: string }) {
   }, [token]);
 
   useEffect(() => {
+    const requestVersion = ++stationsRequestVersion.current;
     if (!facilityId) { setStations([]); return; }
-    fetchStations(token, facilityId)
-      .then((items) => { setStations(items); setStationId(items[0]?.id || ''); setConnectorId(items[0]?.connectors[0]?.id || ''); })
-      .catch((reason) => setError(readableError(reason)));
+    const controller = new AbortController();
+    fetchStations(token, facilityId, controller.signal)
+      .then((items) => {
+        if (requestVersion !== stationsRequestVersion.current) return;
+        const firstStation = items.find((item) => item.facility_id === facilityId);
+        setStations(items);
+        setStationId(firstStation?.id || '');
+        setConnectorId(firstStation?.connectors[0]?.id || '');
+      })
+      .catch((reason) => {
+        if (requestVersion !== stationsRequestVersion.current || controller.signal.aborted) return;
+        setError(readableError(reason));
+      });
+    return () => controller.abort();
   }, [token, facilityId]);
 
-  const selectedStation = stations.find((station) => station.id === stationId);
+  const selectedStation = stations.find(
+    (station) => station.id === stationId && station.facility_id === facilityId,
+  );
+  const selectedConnector = selectedStation?.connectors.find(
+    (connector) => connector.id === connectorId
+      && connector.charging_station_id === selectedStation.id,
+  );
   useEffect(() => {
     setConnectorId(selectedStation?.connectors[0]?.id || '');
   }, [selectedStation]);
@@ -59,35 +110,48 @@ export function PredictionsPage({ token }: { token: string }) {
   const scope = useMemo<PredictionScope | null>(() => {
     if (!facilityId) return null;
     if (scopeType === 'FACILITY') return { scope_type: scopeType, facility_id: facilityId };
-    if (!stationId) return null;
-    if (scopeType === 'STATION') return { scope_type: scopeType, facility_id: facilityId, station_id: stationId };
-    if (!connectorId) return null;
-    return { scope_type: scopeType, facility_id: facilityId, station_id: stationId, connector_id: connectorId };
-  }, [scopeType, facilityId, stationId, connectorId]);
+    if (!selectedStation) return null;
+    if (scopeType === 'STATION') return { scope_type: scopeType, facility_id: facilityId, station_id: selectedStation.id };
+    if (!selectedConnector) return null;
+    return { scope_type: scopeType, facility_id: facilityId, station_id: selectedStation.id, connector_id: selectedConnector.id };
+  }, [scopeType, facilityId, selectedStation, selectedConnector]);
 
   useEffect(() => {
-    if (!scope) return;
-    setLoading(true);
+    const requestVersion = ++publicationRequestVersion.current;
+    setPublication(null);
+    setPoint(null);
     setError(null);
     setEmpty(false);
-    setPoint(null);
-    fetchCurrentPublication(token, scope)
-      .then((result) => setPublication(result))
+    if (!scope) { setLoading(false); return; }
+    const controller = new AbortController();
+    setLoading(true);
+    fetchCurrentPublication(token, scope, controller.signal)
+      .then((result) => {
+        if (requestVersion === publicationRequestVersion.current) setPublication(result);
+      })
       .catch((reason) => {
+        if (requestVersion !== publicationRequestVersion.current || controller.signal.aborted) return;
         setPublication(null);
         if (reason instanceof ApiError && reason.status === 404) setEmpty(true);
         else setError(readableError(reason));
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (requestVersion === publicationRequestVersion.current) setLoading(false);
+      });
+    return () => controller.abort();
   }, [token, scope]);
 
   async function lookup(event: FormEvent) {
     event.preventDefault();
     if (!scope) return;
+    const requestVersion = ++pointRequestVersion.current;
+    const controller = new AbortController();
     setError(null);
     try {
-      setPoint(await fetchPointPrediction(token, scope, day, hour));
+      const result = await fetchPointPrediction(token, scope, day, hour, controller.signal);
+      if (requestVersion === pointRequestVersion.current) setPoint(result);
     } catch (reason) {
+      if (requestVersion !== pointRequestVersion.current || controller.signal.aborted) return;
       setPoint(null);
       setError(readableError(reason));
     }
@@ -96,9 +160,9 @@ export function PredictionsPage({ token }: { token: string }) {
   return <div className="page-stack">
     <header className="page-header"><div><p className="eyebrow">SPEC-012</p><h1>Weekly Occupancy Predictions</h1><p>Inspect one externally generated recurring profile. The Backend stores and serves predictions; it does not train or run the model.</p></div></header>
     <section className="control-panel prediction-controls">
-      <label>Scope<select value={scopeType} onChange={(event) => setScopeType(event.target.value as PredictionScopeType)}><option value="FACILITY">Facility</option><option value="STATION">Station</option><option value="CONNECTOR">Connector</option></select></label>
-      <label>Facility<select value={facilityId} onChange={(event) => setFacilityId(event.target.value)}>{facilities.map((facility) => <option key={facility.id} value={facility.id}>{facility.name}</option>)}</select></label>
-      {scopeType !== 'FACILITY' && <label>Station<select value={stationId} onChange={(event) => setStationId(event.target.value)}>{stations.map((station) => <option key={station.id} value={station.id}>{station.name}</option>)}</select></label>}
+      <label>Scope<select value={scopeType} onChange={(event) => selectScopeType(event.target.value as PredictionScopeType)}><option value="FACILITY">Facility</option><option value="STATION">Station</option><option value="CONNECTOR">Connector</option></select></label>
+      <label>Facility<select value={facilityId} onChange={(event) => selectFacility(event.target.value)}>{facilities.map((facility) => <option key={facility.id} value={facility.id}>{facility.name}</option>)}</select></label>
+      {scopeType !== 'FACILITY' && <label>Station<select value={stationId} onChange={(event) => selectStation(event.target.value)}>{stations.map((station) => <option key={station.id} value={station.id}>{station.name}</option>)}</select></label>}
       {scopeType === 'CONNECTOR' && <label>Connector<select value={connectorId} onChange={(event) => setConnectorId(event.target.value)}>{selectedStation?.connectors.map((connector) => <option key={connector.id} value={connector.id}>{connector.connector_type} · {connector.maximum_power_kw} kW</option>)}</select></label>}
     </section>
     {loading && <LoadingState label="Loading current weekly profile…" />}

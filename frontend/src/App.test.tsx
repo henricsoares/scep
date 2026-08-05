@@ -1,7 +1,9 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
 import { AuthProvider } from './auth/AuthContext';
+import { InfrastructurePage } from './pages/InfrastructurePage';
+import { PredictionsPage } from './pages/PredictionsPage';
 import { analytics, facility, occupancySeries, publication, station, user } from './test/fixtures';
 
 function response(body: unknown, status = 200): Response {
@@ -9,6 +11,12 @@ function response(body: unknown, status = 200): Response {
     status,
     headers: { 'Content-Type': 'application/json' },
   });
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((fulfill) => { resolve = fulfill; });
+  return { promise, resolve };
 }
 
 function backend(options: { analyticsForbidden?: boolean; noFacilities?: boolean } = {}) {
@@ -145,5 +153,110 @@ describe('SCEP dashboard', () => {
     expect(screen.queryByText('Operational KPIs')).not.toBeInTheDocument();
     expect(sessionStorage.getItem('scep.accessToken')).toBe('demo-token');
     await waitFor(() => expect(screen.getByText('Demo Administrator')).toBeInTheDocument());
+  });
+
+  it('transitions prediction hierarchy atomically and ignores a delayed previous response', async () => {
+    const facilityB = { ...facility, id: '00000000-0000-4000-8000-000000000011', name: 'South Campus' };
+    const stationB = {
+      ...station,
+      id: '00000000-0000-4000-8000-000000000012',
+      facility_id: facilityB.id,
+      name: 'South Station',
+      connectors: [{
+        ...station.connectors[0],
+        id: '00000000-0000-4000-8000-000000000013',
+        charging_station_id: '00000000-0000-4000-8000-000000000012',
+      }],
+    };
+    const stationsB = deferred<Response>();
+    const stalePublication = deferred<Response>();
+    const predictionRequests: URL[] = [];
+
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(typeof input === 'string' ? input : input.toString());
+      if (url.pathname === '/facilities') return response([facility, facilityB]);
+      if (url.pathname === `/facilities/${facility.id}/stations`) return response([station]);
+      if (url.pathname === `/facilities/${facilityB.id}/stations`) return stationsB.promise;
+      if (url.pathname === '/predictions/weekly-occupancy-publications/current') {
+        predictionRequests.push(url);
+        if (url.searchParams.get('scope_type') === 'CONNECTOR'
+          && url.searchParams.get('facility_id') === facility.id) {
+          return stalePublication.promise;
+        }
+        if (url.searchParams.get('facility_id') === facilityB.id) {
+          return response({
+            ...publication,
+            id: '00000000-0000-4000-8000-000000000014',
+            model_name: 'facility-b-model',
+            scope: {
+              scope_type: 'CONNECTOR',
+              facility_id: facilityB.id,
+              station_id: stationB.id,
+              connector_id: stationB.connectors[0].id,
+            },
+          });
+        }
+        return response(publication);
+      }
+      throw new Error(`Unhandled API request: ${url.pathname}`);
+    }));
+
+    render(<PredictionsPage token="demo-token" />);
+    await screen.findByText('Recurring weekly profile');
+    fireEvent.change(screen.getByLabelText('Scope'), { target: { value: 'CONNECTOR' } });
+    await waitFor(() => expect(predictionRequests.some((url) =>
+      url.searchParams.get('connector_id') === station.connectors[0].id,
+    )).toBe(true));
+
+    fireEvent.change(screen.getByLabelText('Facility'), { target: { value: facilityB.id } });
+    expect((screen.getByLabelText('Station') as HTMLSelectElement).value).toBe('');
+    expect((screen.getByLabelText('Connector') as HTMLSelectElement).value).toBe('');
+    expect(predictionRequests.some((url) =>
+      url.searchParams.get('facility_id') === facilityB.id
+      && url.searchParams.get('station_id') === station.id,
+    )).toBe(false);
+
+    await act(async () => stationsB.resolve(response([stationB])));
+    await screen.findByText('facility-b-model 1.0.0');
+    expect(predictionRequests.some((url) =>
+      url.searchParams.get('facility_id') === facilityB.id
+      && url.searchParams.get('station_id') === stationB.id
+      && url.searchParams.get('connector_id') === stationB.connectors[0].id,
+    )).toBe(true);
+
+    await act(async () => stalePublication.resolve(response({
+      detail: 'charging station does not belong to facility',
+    }, 400)));
+    await waitFor(() => expect(screen.queryByText('charging station does not belong to facility')).not.toBeInTheDocument());
+    expect(screen.getByText('facility-b-model 1.0.0')).toBeInTheDocument();
+  });
+
+  it('ignores delayed Stations responses after changing Facility in Infrastructure', async () => {
+    const facilityB = { ...facility, id: '00000000-0000-4000-8000-000000000021', name: 'South Campus' };
+    const stationB = {
+      ...station,
+      id: '00000000-0000-4000-8000-000000000022',
+      facility_id: facilityB.id,
+      name: 'South Station',
+    };
+    const staleStations = deferred<Response>();
+
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(typeof input === 'string' ? input : input.toString());
+      if (url.pathname === '/facilities') return response([facility, facilityB]);
+      if (url.pathname === `/facilities/${facility.id}/stations`) return staleStations.promise;
+      if (url.pathname === `/facilities/${facilityB.id}/stations`) return response([stationB]);
+      throw new Error(`Unhandled API request: ${url.pathname}`);
+    }));
+
+    render(<InfrastructurePage token="demo-token" />);
+    await screen.findAllByText('Research Campus');
+    fireEvent.change(screen.getByLabelText('Facility'), { target: { value: facilityB.id } });
+    expect(screen.queryByText('North Station')).not.toBeInTheDocument();
+    expect(await screen.findAllByText('South Station')).toHaveLength(2);
+
+    await act(async () => staleStations.resolve(response([station])));
+    await waitFor(() => expect(screen.queryByText('North Station')).not.toBeInTheDocument());
+    expect(screen.getAllByText('South Station')).toHaveLength(2);
   });
 });
