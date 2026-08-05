@@ -1,8 +1,9 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { LandingPage } from './pages/LandingPage';
+import { App } from './App';
+import { AuthProvider } from './auth/AuthContext';
 import './styles.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode><LandingPage /></React.StrictMode>,
+  <React.StrictMode><AuthProvider><App /></AuthProvider></React.StrictMode>,
 );

@@ -72,7 +72,7 @@ docs/
 
 backend/
 
-frontend/
+frontend/               # React demonstration dashboard
 
 simulation-engine/
 
@@ -134,6 +134,11 @@ Key documents:
 * React
 * TypeScript
 * Vite
+
+The Web Application is a thin, authenticated demonstration client with Overview, Infrastructure,
+Analytics and Weekly Occupancy Predictions views. It consumes public Backend APIs and does not
+reimplement authorization, analytical formulas or prediction logic. See `frontend/README.md` for
+standalone development and validation commands.
 
 ### Infrastructure
 
@@ -379,7 +384,7 @@ Current research topics include:
 
 Current Phase:
 
-**SPEC-012 Version 1 Weekly Occupancy Predictions complete**
+**Minimal SCEP Web Dashboard complete**
 
 Completed:
 
@@ -399,6 +404,7 @@ Completed:
 * ✅ SPEC-011 — Dataset Export: Approved and implemented
 * ✅ SPEC-012 — Weekly Occupancy Predictions: Approved and implemented
 * ✅ SPEC-013 — Digital Twin Simulation Engine: Approved and implemented
+* ✅ Minimal Web Dashboard — Overview, Infrastructure, Analytics and Predictions
 
 The external reference baseline used the completed 10-week `ANALYTICAL_OCCUPANCY` training export
 and two-week holdout while keeping feature engineering, evaluation and inference outside the
