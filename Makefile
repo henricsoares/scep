@@ -1,4 +1,4 @@
-.PHONY: up down logs backend-test backend-test-unit backend-lint backend-format backend-typecheck backend-security simulation-test simulation-lint simulation-format research-test research-lint research-format research-typecheck format lint typecheck test test-unit migrate ci precommit
+.PHONY: up down logs backend-test backend-test-unit backend-lint backend-format backend-typecheck backend-security frontend-test frontend-typecheck frontend-build frontend-audit simulation-test simulation-lint simulation-format research-test research-lint research-format research-typecheck format lint typecheck test test-unit migrate ci precommit
 
 up:
 	docker compose up --build
@@ -23,6 +23,18 @@ backend-format:
 
 backend-typecheck:
 	cd backend && uv run mypy app tests
+
+frontend-test:
+	cd frontend && npm test
+
+frontend-typecheck:
+	cd frontend && npm run typecheck
+
+frontend-build:
+	cd frontend && npm run build
+
+frontend-audit:
+	cd frontend && npm audit --audit-level=high
 
 simulation-test:
 	cd simulation-engine && PYTHONPATH=. uv run pytest -q
@@ -49,11 +61,11 @@ format: backend-format simulation-format research-format
 
 lint: backend-lint simulation-lint research-lint
 
-typecheck: backend-typecheck research-typecheck
+typecheck: backend-typecheck frontend-typecheck research-typecheck
 
-test: backend-test simulation-test research-test
+test: backend-test frontend-test simulation-test research-test
 
-test-unit: backend-test-unit simulation-test research-test
+test-unit: backend-test-unit frontend-test simulation-test research-test
 
 backend-security:
 	cd backend && uv run bandit -c pyproject.toml -r app && uv run pip-audit
@@ -66,6 +78,10 @@ precommit:
 
 ci: lint backend-typecheck
 	./scripts/run-backend-tests.sh coverage
+	$(MAKE) frontend-typecheck
+	$(MAKE) frontend-test
+	$(MAKE) frontend-build
+	$(MAKE) frontend-audit
 	$(MAKE) simulation-test
 	$(MAKE) research-test
 	$(MAKE) research-typecheck
