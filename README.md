@@ -384,7 +384,7 @@ Current research topics include:
 
 Current Phase:
 
-**Minimal SCEP Web Dashboard complete**
+**SCEP v1.0 Research Platform MVP complete**
 
 Completed:
 
